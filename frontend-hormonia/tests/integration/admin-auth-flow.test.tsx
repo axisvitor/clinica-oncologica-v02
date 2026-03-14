@@ -2,12 +2,19 @@ import React from 'react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+<<<<<<< HEAD
 import { MemoryRouter, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 
 import { AuthProvider, useAuth } from '@/app/providers/AuthContext'
 import AdminRoutes from '@/app/routes/AdminRoutes'
 import { ROUTES } from '@/app/routes/routeConfig'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
+=======
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+
+import AdminApp from '@/AdminApp'
+import { AuthProvider, useAuth } from '@/app/providers/AuthContext'
+>>>>>>> gsd/M003/S03
 
 const mockApiClient = vi.hoisted(() => ({
   setAuthToken: vi.fn(),
@@ -75,6 +82,7 @@ vi.mock('@/lib/logger', () => {
 })
 
 vi.mock('@/features/admin/AdminDashboard', () => ({
+<<<<<<< HEAD
   default: () =>
     React.createElement(
       React.Fragment,
@@ -82,6 +90,9 @@ vi.mock('@/features/admin/AdminDashboard', () => ({
       React.createElement('div', null, 'Admin dashboard mock'),
       React.createElement(Outlet, null)
     ),
+=======
+  default: () => React.createElement('div', null, 'Admin dashboard mock'),
+>>>>>>> gsd/M003/S03
 }))
 
 vi.mock('@/features/admin/CompensationFailures', () => ({
@@ -107,6 +118,7 @@ const adminUser = {
   created_at: '2026-03-12T08:00:00-03:00',
 }
 
+<<<<<<< HEAD
 const staffCredentials = {
   email: adminUser.email,
   password: 'StrongAdminRoutePass123!',
@@ -175,22 +187,50 @@ function renderOfficialRouter(initialRoute: string) {
               </ProtectedRoute>
             }
           />
+=======
+function AuthProbe() {
+  const { user } = useAuth()
+
+  return <div data-testid="auth-user">{user?.email ?? 'anonymous'}</div>
+}
+
+function renderAdminApp(initialRoute: string) {
+  return render(
+    <MemoryRouter initialEntries={[initialRoute]}>
+      <AuthProvider>
+        <AuthProbe />
+        <Routes>
+          <Route path="/admin/*" element={<AdminApp />} />
+>>>>>>> gsd/M003/S03
         </Routes>
       </AuthProvider>
     </MemoryRouter>
   )
 }
 
+<<<<<<< HEAD
 describe('Admin Authentication Flow - routed session-first integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.localStorage.clear()
+=======
+describe('Admin Authentication Flow - session-first integration', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    if (typeof window.localStorage?.removeItem === 'function') {
+      window.localStorage.removeItem('session_id')
+    }
+>>>>>>> gsd/M003/S03
 
     mockApiClient.fetchCsrfToken.mockResolvedValue(undefined)
     mockApiClient.auth.checkAuth.mockResolvedValue({ authenticated: false })
     mockApiClient.auth.login.mockResolvedValue({
       valid: true,
+<<<<<<< HEAD
       session_id: 'legacy-admin-session',
+=======
+      session_id: 'admin-session-123',
+>>>>>>> gsd/M003/S03
       remember_me: true,
       user: adminUser,
       user_id: adminUser.id,
@@ -204,6 +244,7 @@ describe('Admin Authentication Flow - routed session-first integration', () => {
     mockApiClient.dashboard.getMain.mockResolvedValue({})
   })
 
+<<<<<<< HEAD
   it('treats /admin/login as a protected routed path and redirects to canonical /login', async () => {
     renderOfficialRouter('/admin/login')
 
@@ -261,5 +302,79 @@ describe('Admin Authentication Flow - routed session-first integration', () => {
     })
 
     expect(await screen.findByText('Template management mock', {}, { timeout: 5000 })).toBeInTheDocument()
+=======
+  it('redirects unauthenticated /admin access to the admin login screen', async () => {
+    renderAdminApp('/admin')
+
+    await waitFor(() => {
+      expect(screen.getByText(/Portal Administrativo/i)).toBeInTheDocument()
+    })
+
+    expect(mockApiClient.auth.checkAuth).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('auth-user')).toHaveTextContent('anonymous')
+  })
+
+  it('submits the admin login form through apiClient.auth.login with remember_me', async () => {
+    const user = userEvent.setup()
+    renderAdminApp('/admin/login')
+
+    await waitFor(() => {
+      expect(screen.getByText(/Portal Administrativo/i)).toBeInTheDocument()
+    })
+
+    await user.type(screen.getByLabelText(/Endereço de Email/i), 'admin@hormonia.com')
+    await user.type(screen.getByLabelText(/^Senha$/i), 'SecurePass123!')
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: /Entrar/i }))
+
+    await waitFor(() => {
+      expect(mockApiClient.auth.login).toHaveBeenCalledWith({
+        email: 'admin@hormonia.com',
+        password: 'SecurePass123!',
+        remember_me: true,
+      })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('auth-user')).toHaveTextContent('admin@hormonia.com')
+    })
+
+    expect(mockApiClient.setAuthToken).toHaveBeenCalledWith('admin-session-123')
+  })
+
+  it('restores an authenticated admin session into the protected dashboard route', async () => {
+    mockApiClient.auth.checkAuth.mockResolvedValueOnce({
+      authenticated: true,
+      user: adminUser,
+      sessionId: 'restored-admin-session',
+    })
+
+    renderAdminApp('/admin')
+
+    await waitFor(() => {
+      expect(screen.getByText('Admin dashboard mock')).toBeInTheDocument()
+    })
+
+    expect(screen.getByTestId('auth-user')).toHaveTextContent('admin@hormonia.com')
+    expect(mockApiClient.setAuthToken).toHaveBeenCalledWith('restored-admin-session')
+  })
+
+  it('shows insufficient permissions when the restored user lacks admin.read', async () => {
+    mockApiClient.auth.checkAuth.mockResolvedValueOnce({
+      authenticated: true,
+      user: {
+        ...adminUser,
+        role: 'doctor',
+        permissions: [],
+      },
+      sessionId: 'restored-admin-session',
+    })
+
+    renderAdminApp('/admin')
+
+    await waitFor(() => {
+      expect(screen.getByText(/Insufficient Permissions/i)).toBeInTheDocument()
+    })
+>>>>>>> gsd/M003/S03
   })
 })

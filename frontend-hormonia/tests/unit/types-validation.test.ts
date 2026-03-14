@@ -1,4 +1,5 @@
 /**
+<<<<<<< HEAD
  * Type validation tests for core application types.
  * Ensures the canonical type ownership surfaces stay stable after the S04
  * compatibility cleanup removed the legacy compat barrel.
@@ -14,6 +15,23 @@ import type {
   ApiResponse as SharedApiResponse,
   ApiErrorResponse as SharedApiErrorResponse,
 } from '../../src/types/shared'
+=======
+ * Type validation tests for core application types
+ * Ensures the canonical type ownership surfaces stay stable while the
+ * legacy compat barrel remains isolated for S04 cleanup.
+ */
+
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+
+import type { User, Patient } from '../../src/types/api'
+import type {
+  PaginatedResponse,
+  ApiResponse,
+  ApiErrorResponse,
+} from '../../src/lib/api-client/types'
+import type { SuccessResponse, ErrorResponse, ApiSuccessResponse } from '../../src/lib/types/api'
+>>>>>>> gsd/M003/S03
 import type {
   WebSocketMessage,
   WebSocketEventType,
@@ -24,6 +42,7 @@ import type {
 } from '../../src/types/websocket'
 
 import type { User as AppUser, Patient as AppPatient } from '../../src/types/index'
+<<<<<<< HEAD
 
 // Test type compatibility and completeness
 describe('Type Definitions Validation', () => {
@@ -45,6 +64,21 @@ describe('Type Definitions Validation', () => {
     expect(sharedResponse.data?.id).toBe('shared')
     expect(transportResponse.data.id).toBe('transport')
   })
+=======
+
+const readRepoFile = (relativePath: string) =>
+  readFileSync(path.resolve(process.cwd(), relativePath), 'utf8')
+
+// Test type compatibility and completeness
+describe('Type Definitions Validation', () => {
+  it('documents the legacy compat barrel as isolated S04 cleanup work', () => {
+    const compatSource = readRepoFile('src/lib/types/api.ts')
+
+    expect(compatSource).toContain('compatibility-only for S04 cleanup/tombstoning')
+    expect(compatSource).toContain('Do not add new production imports here')
+  })
+
+>>>>>>> gsd/M003/S03
 
   it('should have complete User interface with token property', () => {
     const user: User = {
@@ -55,7 +89,11 @@ describe('Type Definitions Validation', () => {
       role: 'doctor',
       permissions: [],
       is_active: true,
+<<<<<<< HEAD
       token: 'jwt-token-123',
+=======
+      token: 'jwt-token-123', // Should exist
+>>>>>>> gsd/M003/S03
       created_at: '2024-01-01T00:00:00-03:00',
       updated_at: '2024-01-01T00:00:00-03:00',
     }
@@ -73,7 +111,11 @@ describe('Type Definitions Validation', () => {
       treatment_start_date: '2024-01-01T00:00:00-03:00',
       status: 'active',
       flow_state: 'active',
+<<<<<<< HEAD
       current_day: 15,
+=======
+      current_day: 15, // Should exist
+>>>>>>> gsd/M003/S03
       created_at: '2024-01-01T00:00:00-03:00',
       updated_at: '2024-01-01T00:00:00-03:00',
     }
@@ -97,7 +139,23 @@ describe('Type Definitions Validation', () => {
   })
 
   it('should have consistent ApiResponse interface on the transport barrel', () => {
+<<<<<<< HEAD
     const response: TransportApiResponse<{ id: string }> = {
+=======
+    const response: ApiResponse<{ id: string }> = {
+      success: true,
+      data: { id: '1' },
+      message: 'Operation successful',
+      timestamp: '2024-01-01T00:00:00-03:00',
+    }
+
+    expect(response.success).toBe(true)
+    expect(response.data.id).toBe('1')
+  })
+
+  it('should have consistent SuccessResponse interface', () => {
+    const response: SuccessResponse = {
+>>>>>>> gsd/M003/S03
       success: true,
       data: { id: '1' },
       message: 'Operation successful',
@@ -143,7 +201,11 @@ describe('Type Definitions Validation', () => {
   })
 
   it('should have ApiErrorResponse on the transport barrel', () => {
+<<<<<<< HEAD
     const response: TransportApiErrorResponse = {
+=======
+    const response: ApiErrorResponse = {
+>>>>>>> gsd/M003/S03
       error: {
         code: 'API_ERROR',
         message: 'API error occurred',

@@ -33,7 +33,11 @@ describe('usePatients', () => {
     const source = readRepoFile('src/hooks/usePatients.ts')
 
     expect(source).toContain("import type { Patient } from '@/types/api'")
+<<<<<<< HEAD
     expect(source).not.toMatch(/from ['"]\.\.\/lib\/types\/api['"]/)
+=======
+    expect(source).not.toMatch(/from ['"]\.\.\/lib\/types\/api['"]/) 
+>>>>>>> gsd/M003/S03
   })
 
   it('should fetch patients list successfully', async () => {

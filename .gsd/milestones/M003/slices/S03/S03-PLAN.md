@@ -14,13 +14,13 @@
 
 ## Must-Haves
 
-- `frontend-hormonia/src/lib/api-client.ts` remains the stable public façade, while `frontend-hormonia/src/lib/api-client/index.ts` becomes composition over extracted domain modules for the remaining inline namespaces.
+- `frontend-hormonia/src/lib/api-client.ts` remains the stable public façade, while `frontend-hormonia/src/lib/api-client/index.ts` becomes composition over extracted domain modules for the remaining inline namespaces.  
   _Covers: R034, R037_
-- `frontend-hormonia/src/lib/api-client/types.ts` becomes the stable barrel over domain-focused type files, and the duplicated `RiskAssessmentRequest` declaration is reduced to one canonical owner.
+- `frontend-hormonia/src/lib/api-client/types.ts` becomes the stable barrel over domain-focused type files, and the duplicated `RiskAssessmentRequest` declaration is reduced to one canonical owner.  
   _Covers: R034, R037, R038_
-- `frontend-hormonia/src/types/api.ts` stays the app/UI-facing façade, and `frontend-hormonia/src/hooks/usePatients.ts` migrates off `frontend-hormonia/src/lib/types/api.ts` without deleting the compatibility barrel in this slice.
+- `frontend-hormonia/src/types/api.ts` stays the app/UI-facing façade, and `frontend-hormonia/src/hooks/usePatients.ts` migrates off `frontend-hormonia/src/lib/types/api.ts` without deleting the compatibility barrel in this slice.  
   _Covers: R036, R037, R038_
-- Focused proof stays green through new structural contract tests, existing client/auth/session/realtime suites, hook coverage, typecheck/build, and the frontend evidence-map verifier.
+- Focused proof stays green through new structural contract tests, existing client/auth/session/realtime suites, hook coverage, typecheck/build, and the frontend evidence-map verifier.  
   _Covers: R034, R039_
 
 ## Proof Level
