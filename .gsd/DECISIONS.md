@@ -281,3 +281,5 @@
 - "M004–M006 are sequenced as runtime canonicalization first, schema/migration convergence second, and repo-wide dead-code purge last — converging the live runtime before touching definitive schema keeps the blast radius understandable."
 - "Firebase must leave the official system completely; because only the official app is a real consumer, legacy auth/session compatibility does not survive by default without explicit proof of need."
 - "M004 must close with an explicit no-Firebase assembled-stack proof slice; grep and focused contract tests alone are not enough to claim runtime convergence."
+- "M004/S01 uses a slice-local `runtime-residue-allowlist.json` plus `verify-runtime-residue.sh` to guard official auth/session residue by category and scope; repo-wide `firebase` or `/session` bans are explicitly out of scope because they create false positives."
+- "M004/S01 backs the residue guard with a subprocess-style pytest regression (`backend-hormonia/tests/unit/test_runtime_residue_guard.py`) so later slices can change the boundary intentionally without relying on manual grep checks."
