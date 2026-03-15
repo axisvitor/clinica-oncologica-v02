@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Sistema de acompanhamento oncológico via WhatsApp para acompanhamento contínuo entre consultas. O backend roda em FastAPI + Celery + PostgreSQL + Redis/Dragonfly, com WuzAPI como provedor único de WhatsApp e frontends web para operação clínica. M001 endureceu o pipeline de fluxo de mensagens; M002 concluiu o corte de autenticação da equipe para um fluxo próprio de email/senha com sessão Redis + cookie HttpOnly; M003 fechou a primeira grande limpeza estrutural; M004 convergiu o runtime oficial sem Firebase. A frente atual é completar M005 (schema/migrações) e iniciar M006 (purga final de resíduos e compatibilidades) em ordem de prioridade.
+Sistema de acompanhamento oncológico via WhatsApp para acompanhamento contínuo entre consultas. O backend roda em FastAPI + Celery + PostgreSQL + Redis/Dragonfly, com WuzAPI como provedor único de WhatsApp e frontends web para operação clínica. M001 endureceu o pipeline de fluxo de mensagens; M002 concluiu o corte de autenticação da equipe para um fluxo próprio de email/senha com sessão Redis + cookie HttpOnly; M003 fechou a primeira grande limpeza estrutural; M004 convergiu o runtime oficial sem Firebase; M005 fechou a convergência de schema/migrações e a próxima frente é M006 (purga final de resíduos e compatibilidades restantes).
 
 ## Core Value
 
@@ -19,7 +19,9 @@ Médicos e operadores precisam acessar e operar o sistema com confiabilidade, e 
 - M005/S02 concluído: `user_sync_log` foi publicado como `firebase_sync_history`, `audit_logs.firebase_uid` ficou quarantined como resíduo histórico/read-only, e payloads oficiais de users/admin/physicians deixaram de anunciar `firebase_uid` como contrato vivo sem quebrar a compat fallback centrada em `user_id`.
 - M005/S03 concluído: banco novo (`base -> head`) e banco existente (`m005_s02_t01_publish_firebase_history_boundary -> head`) agora convergem para `m005_s03_t02_align_audit_history_head`, com `users` republicado sob colunas canônicas neutras, `audit_logs.event_type` em enum canônico e `firebase_sync_history` mantido apenas como histórico explícito.
 - O harness compartilhado de testes em Postgres agora provisiona o schema via `alembic upgrade head` quando `TEST_DATABASE_URL` está definido, o que faz as suites de runtime validarem o head real em vez de um `Base.metadata.create_all()` incompleto.
-- O próximo foco é M005/S04: subir o backend real nesse head consolidado e revalidar os loops críticos pós-M004 em schema novo e schema atualizado.
+- M005/S04 concluído: `.gsd/milestones/M005/slices/S04/run-final-schema-proof.sh` prepara os histories `fresh` e `existing`, reexecuta os packs críticos pós-M004 no head final e sobe um uvicorn real no mesmo schema para provar `/health/ready`, `/api/v2/system/config` e o fluxo `login -> verify-session -> /users/me -> logout` sem Firebase.
+- M005 concluído: o controle plane Alembic, a convergência estrutural do head canônico e a prova montada do backend agora contam a mesma história operacional sobre o schema final.
+- O próximo foco é M006: remover o resíduo morto/compat restante com prova e sem regredir o runner final de schema.
 - Prova final de M004 consolidada em `.gsd/milestones/M004/M004-SUMMARY.md`.
 
 ## Architecture / Key Patterns
@@ -40,5 +42,5 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M002: First-Party Authentication Cutover — login local, recuperação/first-access, cutover frontend/realtime e hard cut sem Firebase Auth para staff concluídos.
 - [x] M003: Structural Refactor And Dead-Code Cleanup — hotspots críticos menores, compatibilidade obsoleta reduzida e base mais segura de manter sem regressão visível desnecessária.
 - [x] M004: Convergência Canônica de Runtime — runtime oficial sem Firebase, auth/sessão convergidos e superfícies oficiais alinhadas ao contrato canônico.
-- [ ] M005: Fechamento Definitivo de Schema e Migrações — schema/Alembic alinhados ao modelo final, sem resíduo estrutural de Firebase e sem migrações ambíguas penduradas.
+- [x] M005: Fechamento Definitivo de Schema e Migrações — schema/Alembic alinhados ao modelo final, sem resíduo estrutural de Firebase e sem migrações ambíguas penduradas.
 - [ ] M006: Purga Final de Código Morto e Resíduo Legado — bridges, aliases, tombstones, docs e código morto restantes removidos com prova integrada final.

@@ -10,6 +10,7 @@ BACKEND_PYTHON="$BACKEND_DIR/.venv/bin/python"
 
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-5173}"
+BACKEND_BASE_URL="http://localhost:${BACKEND_PORT}"
 E2E_BASE_URL="http://localhost:${FRONTEND_PORT}"
 RUNTIME_DIR="${MOUNTED_PROOF_RUNTIME_DIR:-/tmp/gsd-s06-mounted-proof}"
 MASKED_ENV_FILE="${MOUNTED_PROOF_MASKED_ENV_FILE:-/tmp/gsd-s06-proof.env}"
@@ -17,13 +18,18 @@ BOOTSTRAP_HELPER="${MOUNTED_PROOF_BOOTSTRAP_HELPER:-/tmp/gsd-s06-browser-bootstr
 STATUS_FILE="$RUNTIME_DIR/status.json"
 BACKEND_LOG="$RUNTIME_DIR/backend.log"
 FRONTEND_LOG="$RUNTIME_DIR/frontend.log"
+LIVE_AUTH_PROBE_LOG="$RUNTIME_DIR/live-auth-probe.log"
 RUNNER_WUZAPI_TOKEN='mounted-proof-local-token'
+BACKEND_RUNTIME_TEST="${MOUNTED_PROOF_BACKEND_RUNTIME_TEST:-tests/runtime/test_mounted_final_schema_proof.py}"
 
 backend_pid=''
 frontend_pid=''
 current_phase='init'
 action=''
 preserve_runtime_on_exit='false'
+preflight_phase='preflight'
+seed_phase='seed'
+seed_base_url="$E2E_BASE_URL"
 PREFLIGHT_HOLD_SECONDS="${MOUNTED_PROOF_PREFLIGHT_HOLD_SECONDS:-10}"
 
 log() {
@@ -36,7 +42,7 @@ update_status() {
   local phase="$1"
   local status="$2"
   local message="$3"
-  python3 - "$STATUS_FILE" "$phase" "$status" "$message" "$BACKEND_LOG" "$FRONTEND_LOG" "$MASKED_ENV_FILE" "$BOOTSTRAP_HELPER" <<'PY'
+  python3 - "$STATUS_FILE" "$phase" "$status" "$message" "$BACKEND_LOG" "$FRONTEND_LOG" "$MASKED_ENV_FILE" "$BOOTSTRAP_HELPER" "$LIVE_AUTH_PROBE_LOG" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -54,6 +60,7 @@ payload = {
         'frontend_log': sys.argv[6],
         'masked_env_file': sys.argv[7],
         'bootstrap_helper': sys.argv[8],
+        'live_auth_probe_log': sys.argv[9],
     },
 }
 status_file.write_text(json.dumps(payload, indent=2) + '\n', encoding='utf-8')
@@ -67,6 +74,7 @@ fail_phase() {
   log "$current_phase" "status_file=$STATUS_FILE"
   log "$current_phase" "backend_log=$BACKEND_LOG"
   log "$current_phase" "frontend_log=$FRONTEND_LOG"
+  log "$current_phase" "live_auth_probe_log=$LIVE_AUTH_PROBE_LOG"
   log "$current_phase" "masked_env_file=$MASKED_ENV_FILE"
   log "$current_phase" "bootstrap_helper=$BOOTSTRAP_HELPER"
   exit 1
@@ -138,14 +146,15 @@ trap cleanup EXIT
 
 usage() {
   cat <<'EOF'
-Usage: bash .gsd/milestones/M004/slices/S06/run-mounted-proof.sh [--preflight|--seed|--auth|--smoke|--all]
+Usage: bash .gsd/milestones/M004/slices/S06/run-mounted-proof.sh [--preflight|--seed|--auth|--smoke|--backend-proof|--all]
 
 Modes:
-  --preflight  Start the mounted no-Firebase stack, probe runtime truth surfaces, seed the proof user, and keep the stack alive briefly for immediate follow-up curls.
-  --seed       Seed/update the proof admin and refresh masked replay artifacts without starting the stack.
-  --auth       Run the canonical session-first Playwright acceptance on the mounted stack.
-  --smoke      Run the routed no-Firebase runtime smoke on the mounted stack.
-  --all        Run preflight + auth + smoke on one mounted stack.
+  --preflight      Start the mounted no-Firebase stack, probe runtime truth surfaces, seed the proof user, and keep the stack alive briefly for immediate follow-up curls.
+  --seed           Seed/update the proof admin and refresh masked replay artifacts without starting the stack.
+  --auth           Run the canonical session-first Playwright acceptance on the mounted stack.
+  --smoke          Run the routed no-Firebase runtime smoke on the mounted stack.
+  --backend-proof  Start only the backend, seed the proof admin, and run the live backend auth/runtime proof against uvicorn.
+  --all            Run preflight + auth + smoke on one mounted stack.
 EOF
 }
 
@@ -159,6 +168,7 @@ prepare_runtime_dir() {
   mkdir -p "$RUNTIME_DIR"
   : > "$BACKEND_LOG"
   : > "$FRONTEND_LOG"
+  : > "$LIVE_AUTH_PROBE_LOG"
 }
 
 port_in_use() {
@@ -235,13 +245,17 @@ PY
 }
 
 start_backend() {
-  current_phase='preflight'
+  current_phase="$preflight_phase"
   update_status "$current_phase" running 'starting backend'
   log "$current_phase" "starting backend on port $BACKEND_PORT"
 
   (
     cd "$BACKEND_DIR"
     export PYTHONUNBUFFERED=1
+    export APP_ENVIRONMENT='development'
+    export ENVIRONMENT='development'
+    unset TESTING
+    unset PYTEST_CURRENT_TEST
     export FIREBASE_ADMIN_PROJECT_ID=''
     export FIREBASE_ADMIN_CLIENT_EMAIL=''
     export FIREBASE_ADMIN_PRIVATE_KEY=''
@@ -252,13 +266,13 @@ start_backend() {
   ) >"$BACKEND_LOG" 2>&1 &
   backend_pid="$!"
 
-  if ! wait_for_http "http://localhost:${BACKEND_PORT}/health/ready" 90; then
+  if ! wait_for_http "${BACKEND_BASE_URL}/health/ready" 90; then
     fail_phase "backend did not become ready on port ${BACKEND_PORT}"
   fi
 }
 
 start_frontend() {
-  current_phase='preflight'
+  current_phase="$preflight_phase"
   update_status "$current_phase" running 'starting frontend'
   log "$current_phase" "starting frontend on port $FRONTEND_PORT"
 
@@ -281,22 +295,22 @@ start_frontend() {
 }
 
 probe_runtime_contract() {
-  current_phase='preflight'
+  current_phase="$preflight_phase"
   update_status "$current_phase" running 'probing runtime truth surfaces'
 
   local ready_payload="$RUNTIME_DIR/health-ready.json"
   local config_payload="$RUNTIME_DIR/system-config.json"
   local wuzapi_payload="$RUNTIME_DIR/wuzapi-status.json"
 
-  curl --silent --show-error --fail "http://localhost:${BACKEND_PORT}/health/ready" > "$ready_payload" \
+  curl --silent --show-error --fail "${BACKEND_BASE_URL}/health/ready" > "$ready_payload" \
     || fail_phase 'failed to fetch /health/ready'
   assert_ready_payload "$ready_payload" || fail_phase '/health/ready did not report session_auth-ready no-Firebase state'
 
-  curl --silent --show-error --fail "http://localhost:${BACKEND_PORT}/api/v2/system/config" > "$config_payload" \
+  curl --silent --show-error --fail "${BACKEND_BASE_URL}/api/v2/system/config" > "$config_payload" \
     || fail_phase 'failed to fetch /api/v2/system/config'
   assert_config_payload "$config_payload" || fail_phase '/api/v2/system/config still advertises Firebase config'
 
-  curl --silent --show-error --fail "http://localhost:${BACKEND_PORT}/api/v2/monitoring/wuzapi/session/status" > "$wuzapi_payload" \
+  curl --silent --show-error --fail "${BACKEND_BASE_URL}/api/v2/monitoring/wuzapi/session/status" > "$wuzapi_payload" \
     || fail_phase 'failed to fetch /api/v2/monitoring/wuzapi/session/status'
   assert_wuzapi_payload "$wuzapi_payload" || fail_phase 'mocked WuzAPI session status did not report connected/logged_in=true'
 
@@ -306,7 +320,7 @@ probe_runtime_contract() {
 }
 
 seed_contract() {
-  current_phase='seed'
+  current_phase="$seed_phase"
   update_status "$current_phase" running 'seeding proof admin and refreshing masked replay artifacts'
   log "$current_phase" 'refreshing proof admin contract'
 
@@ -318,7 +332,7 @@ seed_contract() {
     export WHATSAPP_WUZAPI_TOKEN="$RUNNER_WUZAPI_TOKEN"
     export WHATSAPP_WUZAPI_USE_MOCK='true'
     "$BACKEND_PYTHON" "$SEED_SCRIPT" \
-      --base-url "$E2E_BASE_URL" \
+      --base-url "$seed_base_url" \
       --write-masked-env "$MASKED_ENV_FILE" \
       --write-bootstrap "$BOOTSTRAP_HELPER" \
       --emit-shell-exports
@@ -363,21 +377,45 @@ run_playwright_spec() {
   log "$current_phase" "playwright_artifacts=$FRONTEND_DIR/test-results"
 }
 
-run_preflight() {
-  current_phase='preflight'
+run_backend_runtime_proof() {
+  current_phase='live_auth_probe'
+  update_status "$current_phase" running "running ${BACKEND_RUNTIME_TEST}"
+  log "$current_phase" "running ${BACKEND_RUNTIME_TEST}"
+
+  if ! (
+    cd "$BACKEND_DIR"
+    export MOUNTED_PROOF_BASE_URL="$BACKEND_BASE_URL"
+    export MOUNTED_PROOF_EMAIL="$E2E_SESSION_FIRST_EMAIL"
+    export MOUNTED_PROOF_PASSWORD="$E2E_SESSION_FIRST_PASSWORD"
+    export MOUNTED_PROOF_HISTORY="${FINAL_SCHEMA_PROOF_HISTORY:-mounted}"
+    export MOUNTED_PROOF_RUNTIME_DIR="$RUNTIME_DIR"
+    exec "$BACKEND_PYTHON" -m pytest -q "$BACKEND_RUNTIME_TEST"
+  ) >"$LIVE_AUTH_PROBE_LOG" 2>&1; then
+    fail_phase "backend runtime proof failed for ${BACKEND_RUNTIME_TEST}"
+  fi
+
+  log "$current_phase" "live_auth_probe_log=$LIVE_AUTH_PROBE_LOG"
+}
+
+run_backend_preflight() {
+  current_phase="$preflight_phase"
   update_status "$current_phase" running 'preparing mounted runtime proof'
   prepare_runtime_dir
   require_command curl
-  require_command npm
   require_command python3
   [[ -x "$BACKEND_PYTHON" ]] || fail_phase "missing backend virtualenv python at $BACKEND_PYTHON"
   [[ -f "$SEED_SCRIPT" ]] || fail_phase "missing seed helper at $SEED_SCRIPT"
-  [[ -d "$FRONTEND_DIR/node_modules" ]] || fail_phase 'frontend node_modules not present'
   ensure_port_available "$BACKEND_PORT" 'backend'
-  ensure_port_available "$FRONTEND_PORT" 'frontend'
   start_backend
-  start_frontend
   probe_runtime_contract
+}
+
+run_preflight() {
+  run_backend_preflight
+  require_command npm
+  [[ -d "$FRONTEND_DIR/node_modules" ]] || fail_phase 'frontend node_modules not present'
+  ensure_port_available "$FRONTEND_PORT" 'frontend'
+  start_frontend
 }
 
 case "${1:-}" in
@@ -404,6 +442,15 @@ case "${1:-}" in
     run_preflight
     seed_contract
     run_playwright_spec 'tests/e2e/runtime/no-firebase-runtime-smoke.spec.ts' 'smoke'
+    ;;
+  --backend-proof)
+    action='backend-proof'
+    preflight_phase='mounted_backend'
+    seed_phase='mounted_backend'
+    seed_base_url="$BACKEND_BASE_URL"
+    run_backend_preflight
+    seed_contract
+    run_backend_runtime_proof
     ;;
   --all)
     action='all'
@@ -436,5 +483,6 @@ fi
 log "${current_phase}" "status_file=$STATUS_FILE"
 log "${current_phase}" "backend_log=$BACKEND_LOG"
 log "${current_phase}" "frontend_log=$FRONTEND_LOG"
+log "${current_phase}" "live_auth_probe_log=$LIVE_AUTH_PROBE_LOG"
 log "${current_phase}" "masked_env_file=$MASKED_ENV_FILE"
 log "${current_phase}" "bootstrap_helper=$BOOTSTRAP_HELPER"

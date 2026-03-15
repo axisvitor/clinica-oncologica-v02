@@ -287,10 +287,10 @@ Guidelines:
 - Description: O encerramento da frente M004–M006 precisa provar o sistema montado em estado final, em vez de depender apenas de grep, manifests e diffs de código.
 - Why it matters: Cleanup sem prova integrada deixa dúvida sobre o que realmente continua funcionando.
 - Source: inferred
-- Primary owning slice: M006/S?? (provisional)
+- Primary owning slice: M005/S04
 - Supporting slices: M004/S06, M005/S01, M005/S03
-- Validation: validated by M004/S06/--all proof and surfaced smoke artifacts
-- Notes: O estado final do stack montado com auth/session-first e rotas críticas foi validado em M004/S06; S01 acrescentou a prova de operabilidade/replay do controle plane de migrations em Postgres real; S03 acrescentou a prova de convergência estrutural do head canônico em Postgres real. Ainda falta S04 reexecutar o backend real nesse head consolidado para fechar M005 sem dúvida operacional.
+- Validation: validated by M004/S06 mounted runtime proof plus M005/S04 final-schema fresh/existing backend replay on the canonical head
+- Notes: M004/S06 validou o stack montado sem Firebase no runtime oficial; M005/S01 acrescentou a prova de operabilidade/replay do controle plane de migrations em Postgres real; M005/S03 acrescentou a prova de convergência estrutural do head canônico em Postgres real; M005/S04 fechou a lacuna operacional ao reexecutar o backend real e os loops críticos pós-M004 nesse head consolidado para histories `fresh` e `existing`.
 
 ### R048 — Auth/sessão converge para um contrato canônico único
 - Class: continuity
@@ -515,7 +515,7 @@ Guidelines:
 | R050 | primary-user-loop | validated | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | validated |
 | R051 | quality-attribute | validated | M005/S03 | M005/S01, M005/S02 | validated |
 | R052 | operability | active | M006/S?? (provisional) | none | mapped |
-| R053 | quality-attribute | validated | M006/S?? (provisional) | M004/S06, M005/S01, M005/S03 | validated by M004/S06 --all proof |
+| R053 | quality-attribute | validated | M005/S04 | M004/S06, M005/S01, M005/S03 | validated by M004/S06 mounted runtime proof plus M005/S04 final-schema backend replay |
 | R001 | continuity | validated | M001/S01 | none | validated |
 | R002 | operability | validated | M001/S02 | none | validated |
 | R003 | failure-visibility | validated | M001/S03 | none | validated |
