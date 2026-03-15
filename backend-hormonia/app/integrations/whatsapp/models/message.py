@@ -7,7 +7,8 @@ from enum import Enum
 from typing import Optional, Dict, Any, List, Union
 from pydantic import BaseModel, Field
 from sqlalchemy import Column, String, DateTime, Text, JSON, Boolean, Integer
-from app.database import Base
+
+from app.db.base import Base
 from app.utils.timezone import now_sao_paulo_naive
 
 

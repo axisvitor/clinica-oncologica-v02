@@ -17,7 +17,7 @@ import uuid
 from sqlalchemy import Column, DateTime, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
-from app.database import Base
+from app.db.base import Base
 
 
 class PatientDeletionAudit(Base):

@@ -4,7 +4,6 @@ CRITICAL FIX #3: Dynamic pool configuration based on environment to prevent conn
 FIX #5: Enhanced database optimization with comprehensive indexing strategy."""
 
 from sqlalchemy import text
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,6 +15,7 @@ from fastapi import HTTPException
 
 from app.config import settings
 from app.core.exceptions import APIException
+from app.db.base import Base
 from app.utils.database_optimization import (
     create_optimized_engine,
     ConnectionPoolMonitor,
@@ -73,7 +73,6 @@ pool_monitor = ConnectionPoolMonitor(engine)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Base class for all models
-Base = declarative_base()
 
 
 def get_db() -> Generator[Session, None, None]:

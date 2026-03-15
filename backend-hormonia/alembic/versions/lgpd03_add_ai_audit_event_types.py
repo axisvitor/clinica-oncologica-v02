@@ -40,40 +40,48 @@ def upgrade() -> None:
     op.execute("""
         DO $$
         BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM pg_enum e
-                JOIN pg_type t ON t.oid = e.enumtypid
-                WHERE t.typname = 'audit_event_type'
-                  AND e.enumlabel = 'ai_query'
+            IF EXISTS (
+                SELECT 1
+                FROM pg_type
+                WHERE typname = 'audit_event_type'
             ) THEN
-                ALTER TYPE audit_event_type ADD VALUE 'ai_query';
-            END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_enum e
+                    JOIN pg_type t ON t.oid = e.enumtypid
+                    WHERE t.typname = 'audit_event_type'
+                      AND e.enumlabel = 'ai_query'
+                ) THEN
+                    ALTER TYPE audit_event_type ADD VALUE 'ai_query';
+                END IF;
 
-            IF NOT EXISTS (
-                SELECT 1 FROM pg_enum e
-                JOIN pg_type t ON t.oid = e.enumtypid
-                WHERE t.typname = 'audit_event_type'
-                  AND e.enumlabel = 'ai_humanization'
-            ) THEN
-                ALTER TYPE audit_event_type ADD VALUE 'ai_humanization';
-            END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_enum e
+                    JOIN pg_type t ON t.oid = e.enumtypid
+                    WHERE t.typname = 'audit_event_type'
+                      AND e.enumlabel = 'ai_humanization'
+                ) THEN
+                    ALTER TYPE audit_event_type ADD VALUE 'ai_humanization';
+                END IF;
 
-            IF NOT EXISTS (
-                SELECT 1 FROM pg_enum e
-                JOIN pg_type t ON t.oid = e.enumtypid
-                WHERE t.typname = 'audit_event_type'
-                  AND e.enumlabel = 'ai_sentiment'
-            ) THEN
-                ALTER TYPE audit_event_type ADD VALUE 'ai_sentiment';
-            END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_enum e
+                    JOIN pg_type t ON t.oid = e.enumtypid
+                    WHERE t.typname = 'audit_event_type'
+                      AND e.enumlabel = 'ai_sentiment'
+                ) THEN
+                    ALTER TYPE audit_event_type ADD VALUE 'ai_sentiment';
+                END IF;
 
-            IF NOT EXISTS (
-                SELECT 1 FROM pg_enum e
-                JOIN pg_type t ON t.oid = e.enumtypid
-                WHERE t.typname = 'audit_event_type'
-                  AND e.enumlabel = 'ai_follow_up'
-            ) THEN
-                ALTER TYPE audit_event_type ADD VALUE 'ai_follow_up';
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_enum e
+                    JOIN pg_type t ON t.oid = e.enumtypid
+                    WHERE t.typname = 'audit_event_type'
+                      AND e.enumlabel = 'ai_follow_up'
+                ) THEN
+                    ALTER TYPE audit_event_type ADD VALUE 'ai_follow_up';
+                END IF;
+            ELSE
+                RAISE NOTICE 'audit_event_type enum not present; skipping LGPD-03 enum backfill on this schema path';
             END IF;
         END $$;
     """)

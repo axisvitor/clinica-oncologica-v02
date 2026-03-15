@@ -82,47 +82,56 @@ def upgrade() -> None:
     session = Session(bind=bind)
 
     try:
-        # Import encryption service
-        from app.services.encryption import get_cpf_encryption_service
-
-        service = get_cpf_encryption_service()
-
-        # Query all patients with plaintext CPF
-        result = session.execute(
-            text("SELECT id, cpf FROM patients WHERE cpf IS NOT NULL AND cpf_encrypted IS NULL")
-        )
+        pending_backfill = session.execute(
+            text(
+                "SELECT COUNT(*) FROM patients "
+                "WHERE cpf IS NOT NULL AND cpf_encrypted IS NULL"
+            )
+        ).scalar() or 0
 
         migrated_count = 0
         failed_count = 0
 
-        for row in result:
-            patient_id = row[0]
-            plaintext_cpf = row[1]
+        if pending_backfill == 0:
+            print("CPF encryption migration skipped: no plaintext CPF rows pending backfill")
+        else:
+            from app.services.encryption import get_cpf_encryption_service
 
-            try:
-                # Encrypt CPF
-                encrypted_cpf, cpf_hash = service.encrypt_cpf(plaintext_cpf)
+            service = get_cpf_encryption_service()
 
-                # Update patient record
-                session.execute(
-                    text("""
-                        UPDATE patients
-                        SET cpf_encrypted = :encrypted, cpf_hash = :hash
-                        WHERE id = :id
-                    """),
-                    {
-                        'encrypted': encrypted_cpf,
-                        'hash': cpf_hash,
-                        'id': str(patient_id)
-                    }
-                )
+            # Query all patients with plaintext CPF
+            result = session.execute(
+                text("SELECT id, cpf FROM patients WHERE cpf IS NOT NULL AND cpf_encrypted IS NULL")
+            )
 
-                migrated_count += 1
+            for row in result:
+                patient_id = row[0]
+                plaintext_cpf = row[1]
 
-            except Exception as e:
-                print(f"Failed to encrypt CPF for patient {patient_id}: {e}")
-                failed_count += 1
-                # Continue with other records
+                try:
+                    # Encrypt CPF
+                    encrypted_cpf, cpf_hash = service.encrypt_cpf(plaintext_cpf)
+
+                    # Update patient record
+                    session.execute(
+                        text("""
+                            UPDATE patients
+                            SET cpf_encrypted = :encrypted, cpf_hash = :hash
+                            WHERE id = :id
+                        """),
+                        {
+                            'encrypted': encrypted_cpf,
+                            'hash': cpf_hash,
+                            'id': str(patient_id)
+                        }
+                    )
+
+                    migrated_count += 1
+
+                except Exception as e:
+                    print(f"Failed to encrypt CPF for patient {patient_id}: {e}")
+                    failed_count += 1
+                    # Continue with other records
 
         # Commit the migration
         session.commit()

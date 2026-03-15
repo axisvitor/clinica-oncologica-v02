@@ -4,7 +4,9 @@ Revision ID: c9a6d2f7b3e1
 Revises: b2f3b9d9c5a1
 Create Date: 2026-02-01 12:00:00.000000
 """
-from datetime import datetime
+
+from __future__ import annotations
+
 import uuid
 
 from alembic import op
@@ -12,7 +14,8 @@ from sqlalchemy import inspect
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-from app.utils.timezone import now_sao_paulo_naive
+from alembic_runtime_helpers import now_sao_paulo_naive
+
 # revision identifiers, used by Alembic.
 revision = "c9a6d2f7b3e1"
 down_revision = "b2f3b9d9c5a1"
@@ -29,8 +32,10 @@ WELCOME_TEMPLATE_CONTENT = (
 WELCOME_TEMPLATE_VARIABLES = '["patient_name"]'
 
 
+
 def _index_exists(inspector, table_name: str, index_name: str) -> bool:
     return any(idx.get("name") == index_name for idx in inspector.get_indexes(table_name))
+
 
 
 def upgrade() -> None:
@@ -100,6 +105,7 @@ def upgrade() -> None:
                 "updated_at": now_sao_paulo_naive(),
             },
         )
+
 
 
 def downgrade() -> None:

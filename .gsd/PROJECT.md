@@ -15,7 +15,8 @@ Médicos e operadores precisam acessar e operar o sistema com confiabilidade, e 
 - M003 concluído: os hotspots centrais de backend auth/session e frontend api-client/types foram fatiados em seams menores com contratos preservados (`auth_dependencies.py` 1579→675, `src/lib/api-client/index.ts` 1304→223, `src/lib/api-client/types.ts` 1159→26).
 - M004 concluído: backend + frontend oficiais estão vinculados ao contrato session-first canônico sem Firebase, `/session/*` foi aposentado/tombstonado, e o stack local sobe sem Firebase Auth com smoke roteado de `/login`, `/dashboard`, `/admin`, `/whatsapp`.
 - O verificador de S01 é o gate vivo do contrato: `--report all`/`--check all` listam apenas resíduos backend de compatibilidade/rejeição (`firebase_uid`, `x_session_id`, `session_bearer_fallback`, `websocket_session_id_query`) e zero resíduo aprovado no frontend.
-- O próximo foco é M005: Fechamento definitivo de schema/migrações (R051) e, em seguida, M006 para purga final de código morto e resíduos legados (R052).
+- M005/S01 concluído: `alembic history`, `heads`, `upgrade head` e `current` agora rodam em Postgres scrubbed só com configuração de banco; revisions históricas e backfills vazios deixaram de puxar `app.config.settings`, WuzAPI ou Firebase para o controle plane de migrations.
+- O próximo foco é M005/S02: decidir e publicar a fronteira histórica explícita do legado Firebase em `users`, `audit_logs` e `user_sync_log` sobre o harness de operabilidade já verde.
 - Prova final de M004 consolidada em `.gsd/milestones/M004/M004-SUMMARY.md`.
 
 ## Architecture / Key Patterns

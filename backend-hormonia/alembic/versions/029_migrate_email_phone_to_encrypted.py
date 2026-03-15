@@ -122,21 +122,6 @@ def upgrade() -> None:
     )
 
     try:
-        # Import encryption service
-        # NOTE: We import inside the function to avoid issues with Alembic env
-        import sys
-        import os
-
-        # Add backend-hormonia to path if not already there
-        backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-        if backend_path not in sys.path:
-            sys.path.insert(0, backend_path)
-
-        from app.services.encryption import get_lgpd_encryption_service
-
-        encryption_service = get_lgpd_encryption_service()
-        logger.info("✓ LGPD encryption service initialized")
-
         # Step 1: Count total patients to migrate
         count_query = sa.text("""
             SELECT COUNT(*)
@@ -151,6 +136,21 @@ def upgrade() -> None:
         if total_to_migrate == 0:
             logger.info("✓ No data to migrate. All email/phone data already encrypted.")
             return
+
+        # Import encryption service only when backfill work is actually pending.
+        # NOTE: We import inside the function to avoid issues with Alembic env
+        import sys
+        import os
+
+        # Add backend-hormonia to path if not already there
+        backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        if backend_path not in sys.path:
+            sys.path.insert(0, backend_path)
+
+        from app.services.encryption import get_lgpd_encryption_service
+
+        encryption_service = get_lgpd_encryption_service()
+        logger.info("✓ LGPD encryption service initialized")
 
         # Step 2: Process in batches
         offset = 0

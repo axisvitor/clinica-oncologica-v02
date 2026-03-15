@@ -22,9 +22,9 @@ Guidelines:
 - Why it matters: Sem fechar o banco e as migrações, a convergência fica incompleta e frágil para novos ambientes ou upgrades.
 - Source: user
 - Primary owning slice: M005/S?? (provisional)
-- Supporting slices: none
+- Supporting slices: M005/S01
 - Validation: mapped
-- Notes: Esta frente trata colunas, enums, logs de sync, migrations neutralizadas/one-way e qualquer drift estrutural ainda pendente.
+- Notes: S01 já provou que o controle plane do Alembic carrega, percorre e faz replay em Postgres real só com configuração de banco; ainda faltam a fronteira histórico-vs-live e a convergência canônica do schema nas slices seguintes.
 
 ### R052 — Código morto e compatibilidades restantes são removidos com prova
 - Class: operability
@@ -288,9 +288,9 @@ Guidelines:
 - Why it matters: Cleanup sem prova integrada deixa dúvida sobre o que realmente continua funcionando.
 - Source: inferred
 - Primary owning slice: M006/S?? (provisional)
-- Supporting slices: M004/S06, M005/S?? (provisional)
+- Supporting slices: M004/S06, M005/S01
 - Validation: validated by M004/S06/--all proof and surfaced smoke artifacts
-- Notes: O estado final do stack montado com auth/session-first e rotas críticas foi validado neste slice; permanece dívida estrutural em schema/migração para R051 e limpeza de legado para R052.
+- Notes: O estado final do stack montado com auth/session-first e rotas críticas foi validado em M004/S06; S01 acrescenta a prova de operabilidade/replay do controle plane de migrations em Postgres real, enquanto a dívida estrutural de schema/migração segue em R051 e a limpeza final de legado segue em R052.
 
 ### R048 — Auth/sessão converge para um contrato canônico único
 - Class: continuity
@@ -513,9 +513,9 @@ Guidelines:
 | R048 | continuity | validated | M004/S02 | M004/S01, M004/S03, M004/S04 | validated |
 | R049 | integration | validated | M004/S02 | M004/S01, M004/S04, M004/S05 | validated |
 | R050 | primary-user-loop | validated | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | validated |
-| R051 | quality-attribute | active | M005/S?? (provisional) | none | mapped |
+| R051 | quality-attribute | active | M005/S?? (provisional) | M005/S01 | mapped |
 | R052 | operability | active | M006/S?? (provisional) | none | mapped |
-| R053 | quality-attribute | validated | M006/S?? (provisional) | M004/S06, M005/S?? (provisional) | validated by M004/S06 --all proof |
+| R053 | quality-attribute | validated | M006/S?? (provisional) | M004/S06, M005/S01 | validated by M004/S06 --all proof |
 | R001 | continuity | validated | M001/S01 | none | validated |
 | R002 | operability | validated | M001/S02 | none | validated |
 | R003 | failure-visibility | validated | M001/S03 | none | validated |
@@ -557,5 +557,5 @@ Guidelines:
 
 - Active requirements: 2
 - Mapped to slices: 4
-- Validated: 23
+- Validated: 24
 - Unmapped active requirements: 0

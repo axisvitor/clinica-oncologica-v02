@@ -201,75 +201,82 @@ def upgrade() -> None:
     has_phone = _column_exists(bind, "patients", "phone")
 
     if has_cpf or has_email or has_phone:
-        session = Session(bind=bind)
-        try:
-            from app.services.encryption import (
-                get_cpf_encryption_service,
-                get_lgpd_encryption_service,
-            )
+        select_columns = ["id"]
+        if has_cpf:
+            select_columns.append("cpf")
+        if has_email:
+            select_columns.append("email")
+        if has_phone:
+            select_columns.append("phone")
 
-            cpf_service = get_cpf_encryption_service()
-            lgpd_service = get_lgpd_encryption_service()
+        where_parts = []
+        if has_cpf:
+            where_parts.append("(cpf IS NOT NULL AND cpf_encrypted IS NULL)")
+        if has_email:
+            where_parts.append("(email IS NOT NULL AND email_encrypted IS NULL)")
+        if has_phone:
+            where_parts.append("(phone IS NOT NULL AND phone_encrypted IS NULL)")
 
-            select_columns = ["id"]
-            if has_cpf:
-                select_columns.append("cpf")
-            if has_email:
-                select_columns.append("email")
-            if has_phone:
-                select_columns.append("phone")
+        where_clause = " OR ".join(where_parts)
+        pending_backfill = bind.execute(
+            text(f"SELECT COUNT(*) FROM patients WHERE {where_clause}")
+        ).scalar() or 0
 
-            where_parts = []
-            if has_cpf:
-                where_parts.append("(cpf IS NOT NULL AND cpf_encrypted IS NULL)")
-            if has_email:
-                where_parts.append("(email IS NOT NULL AND email_encrypted IS NULL)")
-            if has_phone:
-                where_parts.append("(phone IS NOT NULL AND phone_encrypted IS NULL)")
+        if pending_backfill > 0:
+            session = Session(bind=bind)
+            try:
+                from app.services.encryption import (
+                    get_cpf_encryption_service,
+                    get_lgpd_encryption_service,
+                )
 
-            where_clause = " OR ".join(where_parts)
-            query = text(
-                f"SELECT {', '.join(select_columns)} FROM patients WHERE {where_clause}"
-            )
+                cpf_service = get_cpf_encryption_service()
+                lgpd_service = get_lgpd_encryption_service()
 
-            for row in session.execute(query):
-                updates = {}
-                if has_cpf and row.cpf:
-                    encrypted_cpf, cpf_hash = cpf_service.encrypt_cpf(row.cpf)
-                    updates["cpf_encrypted"] = encrypted_cpf
-                    updates["cpf_hash"] = cpf_hash
-                if has_email and row.email:
-                    encrypted_email, email_hash = lgpd_service.encrypt_email(row.email)
-                    updates["email_encrypted"] = encrypted_email
-                    updates["email_hash"] = email_hash
-                if has_phone and row.phone:
-                    encrypted_phone, phone_hash = lgpd_service.encrypt_phone(row.phone)
-                    updates["phone_encrypted"] = encrypted_phone
-                    updates["phone_hash"] = phone_hash
+                query = text(
+                    f"SELECT {', '.join(select_columns)} FROM patients WHERE {where_clause}"
+                )
 
-                if updates:
-                    updates["id"] = str(row.id)
-                    update_stmt = text(
-                        """
-                        UPDATE patients
-                        SET cpf_encrypted = COALESCE(:cpf_encrypted, cpf_encrypted),
-                            cpf_hash = COALESCE(:cpf_hash, cpf_hash),
-                            email_encrypted = COALESCE(:email_encrypted, email_encrypted),
-                            email_hash = COALESCE(:email_hash, email_hash),
-                            phone_encrypted = COALESCE(:phone_encrypted, phone_encrypted),
-                            phone_hash = COALESCE(:phone_hash, phone_hash),
-                            updated_at = NOW()
-                        WHERE id = :id
-                        """
-                    )
-                    session.execute(update_stmt, updates)
+                for row in session.execute(query):
+                    updates = {}
+                    if has_cpf and row.cpf:
+                        encrypted_cpf, cpf_hash = cpf_service.encrypt_cpf(row.cpf)
+                        updates["cpf_encrypted"] = encrypted_cpf
+                        updates["cpf_hash"] = cpf_hash
+                    if has_email and row.email:
+                        encrypted_email, email_hash = lgpd_service.encrypt_email(row.email)
+                        updates["email_encrypted"] = encrypted_email
+                        updates["email_hash"] = email_hash
+                    if has_phone and row.phone:
+                        encrypted_phone, phone_hash = lgpd_service.encrypt_phone(row.phone)
+                        updates["phone_encrypted"] = encrypted_phone
+                        updates["phone_hash"] = phone_hash
 
-            session.commit()
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
+                    if updates:
+                        updates["id"] = str(row.id)
+                        update_stmt = text(
+                            """
+                            UPDATE patients
+                            SET cpf_encrypted = COALESCE(:cpf_encrypted, cpf_encrypted),
+                                cpf_hash = COALESCE(:cpf_hash, cpf_hash),
+                                email_encrypted = COALESCE(:email_encrypted, email_encrypted),
+                                email_hash = COALESCE(:email_hash, email_hash),
+                                phone_encrypted = COALESCE(:phone_encrypted, phone_encrypted),
+                                phone_hash = COALESCE(:phone_hash, phone_hash),
+                                updated_at = NOW()
+                            WHERE id = :id
+                            """
+                        )
+                        session.execute(update_stmt, updates)
+
+                session.commit()
+            except Exception:
+                session.rollback()
+                raise
+            finally:
+                session.close()
+        else:
+            print("LGPD patient backfill skipped: no plaintext patient rows pending migration")
 
     # Drop plaintext indexes and columns
     op.execute("DROP INDEX IF EXISTS idx_patients_phone")
