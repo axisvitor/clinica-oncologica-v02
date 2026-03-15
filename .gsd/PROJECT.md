@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Sistema de acompanhamento oncológico via WhatsApp para acompanhamento contínuo entre consultas. O backend roda em FastAPI + Celery + PostgreSQL + Redis/Dragonfly, com WuzAPI como provedor único de WhatsApp e frontends web para operação clínica. M001 endureceu o pipeline de fluxo de mensagens; M002 concluiu o corte de autenticação da equipe para um fluxo próprio de email/senha com sessão Redis + cookie HttpOnly; M003 fechou a primeira grande limpeza estrutural. A frente atual é a lapidação final da base em três milestones: convergir o runtime oficial sem Firebase, realizar as migrações definitivas ainda pendentes e limpar o restante do código morto e das compatibilidades que sobraram.
+Sistema de acompanhamento oncológico via WhatsApp para acompanhamento contínuo entre consultas. O backend roda em FastAPI + Celery + PostgreSQL + Redis/Dragonfly, com WuzAPI como provedor único de WhatsApp e frontends web para operação clínica. M001 endureceu o pipeline de fluxo de mensagens; M002 concluiu o corte de autenticação da equipe para um fluxo próprio de email/senha com sessão Redis + cookie HttpOnly; M003 fechou a primeira grande limpeza estrutural; M004 convergiu o runtime oficial sem Firebase. A frente atual é completar M005 (schema/migrações) e iniciar M006 (purga final de resíduos e compatibilidades) em ordem de prioridade.
 
 ## Core Value
 
@@ -13,12 +13,10 @@ Médicos e operadores precisam acessar e operar o sistema com confiabilidade, e 
 - M001 concluído: pipeline de fluxo agora tem retry, recovery, observabilidade e testes de integração.
 - M002 concluído: `POST /api/v2/auth/login` autentica por email/senha local, emite a sessão canônica DB + Redis + cookie HttpOnly, e `verify-session` / `logout` / auth de rota protegida funcionam no contrato centrado em `user_id`.
 - M003 concluído: os hotspots centrais de backend auth/session e frontend api-client/types foram fatiados em seams menores com contratos preservados (`auth_dependencies.py` 1579→675, `src/lib/api-client/index.ts` 1304→223, `src/lib/api-client/types.ts` 1159→26).
-- M004/S01 concluído: o runtime oficial de auth/sessão agora tem uma fronteira executável de resíduo (`runtime-residue-allowlist.json` + `verify-runtime-residue.sh` + regressão pytest) que mostra exatamente onde `firebase_uid`, `/session/*`, `X-Session-ID`, bearer fallback, websocket `session_id` e narrativa Firebase ainda sobrevivem.
-- M004/S02–S04 concluídos: backend e frontend oficiais já rodam no contrato canônico session-first, o backend aceita apenas a sessão por cookie no caminho oficial, `X-Session-ID`/session-as-Bearer/query fallback foram aposentados, e `/session/*` ficou reduzido a um tombstone 410 explícito.
-- M004/S05 concluído: Redis/session/cache/login/websocket-adjacent auth, auditoria/admin/docs e tipos frontend adjacentes agora usam o runtime canônico por `id` / `user_id`; `firebase_uid` saiu do caminho funcional oficial e o frontend ficou com zero resíduo aprovado no verificador.
-- M004/S06 concluído: stack local sobe sem Firebase Auth e valida `run-mounted-proof.sh --all` (auth/session-first acceptance + smoke roteado de `/dashboard`, `/admin`, `/whatsapp`) em runtime montado; status e artefatos em `/tmp/gsd-s06-mounted-proof` e `frontend-hormonia/test-results`.
-- O verificador de S01 voltou a ser um gate honesto para o slice inteiro: `--report all`/`--check all` ficam verdes, listando apenas o inventário reduzido de resíduo backend permitido como compatibilidade/rejeição passiva (`firebase_uid`, `x_session_id`, bearer fallback e websocket query) e nenhum resíduo frontend aprovado.
+- M004 concluído: backend + frontend oficiais estão vinculados ao contrato session-first canônico sem Firebase, `/session/*` foi aposentado/tombstonado, e o stack local sobe sem Firebase Auth com smoke roteado de `/login`, `/dashboard`, `/admin`, `/whatsapp`.
+- O verificador de S01 é o gate vivo do contrato: `--report all`/`--check all` listam apenas resíduos backend de compatibilidade/rejeição (`firebase_uid`, `x_session_id`, `session_bearer_fallback`, `websocket_session_id_query`) e zero resíduo aprovado no frontend.
 - O próximo foco é M005: Fechamento definitivo de schema/migrações (R051) e, em seguida, M006 para purga final de código morto e resíduos legados (R052).
+- Prova final de M004 consolidada em `.gsd/milestones/M004/M004-SUMMARY.md`.
 
 ## Architecture / Key Patterns
 
