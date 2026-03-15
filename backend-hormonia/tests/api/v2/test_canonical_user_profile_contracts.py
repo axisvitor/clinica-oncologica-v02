@@ -1,4 +1,4 @@
-"""Focused canonical user/profile/preferences contract proof for S03."""
+"""Focused canonical user/profile/preferences contract proof for S02."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from app.models.user import User
 pytestmark = [pytest.mark.api, pytest.mark.auth]
 
 
-def test_canonical_profile_users_me_prefers_canonical_storage(
+def test_canonical_profile_users_me_returns_canonical_profile_fields(
     client: TestClient,
     db_session: Session,
     auth_headers_doctor: dict,
@@ -24,11 +24,10 @@ def test_canonical_profile_users_me_prefers_canonical_storage(
 ):
     canonical_last_login = datetime(2026, 3, 15, 12, 30, tzinfo=timezone.utc)
     test_doctor_user.last_login = canonical_last_login
-    test_doctor_user.firebase_last_sign_in = datetime(2020, 1, 1, 8, 0, tzinfo=timezone.utc)
+    test_doctor_user.display_name = "Dra. Perfil Canonical"
     test_doctor_user.photo_url = "https://example.com/canonical-photo.png"
-    test_doctor_user.firebase_photo_url = "https://example.com/legacy-photo.png"
+    test_doctor_user.email_verified = True
     test_doctor_user.preferences = {"theme": "dark", "language": "en-US"}
-    test_doctor_user.firebase_custom_claims = {"preferences": {"theme": "light", "language": "pt-BR"}}
     db_session.commit()
     db_session.refresh(test_doctor_user)
 
@@ -39,8 +38,14 @@ def test_canonical_profile_users_me_prefers_canonical_storage(
     assert payload["last_login"].startswith("2026-03-15T12:30:00"), (
         "canonical_profile surface=users_me canonical_last_login_missing=true"
     )
+    assert payload["display_name"] == "Dra. Perfil Canonical", (
+        "canonical_profile surface=users_me canonical_display_name_missing=true"
+    )
     assert payload["photo_url"] == "https://example.com/canonical-photo.png", (
         "canonical_profile surface=users_me canonical_photo_url_missing=true"
+    )
+    assert payload["email_verified"] is True, (
+        "canonical_profile surface=users_me canonical_email_verified_missing=true"
     )
     assert payload["preferences"]["theme"] == "dark", (
         "canonical_profile surface=users_me canonical_preferences_missing=true"
@@ -57,7 +62,6 @@ def test_canonical_preferences_patch_persists_canonical_storage(
     test_doctor_user: User,
 ):
     test_doctor_user.preferences = {}
-    test_doctor_user.firebase_custom_claims = {}
     db_session.commit()
 
     response = client.patch(
@@ -74,18 +78,19 @@ def test_canonical_preferences_patch_persists_canonical_storage(
         "canonical_preferences surface=preferences response_theme_missing=true"
     )
     assert test_doctor_user.preferences["theme"] == "dark", (
-        "canonical_preferences surface=preferences canonical_storage_not_updated=true"
+        "canonical_preferences surface=preferences canonical_theme_not_updated=true"
     )
-    assert test_doctor_user.firebase_custom_claims["preferences"]["theme"] == "dark", (
-        "canonical_preferences surface=preferences legacy_mirror_missing=true"
+    assert test_doctor_user.preferences["language"] == "en-US", (
+        "canonical_preferences surface=preferences canonical_language_not_updated=true"
+    )
+    assert test_doctor_user.preferences["notification_email"] is False, (
+        "canonical_preferences surface=preferences canonical_notification_email_not_updated=true"
     )
 
 
 def test_canonical_profile_auth_user_payload_prefers_canonical_fields(test_doctor_user: User):
     test_doctor_user.last_login = datetime(2026, 3, 15, 14, 0, tzinfo=timezone.utc)
-    test_doctor_user.firebase_last_sign_in = datetime(2021, 6, 1, 10, 0, tzinfo=timezone.utc)
     test_doctor_user.photo_url = "https://example.com/auth-canonical-photo.png"
-    test_doctor_user.firebase_photo_url = "https://example.com/auth-legacy-photo.png"
 
     payload = _serialize_authenticated_user(test_doctor_user)
 
@@ -107,11 +112,8 @@ def test_canonical_profile_physician_detail_uses_canonical_field_names(
     test_doctor_user: User,
 ):
     test_doctor_user.display_name = "Dra. Canonical Physician"
-    test_doctor_user.firebase_display_name = "Dra. Legacy Physician"
     test_doctor_user.photo_url = "https://example.com/physician-canonical-photo.png"
-    test_doctor_user.firebase_photo_url = "https://example.com/physician-legacy-photo.png"
     test_doctor_user.email_verified = True
-    test_doctor_user.firebase_email_verified = False
     test_doctor_user.last_login = datetime(2026, 3, 15, 16, 0, tzinfo=timezone.utc)
     db_session.commit()
     db_session.refresh(test_doctor_user)
@@ -131,6 +133,9 @@ def test_canonical_profile_physician_detail_uses_canonical_field_names(
     )
     assert payload["email_verified"] is True, (
         "canonical_profile surface=physician_detail canonical_email_verified_missing=true"
+    )
+    assert payload["last_login"].startswith("2026-03-15T16:00:00"), (
+        "canonical_profile surface=physician_detail canonical_last_login_missing=true"
     )
     assert "firebase_display_name" not in payload, (
         "canonical_profile surface=physician_detail legacy_display_name_present=true"

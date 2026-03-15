@@ -13,10 +13,56 @@ from alembic.config import Config
 
 pytestmark = [pytest.mark.integration, pytest.mark.migrations]
 
-EXPECTED_HEAD_REVISION = "m005_s03_t02_align_audit_history_head"
+EXPECTED_HEAD_REVISION = "m006_s02_t03_drop_users_firebase_residue"
 EXISTING_UPGRADE_START = "m005_s02_t01_publish_firebase_history_boundary"
 TARGET_TABLES = ("users", "audit_logs", "firebase_sync_history")
 TARGET_ENUMS = ("audit_event_type", "user_role")
+EXPECTED_USERS_COLUMNS = (
+    "id",
+    "created_at",
+    "updated_at",
+    "email",
+    "hashed_password",
+    "full_name",
+    "role",
+    "is_active",
+    "last_login",
+    "auth_created_at",
+    "email_verified",
+    "display_name",
+    "photo_url",
+    "preferences",
+    "specialty",
+    "specialties",
+    "license_number",
+    "phone",
+    "bio",
+    "avatar_url",
+    "auth_provider",
+    "failed_login_attempts",
+    "is_locked",
+    "locked_until",
+    "force_change_password",
+    "last_password_change",
+    "permissions",
+)
+EXPECTED_USERS_INDEXES = {
+    "idx_users_locked": ("is_locked",),
+    "idx_users_locked_until": ("locked_until",),
+    "ix_users_permissions_gin": ("permissions",),
+    "users_email_key": ("email",),
+}
+REMOVED_USERS_COLUMNS = (
+    "firebase_uid",
+    "firebase_last_sign_in",
+    "firebase_created_at",
+    "firebase_email_verified",
+    "firebase_display_name",
+    "firebase_photo_url",
+    "firebase_custom_claims",
+    "last_firebase_sync",
+)
+REMOVED_USERS_INDEXES = ("ix_users_firebase_uid",)
 
 
 def _get_test_database_url() -> str | None:
@@ -156,6 +202,49 @@ def _fingerprint_diff(
     return diff
 
 
+def _assert_users_contract(fingerprint: dict[str, object], *, phase: str) -> None:
+    users_table = fingerprint["tables"]["users"]
+    actual_columns = [column["name"] for column in users_table["columns"]]
+    actual_column_set = set(actual_columns)
+    expected_column_set = set(EXPECTED_USERS_COLUMNS)
+    removed_column_set = set(REMOVED_USERS_COLUMNS)
+
+    column_diff = {
+        "missing": sorted(expected_column_set - actual_column_set),
+        "unexpected": sorted(actual_column_set - expected_column_set),
+        "removed_present": sorted(actual_column_set & removed_column_set),
+    }
+    assert not any(column_diff.values()), (
+        f"canonical_head phase={phase} users_column_diff={json.dumps(column_diff, sort_keys=True)}"
+    )
+
+    actual_index_map = {
+        index["name"]: tuple(index.get("columns") or ())
+        for index in users_table["indexes"]
+    }
+    expected_index_names = set(EXPECTED_USERS_INDEXES)
+    actual_index_names = set(actual_index_map)
+    removed_index_names = set(REMOVED_USERS_INDEXES)
+
+    wrong_index_columns = {
+        name: {
+            "expected": EXPECTED_USERS_INDEXES[name],
+            "actual": actual_index_map.get(name),
+        }
+        for name in sorted(expected_index_names & actual_index_names)
+        if tuple(actual_index_map.get(name, ())) != tuple(EXPECTED_USERS_INDEXES[name])
+    }
+    index_diff = {
+        "missing": sorted(expected_index_names - actual_index_names),
+        "unexpected": sorted(actual_index_names - expected_index_names),
+        "removed_present": sorted(actual_index_names & removed_index_names),
+        "wrong_columns": wrong_index_columns,
+    }
+    assert not index_diff["missing"] and not index_diff["unexpected"] and not index_diff["removed_present"] and not index_diff["wrong_columns"], (
+        f"canonical_head phase={phase} users_index_diff={json.dumps(index_diff, sort_keys=True)}"
+    )
+
+
 def _run_phase(config: Config, engine: sa.Engine, *, phase: str, seed_revision: str | None) -> dict[str, object]:
     previous_db_url = os.environ.get("DATABASE_URL")
     try:
@@ -182,6 +271,7 @@ def _run_phase(config: Config, engine: sa.Engine, *, phase: str, seed_revision: 
         f"enum_missing={','.join(missing_enums)}"
     )
 
+    _assert_users_contract(fingerprint, phase=phase)
     return fingerprint
 
 

@@ -369,6 +369,60 @@ async def _get_user_from_db_async(
             )
 
 
+async def _get_user_from_db_by_user_id_async(
+    user_id: str, session: AsyncSession
+) -> Optional[User]:
+    """Async function to fetch a canonical user by user_id with retry on timeout."""
+    from uuid import UUID
+    from sqlalchemy import select
+
+    try:
+        user_uuid = UUID(str(user_id))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session data",
+            headers={"WWW-Authenticate": "Session"},
+        ) from exc
+
+    stmt = select(User).where(User.id == user_uuid)
+    identity_prefix = str(user_uuid)[:8]
+
+    try:
+        result = await asyncio.wait_for(
+            session.execute(stmt),
+            timeout=settings.DB_QUERY_TIMEOUT_READ,
+        )
+        return result.scalar_one_or_none()
+    except asyncio.TimeoutError:
+        await session.rollback()
+        logger.warning(
+            "Database query timeout for canonical user_id %s..., retrying with longer timeout",
+            identity_prefix,
+        )
+
+        try:
+            result = await asyncio.wait_for(
+                session.execute(stmt),
+                timeout=settings.DB_QUERY_TIMEOUT_READ * 2,
+            )
+            logger.info(
+                "Database query succeeded on retry for canonical user_id %s...",
+                identity_prefix,
+            )
+            return result.scalar_one_or_none()
+        except asyncio.TimeoutError:
+            await session.rollback()
+            logger.error(
+                "Database query timeout after retry for canonical user_id %s...",
+                identity_prefix,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Database query timeout after retry",
+            )
+
+
 async def _get_user_from_db_by_session(
     session_id: str, session: AsyncSession
 ) -> Optional[User]:
@@ -410,43 +464,17 @@ async def get_current_user_from_session(
     """
     Get current authenticated user by validating Redis session (RECOMMENDED).
 
-    Happy path accepts canonical session payloads keyed by user_id and only falls
-    back to firebase_uid compatibility when the canonical payload is incomplete.
+    Happy path accepts canonical session payloads keyed by user_id and falls back
+    only to session-table recovery when Redis is unavailable.
     """
-    from uuid import UUID
 
     async def _load_user_from_db_by_user_id(user_id_value: str) -> Optional[User]:
-        try:
-            user_uuid = UUID(str(user_id_value))
-        except (TypeError, ValueError):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid session data",
-                headers={"WWW-Authenticate": "Session"},
-            )
-
-        from sqlalchemy import select
         from app.database import get_async_session_factory
 
         async_session_factory = get_async_session_factory()
         async with async_session_factory() as async_session:
             try:
-                result = await asyncio.wait_for(
-                    async_session.execute(select(User).where(User.id == user_uuid)),
-                    timeout=settings.DB_QUERY_TIMEOUT_READ,
-                )
-                return result.scalar_one_or_none()
-            except Exception:
-                await async_session.rollback()
-                raise
-
-    async def _load_user_from_db_by_firebase_uid(firebase_uid: str) -> Optional[User]:
-        from app.database import get_async_session_factory
-
-        async_session_factory = get_async_session_factory()
-        async with async_session_factory() as async_session:
-            try:
-                return await _get_user_from_db_async(firebase_uid, async_session)
+                return await _get_user_from_db_by_user_id_async(user_id_value, async_session)
             except Exception:
                 await async_session.rollback()
                 raise
@@ -472,9 +500,7 @@ async def get_current_user_from_session(
         authorization=authorization,
         redis_cache=redis_cache,
         get_permissions_for_role=get_permissions_for_role,
-        validate_firebase_uid=_validate_firebase_uid,
         load_user_from_db_by_user_id=_load_user_from_db_by_user_id,
-        load_user_from_db_by_firebase_uid=_load_user_from_db_by_firebase_uid,
         load_user_from_db_by_session=_load_user_from_db_by_session_id,
         serialize_user=user_to_cache_dict,
     )

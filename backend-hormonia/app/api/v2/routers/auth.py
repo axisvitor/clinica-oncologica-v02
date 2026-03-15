@@ -108,8 +108,8 @@ def _auth_error_content(request: Request, *, error: str, message: str) -> dict[s
 def _serialize_authenticated_user(user) -> dict[str, Any]:
     """Normalize authenticated-user metadata for login/session responses."""
     role = user.role.value if hasattr(user.role, "value") else str(user.role)
-    last_login = user.get_last_login() if hasattr(user, "get_last_login") else getattr(user, "last_login", getattr(user, "firebase_last_sign_in", None))
-    photo_url = user.get_photo_url() if hasattr(user, "get_photo_url") else getattr(user, "photo_url", getattr(user, "firebase_photo_url", None))
+    last_login = user.get_last_login() if hasattr(user, "get_last_login") else getattr(user, "last_login", None)
+    photo_url = user.get_photo_url() if hasattr(user, "get_photo_url") else getattr(user, "photo_url", None)
     return {
         "id": str(user.id),
         "email": user.email,

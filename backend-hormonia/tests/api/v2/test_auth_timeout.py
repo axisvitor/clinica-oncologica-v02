@@ -1,46 +1,48 @@
 """
-Tests for database timeout handling in authentication.
+Tests for timeout handling in canonical session authentication.
 """
 
-import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
+
+import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies.auth_dependencies import (
+    _get_user_from_db_by_user_id_async,
     get_current_user_from_session,
-    _get_user_from_db_async,
 )
+
+
 @pytest.mark.asyncio
-async def test_get_user_from_db_async_timeout():
-    """Test that database query timeout raises HTTPException 504 after retry."""
+async def test_get_user_from_db_by_user_id_async_timeout():
+    """Canonical user_id DB lookups should raise HTTPException 504 after retry."""
     mock_session = AsyncMock(spec=AsyncSession)
     mock_session.execute = AsyncMock(
         side_effect=[asyncio.TimeoutError(), asyncio.TimeoutError()]
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await _get_user_from_db_async("test_firebase_uid", mock_session)
+        await _get_user_from_db_by_user_id_async(str(uuid4()), mock_session)
 
     assert exc_info.value.status_code == 504
     assert mock_session.execute.await_count == 2
 
 
 @pytest.mark.asyncio
-async def test_get_current_user_from_session_db_timeout_returns_504(
-    monkeypatch, test_user
-):
-    """Test that database timeout in get_current_user_from_session returns 504."""
+async def test_get_current_user_from_session_db_timeout_returns_504(monkeypatch):
+    """Canonical user_id DB timeout in get_current_user_from_session should return 504."""
     from app.core.redis_manager import FirebaseRedisCache
     from fastapi import Request
 
-    # Arrange: Mock Redis cache with valid session but slow DB query
-    firebase_uid = "testfirebaseuid1234567890123"
+    canonical_user_id = str(uuid4())
     mock_redis_cache = AsyncMock(spec=FirebaseRedisCache)
-    mock_redis_cache.get_session.return_value = {"firebase_uid": firebase_uid}
+    mock_redis_cache.get_session.return_value = {"user_id": canonical_user_id}
     mock_redis_cache.update_session_activity.return_value = None
-    mock_redis_cache.get_user_by_uid.return_value = None  # Force DB query
+    mock_redis_cache.get_user_by_id.return_value = None
+    mock_redis_cache.get_user_by_uid = AsyncMock()
 
     async_session = AsyncMock(spec=AsyncSession)
     async_session.execute = AsyncMock(
@@ -68,7 +70,6 @@ async def test_get_current_user_from_session_db_timeout_returns_504(
     mock_request = MagicMock(spec=Request)
     mock_request.state = MagicMock()
 
-    # Act & Assert: Should raise HTTPException 504
     with pytest.raises(HTTPException) as exc_info:
         await get_current_user_from_session(
             request=mock_request,
@@ -80,26 +81,25 @@ async def test_get_current_user_from_session_db_timeout_returns_504(
 
     assert exc_info.value.status_code == 504
     assert "timeout" in exc_info.value.detail.lower()
+    mock_redis_cache.get_user_by_uid.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_get_current_user_from_session_db_timeout_logs_error(
-    monkeypatch, caplog, test_user
-):
-    """Test that database timeout logs error with firebase_uid."""
+async def test_get_current_user_from_session_db_timeout_logs_error(monkeypatch, caplog):
+    """Canonical user_id timeout logs should include the canonical identity prefix."""
     from app.core.redis_manager import FirebaseRedisCache
     from fastapi import Request
     import logging
 
-    caplog.set_level(logging.ERROR)
+    caplog.set_level(logging.ERROR, logger="app.dependencies.auth_dependencies")
 
-    # Arrange: Mock Redis cache with valid session but slow DB query
-    firebase_uid = "testfirebaseuid1234567890123"
-    firebase_uid_prefix = firebase_uid[:8]
+    canonical_user_id = str(uuid4())
+    canonical_user_prefix = canonical_user_id[:8]
     mock_redis_cache = AsyncMock(spec=FirebaseRedisCache)
-    mock_redis_cache.get_session.return_value = {"firebase_uid": firebase_uid}
+    mock_redis_cache.get_session.return_value = {"user_id": canonical_user_id}
     mock_redis_cache.update_session_activity.return_value = None
-    mock_redis_cache.get_user_by_uid.return_value = None
+    mock_redis_cache.get_user_by_id.return_value = None
+    mock_redis_cache.get_user_by_uid = AsyncMock()
 
     async_session = AsyncMock(spec=AsyncSession)
     async_session.execute = AsyncMock(
@@ -127,7 +127,6 @@ async def test_get_current_user_from_session_db_timeout_logs_error(
     mock_request = MagicMock(spec=Request)
     mock_request.state = MagicMock()
 
-    # Act
     with pytest.raises(HTTPException):
         await get_current_user_from_session(
             request=mock_request,
@@ -137,15 +136,18 @@ async def test_get_current_user_from_session_db_timeout_logs_error(
             redis_cache=mock_redis_cache,
         )
 
-    # Assert: Check log contains firebase_uid
-    assert any(firebase_uid_prefix in record.message for record in caplog.records)
-    assert any("timeout" in record.message.lower() for record in caplog.records)
+    logged_messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == "app.dependencies.auth_dependencies"
+    ]
+    assert any(canonical_user_prefix in message for message in logged_messages)
+    assert any("timeout" in message.lower() for message in logged_messages)
 
 
 @pytest.mark.asyncio
 async def test_cancelled_error_handling():
-    """Test that CancelledError is properly handled."""
-    # Arrange: Mock AsyncSession
+    """CancelledError from canonical user_id DB lookups should propagate."""
     mock_session = AsyncMock(spec=AsyncSession)
 
     async def cancelled_execute(*args, **kwargs):
@@ -153,6 +155,5 @@ async def test_cancelled_error_handling():
 
     mock_session.execute = cancelled_execute
 
-    # Act & Assert: Should raise CancelledError
     with pytest.raises(asyncio.CancelledError):
-        await _get_user_from_db_async("test_firebase_uid", mock_session)
+        await _get_user_from_db_by_user_id_async(str(uuid4()), mock_session)

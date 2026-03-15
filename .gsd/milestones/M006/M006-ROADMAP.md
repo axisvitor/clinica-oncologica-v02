@@ -51,7 +51,7 @@ This milestone is complete only when all are true:
 
 - [x] **S01: Fechar a costura auth/session legado ainda “viva”** `risk:high` `depends:[]`
   > After this: o backend autentica staff só pelo contrato cookie-first canônico ou rejeita explicitamente o legado, e o verificador de resíduo deixa de aprovar os hotspots backend de auth/session que ainda tratavam Firebase/header/bearer/query como compatibilidade “ativa”.
-- [ ] **S02: Remover o resíduo de schema que ainda prende o runtime ao passado** `risk:high` `depends:[S01]`
+- [x] **S02: Remover o resíduo de schema que ainda prende o runtime ao passado** `risk:high` `depends:[S01]`
   > After this: o head canônico de `users` e os leitores/runtime/testes alinhados deixam de depender das colunas Firebase restantes, com replay `fresh`/`existing` e backend montado ainda verdes.
 - [ ] **S03: Purga final de bridges, tombstones, serviços mortos e narrativa operacional errada** `risk:medium` `depends:[S01]`
   > After this: imports oficiais, barrels de compatibilidade, serviços mortos, env/workflows/docs em escopo e tombstones sem valor operacional deixam de poluir o repositório, com build/typecheck/scans mostrando apenas o que é canônico ou explicitamente histórico.

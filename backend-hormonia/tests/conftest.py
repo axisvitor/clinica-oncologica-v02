@@ -1467,6 +1467,10 @@ def create_test_user(db_session, email="test@example.com", role=UserRole.DOCTOR,
         email=email,
         hashed_password=get_password_hash(kwargs.get('password', 'testpass123')),
         full_name=kwargs.get('full_name', 'Test User'),
+        display_name=kwargs.get('display_name', kwargs.get('full_name', 'Test User')),
+        photo_url=kwargs.get('photo_url', 'https://example.com/test-user-photo.png'),
+        preferences=kwargs.get('preferences', {'theme': 'dark', 'language': 'pt-BR'}),
+        last_login=kwargs.get('last_login'),
         role=role,
         is_active=kwargs.get('is_active', True),
         firebase_uid=kwargs.get('firebase_uid'),
@@ -1490,9 +1494,10 @@ class TestUser(dict):
             is_active=user.is_active,
             created_at=user.created_at.isoformat() if user.created_at else None,
             updated_at=user.updated_at.isoformat() if user.updated_at else None,
-            last_login=user.firebase_last_sign_in.isoformat()
-            if user.firebase_last_sign_in
-            else None,
+            last_login=user.last_login.isoformat() if user.last_login else None,
+            display_name=user.get_display_name() if hasattr(user, "get_display_name") else getattr(user, "display_name", user.full_name),
+            photo_url=user.get_photo_url() if hasattr(user, "get_photo_url") else getattr(user, "photo_url", None),
+            preferences=user.get_preferences_data() if hasattr(user, "get_preferences_data") else dict(getattr(user, "preferences", {}) or {}),
         )
         self.user = user
         self.password = password
@@ -1528,9 +1533,12 @@ class TestUser(dict):
             "firebase_uid": getattr(self.user, "firebase_uid", None),
             "created_at": self.user.created_at.isoformat() if self.user.created_at else None,
             "updated_at": self.user.updated_at.isoformat() if self.user.updated_at else None,
-            "last_login": self.user.firebase_last_sign_in.isoformat()
-            if self.user.firebase_last_sign_in
+            "last_login": self.user.last_login.isoformat()
+            if self.user.last_login
             else None,
+            "display_name": self.user.get_display_name() if hasattr(self.user, "get_display_name") else getattr(self.user, "display_name", self.user.full_name),
+            "photo_url": self.user.get_photo_url() if hasattr(self.user, "get_photo_url") else getattr(self.user, "photo_url", None),
+            "preferences": self.user.get_preferences_data() if hasattr(self.user, "get_preferences_data") else dict(getattr(self.user, "preferences", {}) or {}),
             "permissions": get_permissions_for_role(role),
         }
 

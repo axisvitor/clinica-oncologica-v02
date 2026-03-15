@@ -16,7 +16,7 @@ from typing import Optional, Dict, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy import desc, select
+from sqlalchemy import String, cast, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.async_engine import get_async_db
@@ -37,7 +37,7 @@ from app.api.v2.dependencies import (
 )
 
 from .dependencies import get_admin_user
-from .utils import _log_admin_action
+from .utils import _log_admin_action, audit_metadata_severity, normalize_audit_event_type
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -45,19 +45,14 @@ logger = logging.getLogger(__name__)
 
 def _serialize_audit_log_record(log: AuditLog) -> Dict[str, Any]:
     """Serialize audit log to admin audit schema."""
-    event_type = (
-        log.event_type.value
-        if hasattr(log.event_type, "value")
-        else str(log.event_type)
-    )
-    event_category = log.event_category
-    if not event_category:
-        event_category = (log.event_metadata or {}).get("event_category", "system")
+    event_type = normalize_audit_event_type(log.event_type)
+    event_metadata = log.event_metadata or {}
+    event_category = log.event_category or event_metadata.get("event_category", "system")
     return {
         "id": log.id,
         "event_type": event_type,
         "event_category": event_category,
-        "severity": log.severity,
+        "severity": audit_metadata_severity(event_metadata),
         "user_id": log.user_id,
         "user_email": log.user_email,
         "ip_address": str(log.ip_address) if log.ip_address else None,
@@ -65,6 +60,25 @@ def _serialize_audit_log_record(log: AuditLog) -> Dict[str, Any]:
         "event_data": log.event_data or {},
         "result": log.result,
         "timestamp": log.timestamp,
+    }
+
+
+def _serialize_audit_log_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Serialize raw audit row mappings without enum decode failures."""
+    event_metadata = row.get("event_metadata") or {}
+    event_category = row.get("event_category") or event_metadata.get("event_category", "system")
+    return {
+        "id": row.get("id"),
+        "event_type": normalize_audit_event_type(row.get("event_type")),
+        "event_category": event_category,
+        "severity": audit_metadata_severity(event_metadata),
+        "user_id": row.get("user_id"),
+        "user_email": row.get("user_email"),
+        "ip_address": str(row.get("ip_address")) if row.get("ip_address") else None,
+        "user_agent": row.get("user_agent"),
+        "event_data": event_metadata,
+        "result": row.get("event_status") or "success",
+        "timestamp": row.get("created_at"),
     }
 
 
@@ -250,42 +264,60 @@ async def list_audit_logs(
         pagination = get_pagination_params(cursor, limit)
         cursor_data = pagination["cursor_data"]
 
-        stmt = select(AuditLog)
+        audit_logs_table = AuditLog.__table__
+        event_type_expr = cast(audit_logs_table.c.event_type, String).label("event_type")
+        stmt = select(
+            audit_logs_table.c.id,
+            event_type_expr,
+            audit_logs_table.c.event_category,
+            audit_logs_table.c.user_id,
+            audit_logs_table.c.user_email,
+            audit_logs_table.c.ip_address,
+            audit_logs_table.c.user_agent,
+            audit_logs_table.c.event_metadata,
+            audit_logs_table.c.event_status,
+            audit_logs_table.c.created_at,
+        )
 
         if cursor_data:
-            stmt = stmt.where(AuditLog.id > cursor_data.get("id", 0))
+            stmt = stmt.where(audit_logs_table.c.id > cursor_data.get("id", 0))
 
         if event_type:
-            stmt = stmt.where(AuditLog.event_type == event_type)
+            stmt = stmt.where(event_type_expr == event_type)
 
         if user_id:
-            stmt = stmt.where(AuditLog.user_id == user_id)
+            stmt = stmt.where(audit_logs_table.c.user_id == user_id)
 
         if user_email:
-            stmt = stmt.where(AuditLog.user_email.ilike(f"%{user_email}%"))
+            stmt = stmt.where(audit_logs_table.c.user_email.ilike(f"%{user_email}%"))
 
         if ip_address:
-            stmt = stmt.where(AuditLog.ip_address == ip_address)
+            stmt = stmt.where(audit_logs_table.c.ip_address == ip_address)
 
         if start_date:
-            stmt = stmt.where(AuditLog.created_at >= start_date)
+            stmt = stmt.where(audit_logs_table.c.created_at >= start_date)
 
         if end_date:
-            stmt = stmt.where(AuditLog.created_at <= end_date)
+            stmt = stmt.where(audit_logs_table.c.created_at <= end_date)
 
-        stmt = stmt.order_by(desc(AuditLog.created_at))
+        stmt = stmt.order_by(desc(audit_logs_table.c.created_at))
         logs_result = await db.execute(stmt)
-        logs = list(logs_result.scalars().all())
+        log_rows = [dict(row._mapping) for row in logs_result.all()]
 
         if severity:
             severity_value = severity.lower()
-            logs = [log for log in logs if str(log.severity).lower() == severity_value]
+            log_rows = [
+                row
+                for row in log_rows
+                if audit_metadata_severity(row.get("event_metadata")).lower()
+                == severity_value
+            ]
 
-        has_more = len(logs) > limit
-        logs = logs[:limit]
-        next_cursor = create_cursor(logs[-1].id) if has_more and logs else None
+        has_more = len(log_rows) > limit
+        log_rows = log_rows[:limit]
+        next_cursor = create_cursor(log_rows[-1]["id"]) if has_more and log_rows else None
 
-        serialized_logs = [_serialize_audit_log_record(log) for log in logs]
+        serialized_logs = [_serialize_audit_log_row(row) for row in log_rows]
 
         await _log_admin_action(
             db,

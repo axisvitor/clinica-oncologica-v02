@@ -89,6 +89,10 @@ def test_admin_user(db_session: Session) -> User:
         firebase_uid="A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
         hashed_password=get_password_hash("adminpass123"),
         full_name="Test Admin",
+        display_name="Administrador Teste",
+        photo_url="https://example.com/admin-photo.png",
+        preferences={"theme": "dark", "language": "pt-BR"},
+        last_login=datetime(2026, 3, 12, 9, 0, 0),
         role=UserRole.ADMIN,
         is_active=True
     )
@@ -107,6 +111,10 @@ def test_doctor_user(db_session: Session) -> User:
         firebase_uid="B1C2D3E4F5G6H7I8J9K0L1M2N3O4",
         hashed_password=get_password_hash("doctorpass123"),
         full_name="Test Doctor",
+        display_name="Dra. Test Doctor",
+        photo_url="https://example.com/doctor-photo.png",
+        preferences={"theme": "light", "language": "en-US"},
+        last_login=datetime(2026, 3, 11, 14, 30, 0),
         role=UserRole.DOCTOR,
         is_active=True
     )
@@ -324,27 +332,40 @@ def create_test_alert(db_session: Session):
 # Authentication Fixtures
 # ============================================================================
 
+
+def _build_canonical_session_user(user: User) -> dict:
+    role = user.role.value if hasattr(user.role, "value") else str(user.role)
+    last_login = user.get_last_login() if hasattr(user, "get_last_login") else getattr(user, "last_login", None)
+    display_name = user.get_display_name() if hasattr(user, "get_display_name") else getattr(user, "display_name", user.full_name)
+    photo_url = user.get_photo_url() if hasattr(user, "get_photo_url") else getattr(user, "photo_url", None)
+    preferences = user.get_preferences_data() if hasattr(user, "get_preferences_data") else dict(getattr(user, "preferences", {}) or {})
+    email_verified = user.get_email_verified() if hasattr(user, "get_email_verified") else bool(getattr(user, "email_verified", False))
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": role,
+        "is_active": user.is_active,
+        "firebase_uid": user.firebase_uid,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+        "last_login": last_login.isoformat() if last_login else None,
+        "display_name": display_name,
+        "photo_url": photo_url,
+        "preferences": preferences,
+        "email_verified": email_verified,
+        "permissions": get_permissions_for_role(role),
+    }
+
+
 @pytest.fixture
 def auth_headers_admin(test_admin_user: User) -> dict:
     """Authentication headers for admin user."""
     from app.main import app
     from app.middleware.csrf import get_csrf_token
 
-    role = test_admin_user.role.value if hasattr(test_admin_user.role, "value") else str(test_admin_user.role)
-    session_user = {
-        "id": str(test_admin_user.id),
-        "email": test_admin_user.email,
-        "full_name": test_admin_user.full_name,
-        "role": role,
-        "is_active": test_admin_user.is_active,
-        "firebase_uid": test_admin_user.firebase_uid,
-        "created_at": test_admin_user.created_at.isoformat() if test_admin_user.created_at else None,
-        "updated_at": test_admin_user.updated_at.isoformat() if test_admin_user.updated_at else None,
-        "last_login": test_admin_user.firebase_last_sign_in.isoformat()
-        if test_admin_user.firebase_last_sign_in
-        else None,
-        "permissions": get_permissions_for_role(role),
-    }
+    session_user = _build_canonical_session_user(test_admin_user)
+    role = session_user["role"]
 
     async def _override_session(request: Request):
         request.state.user_id = session_user.get("id")
@@ -398,21 +419,8 @@ def auth_headers_doctor(test_doctor_user: User) -> dict:
     from app.main import app
     from app.middleware.csrf import get_csrf_token
 
-    role = test_doctor_user.role.value if hasattr(test_doctor_user.role, "value") else str(test_doctor_user.role)
-    session_user = {
-        "id": str(test_doctor_user.id),
-        "email": test_doctor_user.email,
-        "full_name": test_doctor_user.full_name,
-        "role": role,
-        "is_active": test_doctor_user.is_active,
-        "firebase_uid": test_doctor_user.firebase_uid,
-        "created_at": test_doctor_user.created_at.isoformat() if test_doctor_user.created_at else None,
-        "updated_at": test_doctor_user.updated_at.isoformat() if test_doctor_user.updated_at else None,
-        "last_login": test_doctor_user.firebase_last_sign_in.isoformat()
-        if test_doctor_user.firebase_last_sign_in
-        else None,
-        "permissions": get_permissions_for_role(role),
-    }
+    session_user = _build_canonical_session_user(test_doctor_user)
+    role = session_user["role"]
 
     async def _override_session(request: Request):
         request.state.user_id = session_user.get("id")
@@ -586,16 +594,29 @@ def mock_authenticated_session(mock_redis, test_doctor_user: User):
         "firebase_uid": test_doctor_user.firebase_uid,
         "user_id": str(test_doctor_user.id),
         "email": test_doctor_user.email,
-        "role": test_doctor_user.role.value
+        "role": test_doctor_user.role.value,
+        "last_login": test_doctor_user.last_login.isoformat()
+        if test_doctor_user.last_login
+        else None,
+        "display_name": test_doctor_user.display_name,
+        "photo_url": test_doctor_user.photo_url,
+        "preferences": dict(test_doctor_user.preferences or {}),
     }
-    mock_redis.get_user_by_uid.return_value = {
+    canonical_user_payload = {
         "id": str(test_doctor_user.id),
-        "firebase_uid": test_doctor_user.firebase_uid,
         "email": test_doctor_user.email,
         "full_name": test_doctor_user.full_name,
         "role": test_doctor_user.role.value,
-        "is_active": True
+        "is_active": True,
+        "last_login": test_doctor_user.last_login.isoformat()
+        if test_doctor_user.last_login
+        else None,
+        "display_name": test_doctor_user.display_name,
+        "photo_url": test_doctor_user.photo_url,
+        "preferences": dict(test_doctor_user.preferences or {}),
     }
+    mock_redis.get_user_by_id.return_value = canonical_user_payload
+    mock_redis.get_user_by_uid.return_value = canonical_user_payload
     return mock_redis
 
 

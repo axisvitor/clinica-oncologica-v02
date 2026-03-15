@@ -186,8 +186,8 @@ PY
 
 run_pytest_replay() {
   current_phase='pytest_replay'
-  update_status "$current_phase" running 'replaying focused pytest packs on final head'
-  log "$current_phase" 'replaying focused pytest packs on final head'
+  update_status "$current_phase" running 'replaying focused S02 runtime packs on final head'
+  log "$current_phase" 'replaying focused S02 runtime packs on final head'
 
   if ! (
     cd "$BACKEND_DIR"
@@ -196,7 +196,17 @@ run_pytest_replay() {
     exec "$BACKEND_PYTHON" -m pytest -q \
       tests/api/v2/test_system_auth_hard_cut_operational.py \
       tests/integration/test_local_auth_core_flow.py \
-      tests/integration/test_auth_hard_cut_end_to_end.py
+      tests/integration/test_auth_hard_cut_end_to_end.py \
+      tests/unit/test_auth_session_cache_canonical_identity.py \
+      tests/api/v2/test_auth_session_shared_canonical_identity.py \
+      tests/api/v2/test_auth_uid_validation.py \
+      tests/api/v2/test_auth_timeout.py \
+      tests/integration/test_auth_fallback.py \
+      tests/api/v2/test_canonical_user_profile_contracts.py \
+      tests/api/v2/test_physicians_crud_regression.py \
+      tests/api/v2/test_admin.py::TestGetUser \
+      tests/api/v2/test_admin.py::TestUserStatistics \
+      tests/unit/services/test_admin_stats_service.py
   ) >"$PYTEST_REPLAY_LOG" 2>&1; then
     fail_phase "pytest replay failed (see $PYTEST_REPLAY_LOG)"
   fi

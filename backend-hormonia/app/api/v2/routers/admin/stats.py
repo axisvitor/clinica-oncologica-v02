@@ -5,11 +5,12 @@ Provides system-wide metrics for admin dashboards.
 """
 
 import logging
+from collections import Counter
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func, desc, select
+from sqlalchemy import String, cast, func, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.async_engine import get_async_db
@@ -20,7 +21,11 @@ from app.utils.rate_limiter import limiter
 from app.infrastructure.cache import get_unified_cache_manager
 
 from .dependencies import get_admin_user
-from .utils import _status_count_async
+from .utils import (
+    _status_count_async,
+    audit_metadata_severity,
+    normalize_audit_event_type,
+)
 from app.schemas.v2.admin import ActivityStatsResponse, UserStatsResponse
 from app.utils.timezone import now_sao_paulo
 
@@ -206,52 +211,52 @@ async def get_activity_stats(
     week_start = now - timedelta(days=7)
     month_start = now - timedelta(days=30)
 
-    total_events = (await db.execute(select(func.count(AuditLog.id)))).scalar() or 0
-    events_today = (
-        await db.execute(
-            select(func.count(AuditLog.id)).where(AuditLog.timestamp >= today_start)
-        )
-    ).scalar() or 0
-    events_this_week = (
-        await db.execute(
-            select(func.count(AuditLog.id)).where(AuditLog.timestamp >= week_start)
-        )
-    ).scalar() or 0
-    events_this_month = (
-        await db.execute(
-            select(func.count(AuditLog.id)).where(AuditLog.timestamp >= month_start)
-        )
-    ).scalar() or 0
-
-    event_counts_result = await db.execute(
-        select(AuditLog.event_type, func.count(AuditLog.id)).group_by(AuditLog.event_type)
+    audit_logs_table = AuditLog.__table__
+    event_type_expr = cast(audit_logs_table.c.event_type, String).label("event_type")
+    audit_rows_result = await db.execute(
+        select(
+            audit_logs_table.c.id,
+            audit_logs_table.c.created_at,
+            audit_logs_table.c.user_id,
+            audit_logs_table.c.event_metadata,
+            event_type_expr,
+        ).order_by(desc(audit_logs_table.c.created_at))
     )
-    event_counts = event_counts_result.all()
-    by_event_type = {
-        (evt.value if hasattr(evt, "value") else str(evt)): count
-        for evt, count in event_counts
-    }
+    audit_rows = [dict(row._mapping) for row in audit_rows_result.all()]
 
-    severity_counts_result = await db.execute(
-        select(AuditLog.severity, func.count(AuditLog.id)).group_by(AuditLog.severity)
-    )
-    severity_counts = severity_counts_result.all()
-    by_severity = {
-        str(severity): count
-        for severity, count in severity_counts
-    }
+    total_events = len(audit_rows)
+    events_today = 0
+    events_this_week = 0
+    events_this_month = 0
+    by_event_type_counter: Counter[str] = Counter()
+    by_severity_counter: Counter[str] = Counter()
+    active_user_counter: Counter[str] = Counter()
 
-    active_user_counts_result = await db.execute(
-        select(AuditLog.user_id, func.count(AuditLog.id).label("count"))
-        .group_by(AuditLog.user_id)
-        .order_by(desc("count"))
-        .limit(5)
-    )
-    active_user_counts = active_user_counts_result.all()
+    for row in audit_rows:
+        created_at = row.get("created_at")
+        if created_at is not None:
+            if created_at >= today_start:
+                events_today += 1
+            if created_at >= week_start:
+                events_this_week += 1
+            if created_at >= month_start:
+                events_this_month += 1
+
+        normalized_event_type = normalize_audit_event_type(row.get("event_type"))
+        if normalized_event_type:
+            by_event_type_counter[normalized_event_type] += 1
+
+        by_severity_counter[audit_metadata_severity(row.get("event_metadata"))] += 1
+
+        user_id = row.get("user_id")
+        if user_id:
+            active_user_counter[str(user_id)] += 1
+
+    by_event_type = dict(by_event_type_counter)
+    by_severity = dict(by_severity_counter)
     most_active_users = [
-        {"user_id": str(user_id), "count": count}
-        for user_id, count in active_user_counts
-        if user_id
+        {"user_id": user_id, "count": count}
+        for user_id, count in active_user_counter.most_common(5)
     ]
 
     return {

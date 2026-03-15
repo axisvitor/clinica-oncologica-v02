@@ -73,44 +73,26 @@ async def get_active_admin_user_from_session(
     current_user: Mapping[str, Any],
     db: AsyncSession,
 ) -> User:
-    """Load the active admin ``User`` for a validated session payload.
-
-    Canonical ``id`` / ``user_id`` identities are authoritative. ``firebase_uid`` is
-    retained as a compatibility fallback when canonical IDs are absent.
-    """
+    """Load the active admin ``User`` for a validated canonical session payload."""
     await require_admin_session_user(current_user, detail="Admin access required")
 
     canonical_user_id = current_user.get("id") or current_user.get("user_id")
-    if canonical_user_id:
-        try:
-            user_uuid = UUID(str(canonical_user_id))
-        except (TypeError, ValueError) as exc:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid session data",
-            ) from exc
-
-        result = await db.execute(
-            select(User).where(User.id == user_uuid, User.is_active.is_(True))
-        )
-        user = result.scalar_one_or_none()
-        if user:
-            return user
-
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin user not found or inactive",
-        )
-
-    firebase_uid = current_user.get("firebase_uid")
-    if not firebase_uid:
+    if not canonical_user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid session data",
         )
 
+    try:
+        user_uuid = UUID(str(canonical_user_id))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session data",
+        ) from exc
+
     result = await db.execute(
-        select(User).where(User.firebase_uid == firebase_uid, User.is_active.is_(True))
+        select(User).where(User.id == user_uuid, User.is_active.is_(True))
     )
     user = result.scalar_one_or_none()
     if user:

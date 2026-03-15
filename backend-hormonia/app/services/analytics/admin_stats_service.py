@@ -84,12 +84,11 @@ class AdminStatsService:
             # Total users
             total_users = self.db.query(User).count()
 
-            # Active users (users with recent activity - last 24 hours)
-            # Since we don't have last_login field, we'll use last_firebase_sync as proxy
+            # Active users are users with canonical login activity in the last 24 hours.
             yesterday = now_sao_paulo() - timedelta(days=1)
             active_now = (
                 self.db.query(User)
-                .filter(User.firebase_last_sign_in >= yesterday)
+                .filter(User.last_login >= yesterday)
                 .count()
             )
 

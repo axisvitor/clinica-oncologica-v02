@@ -23,7 +23,8 @@ Médicos e operadores precisam acessar e operar o sistema com confiabilidade, e 
 - M005 concluído: o controle plane Alembic, a convergência estrutural do head canônico e a prova montada do backend agora contam a mesma história operacional sobre o schema final.
 - O closeout consolidado está publicado em `.gsd/milestones/M005/M005-SUMMARY.md`, e o runner final de schema de S04 vira o baseline de não-regressão para a frente seguinte.
 - M006/S01 concluído: `get_current_user()` e os chokepoints/admin wrappers de staff auth agora resolvem identidade só pelo contrato canônico de sessão por cookie; `X-Session-ID`, session-as-Bearer e `session_id` legado sobrevivem apenas como superfícies explícitas de rejeição/tombstone sob prova focada.
-- O próximo foco é M006/S02: remover o resíduo estrutural de Firebase ainda preso a `users` e leitores adjacentes, mantendo verdes o replay final-schema `fresh|existing` e os packs canônicos de auth/session.
+- M006/S02 foi majoritariamente executado: o head canônico agora derruba as colunas Firebase-prefixed remanescentes de `users`, os readers/profile/admin/physician tocados foram republicados no contrato canônico e as rotas admin de audit/activity deixaram de cair em `SESSION_INVALIDATED` histórico por leitura tolerante do label.
+- O fechamento honesto de S02 ainda está bloqueado por um único teste Postgres-only: `backend-hormonia/tests/api/v2/test_auth_timeout.py::test_get_current_user_from_session_db_timeout_logs_error` não observa o log esperado via `caplog` quando roda com `TEST_DATABASE_URL`; por isso os runners finais `fresh|existing` de schema ainda precisam ser rerodados verdes depois desse ajuste.
 - Prova final de M004 consolidada em `.gsd/milestones/M004/M004-SUMMARY.md`.
 
 ## Architecture / Key Patterns

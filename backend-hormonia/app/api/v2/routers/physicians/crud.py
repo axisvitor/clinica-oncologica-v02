@@ -88,7 +88,7 @@ async def _serialize_physician(
 
     workload_level = _calculate_workload_level(total_patients)
 
-    # Get specialties from canonical storage with legacy fallback
+    # Get specialties from canonical storage.
     specialties = (
         physician.get_specialties_data()
         if hasattr(physician, "get_specialties_data")
@@ -220,7 +220,6 @@ async def list_physicians(
                 User.full_name.ilike(search_filter),
                 User.email.ilike(search_filter),
                 User.display_name.ilike(search_filter),
-                User.firebase_display_name.ilike(search_filter),
             )
         )
 
@@ -399,8 +398,6 @@ async def update_physician(
     if "is_active" in update_dict:
         physician.is_active = update_dict["is_active"]
 
-    # Preserve compatibility-only claim keys still read elsewhere.
-    claims = dict(physician.firebase_custom_claims or {})
 
     if "specialties" in update_dict:
         normalized_specialties = [
@@ -416,10 +413,6 @@ async def update_physician(
         status_value = update_dict["status"]
         if isinstance(status_value, PhysicianStatus):
             status_value = status_value.value
-        if hasattr(physician, "_set_legacy_claim"):
-            physician._set_legacy_claim("status", status_value)
-        else:
-            claims["status"] = status_value
         physician.is_active = status_value == PhysicianStatus.ACTIVE.value
 
     if "license_number" in update_dict:
@@ -440,8 +433,6 @@ async def update_physician(
         else:
             physician.bio = update_dict["bio"]
 
-    if not hasattr(physician, "_set_legacy_claim"):
-        physician.firebase_custom_claims = claims
 
     # Commit changes
     await db.commit()

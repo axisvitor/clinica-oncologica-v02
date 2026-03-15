@@ -339,6 +339,26 @@ class TestGetUser:
         assert data["email"] == doctor_user.email
         assert data["role"] == doctor_user.role.value
 
+    def test_get_user_returns_canonical_last_login(
+        self,
+        client: TestClient,
+        admin_user: User,
+        doctor_user: User,
+        db_session: Session,
+    ):
+        """Test admin user retrieval publishes canonical last_login."""
+        doctor_user.last_login = now_sao_paulo_naive() - timedelta(hours=2)
+        db_session.commit()
+        db_session.refresh(doctor_user)
+
+        response = client.get(f"/api/v2/admin/users/{doctor_user.id}")
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["last_login"].startswith(doctor_user.last_login.isoformat()[:19]), (
+            "canonical_profile surface=admin_user canonical_last_login_missing=true"
+        )
+
     def test_get_user_not_found(self, client: TestClient, admin_user: User):
         """Test getting non-existent user."""
         fake_id = uuid4()

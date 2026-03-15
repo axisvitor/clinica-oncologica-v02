@@ -114,39 +114,6 @@
               ]
             },
             {
-              "path": "backend-hormonia/app/dependencies/auth_role_dependencies.py",
-              "proof": "backend-hormonia/tests/api/v2/test_auth_dependency_override_contract.py::test_roles_admin_dependency_accepts_canonical_user_id_without_firebase_uid",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "firebase_uid = current_user.get(\"firebase_uid\")",
-                  "label": "auth_role_dependencies_current_user_fallback"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/dependencies/auth_session_cache.py",
-              "proof": "backend-hormonia/tests/unit/test_auth_session_cache_canonical_identity.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "firebase_uid = session_data.get(\"firebase_uid\")",
-                  "label": "auth_session_cache_compat_uid_fallback"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/dependencies/auth_session_contract.py",
-              "proof": "backend-hormonia/tests/unit/test_auth_session_identity_contract.py;backend-hormonia/tests/api/v2/test_auth_session_priority.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "load_user_from_db_by_firebase_uid: Callable[[str], Any],",
-                  "label": "auth_session_contract_compat_uid_loader"
-                }
-              ]
-            },
-            {
               "path": "backend-hormonia/app/api/v2/routers/auth.py",
               "proof": "backend-hormonia/tests/api/v2/test_auth_hard_cut_cleanup.py::test_logout_all_revokes_sessions_using_canonical_user_id_when_firebase_uid_missing",
               "anchors": [

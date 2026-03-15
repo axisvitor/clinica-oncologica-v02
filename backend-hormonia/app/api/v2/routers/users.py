@@ -57,6 +57,8 @@ async def _get_redis_client():
 
 def _serialize_user(user: User, include_relationships: bool = False) -> dict:
     last_login = user.get_last_login() if hasattr(user, "get_last_login") else getattr(user, "last_login", None)
+    display_name = user.get_display_name() if hasattr(user, "get_display_name") else getattr(user, "display_name", user.full_name)
+    email_verified = user.get_email_verified() if hasattr(user, "get_email_verified") else bool(getattr(user, "email_verified", False))
     photo_url = user.get_photo_url() if hasattr(user, "get_photo_url") else getattr(user, "photo_url", None)
     data = {
         "id": str(user.id),
@@ -67,6 +69,8 @@ def _serialize_user(user: User, include_relationships: bool = False) -> dict:
         "created_at": user.created_at,
         "updated_at": user.updated_at,
         "last_login": last_login,
+        "display_name": display_name,
+        "email_verified": email_verified,
         "photo_url": photo_url,
     }
     if include_relationships:

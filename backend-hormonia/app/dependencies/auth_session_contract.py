@@ -62,9 +62,7 @@ async def resolve_authenticated_session_user(
     authorization: Optional[str],
     redis_cache: Any,
     get_permissions_for_role: Callable[[str], List[str]],
-    validate_firebase_uid: Callable[[str], None],
     load_user_from_db_by_user_id: Callable[[str], Any],
-    load_user_from_db_by_firebase_uid: Callable[[str], Any],
     load_user_from_db_by_session: Callable[[str], Any],
     serialize_user: Callable[[Any], Dict[str, Any]],
 ) -> Dict[str, Any]:
@@ -117,9 +115,7 @@ async def resolve_authenticated_session_user(
             redis_cache=redis_cache,
             redis_operation_timeout=settings.REDIS_OPERATION_TIMEOUT,
             session_ttl=session_ttl,
-            validate_firebase_uid=validate_firebase_uid,
             load_user_from_db_by_user_id=load_user_from_db_by_user_id,
-            load_user_from_db_by_firebase_uid=load_user_from_db_by_firebase_uid,
             load_user_from_db_by_session=load_user_from_db_by_session,
             serialize_user=serialize_user,
         )

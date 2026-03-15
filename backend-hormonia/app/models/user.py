@@ -7,8 +7,10 @@ from __future__ import annotations
 import enum
 from typing import Any
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, Column, DateTime, Enum, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
 from app.models.base import BaseModel
@@ -73,9 +75,7 @@ class User(BaseModel):
     bio = Column(Text, nullable=True)
     avatar_url = Column(String(500), nullable=True)
 
-    # Compatibility / historical auth linkage that still exists while downstream
-    # readers/tests finish the cut-over.
-    firebase_uid = Column(String(255), unique=True, nullable=True, index=True)
+    # Surviving live boundary for local-auth/password-reset/admin flows.
     auth_provider = Column(
         Enum(
             AuthProvider,
@@ -87,14 +87,119 @@ class User(BaseModel):
         default=AuthProvider.LOCAL,
     )
 
-    # Legacy Firebase-era storage preserved for transition compatibility only.
-    firebase_last_sign_in = Column(DateTime(timezone=True), nullable=True)
-    firebase_created_at = Column(DateTime(timezone=True), nullable=True)
-    firebase_email_verified = Column(Boolean, default=False, nullable=False)
-    firebase_display_name = Column(String(255), nullable=True)
-    firebase_photo_url = Column(String(500), nullable=True)
-    firebase_custom_claims = Column(JSONB, default=dict, nullable=False, server_default=text("'{}'::jsonb"))
-    last_firebase_sync = Column(DateTime(timezone=True), nullable=True)
+    _LEGACY_FIREBASE_FIELD_DEFAULTS = {
+        "firebase_uid": None,
+        "firebase_last_sign_in": None,
+        "firebase_created_at": None,
+        "firebase_email_verified": False,
+        "firebase_display_name": None,
+        "firebase_photo_url": None,
+        "firebase_custom_claims": {},
+        "last_firebase_sync": None,
+    }
+
+    def __init__(self, *args, **kwargs):
+        legacy_values = {
+            key: kwargs.pop(key)
+            for key in tuple(self._LEGACY_FIREBASE_FIELD_DEFAULTS.keys())
+            if key in kwargs
+        }
+        super().__init__(*args, **kwargs)
+        for field_name, value in legacy_values.items():
+            setattr(self, field_name, value)
+
+    @staticmethod
+    def _legacy_null_expression(type_):
+        return sa.cast(sa.null(), type_)
+
+    def _get_legacy_firebase_field(self, field_name: str):
+        if field_name == "firebase_custom_claims":
+            value = getattr(self, f"_{field_name}", None)
+            return value if isinstance(value, dict) else {}
+        if field_name == "firebase_email_verified":
+            return bool(getattr(self, f"_{field_name}", False))
+        return getattr(
+            self,
+            f"_{field_name}",
+            self._LEGACY_FIREBASE_FIELD_DEFAULTS[field_name],
+        )
+
+    def _set_legacy_firebase_field(self, field_name: str, value: Any) -> None:
+        if field_name == "firebase_custom_claims":
+            setattr(self, f"_{field_name}", self._copy_mapping(value))
+            return
+        if field_name == "firebase_email_verified":
+            setattr(self, f"_{field_name}", bool(value))
+            return
+        setattr(self, f"_{field_name}", value)
+
+    @hybrid_property
+    def firebase_uid(self):
+        return self._get_legacy_firebase_field("firebase_uid")
+
+    @firebase_uid.setter
+    def firebase_uid(self, value):
+        self._set_legacy_firebase_field("firebase_uid", value)
+
+    @firebase_uid.expression
+    def firebase_uid(cls):
+        return cls._legacy_null_expression(sa.String(length=255))
+
+    @property
+    def firebase_last_sign_in(self):
+        return self._get_legacy_firebase_field("firebase_last_sign_in")
+
+    @firebase_last_sign_in.setter
+    def firebase_last_sign_in(self, value):
+        self._set_legacy_firebase_field("firebase_last_sign_in", value)
+
+    @property
+    def firebase_created_at(self):
+        return self._get_legacy_firebase_field("firebase_created_at")
+
+    @firebase_created_at.setter
+    def firebase_created_at(self, value):
+        self._set_legacy_firebase_field("firebase_created_at", value)
+
+    @property
+    def firebase_email_verified(self):
+        return self._get_legacy_firebase_field("firebase_email_verified")
+
+    @firebase_email_verified.setter
+    def firebase_email_verified(self, value):
+        self._set_legacy_firebase_field("firebase_email_verified", value)
+
+    @property
+    def firebase_display_name(self):
+        return self._get_legacy_firebase_field("firebase_display_name")
+
+    @firebase_display_name.setter
+    def firebase_display_name(self, value):
+        self._set_legacy_firebase_field("firebase_display_name", value)
+
+    @property
+    def firebase_photo_url(self):
+        return self._get_legacy_firebase_field("firebase_photo_url")
+
+    @firebase_photo_url.setter
+    def firebase_photo_url(self, value):
+        self._set_legacy_firebase_field("firebase_photo_url", value)
+
+    @property
+    def firebase_custom_claims(self):
+        return self._get_legacy_firebase_field("firebase_custom_claims")
+
+    @firebase_custom_claims.setter
+    def firebase_custom_claims(self, value):
+        self._set_legacy_firebase_field("firebase_custom_claims", value)
+
+    @property
+    def last_firebase_sync(self):
+        return self._get_legacy_firebase_field("last_firebase_sync")
+
+    @last_firebase_sync.setter
+    def last_firebase_sync(self, value):
+        self._set_legacy_firebase_field("last_firebase_sync", value)
 
     # Account security fields
     failed_login_attempts = Column(Integer, default=0, nullable=False)
@@ -162,149 +267,106 @@ class User(BaseModel):
         self.firebase_custom_claims = claims
 
     def get_last_login(self):
-        return self.last_login or self.firebase_last_sign_in
+        return self.last_login
 
-    def set_last_login(self, value, *, mirror_legacy: bool = True) -> None:
+    def set_last_login(self, value, *, mirror_legacy: bool = False) -> None:
+        del mirror_legacy
         self.last_login = value
-        if mirror_legacy:
-            self.firebase_last_sign_in = value
 
     def get_auth_created_at(self):
-        return self.auth_created_at or self.firebase_created_at
+        return self.auth_created_at
 
-    def set_auth_created_at(self, value, *, mirror_legacy: bool = True) -> None:
+    def set_auth_created_at(self, value, *, mirror_legacy: bool = False) -> None:
+        del mirror_legacy
         self.auth_created_at = value
-        if mirror_legacy:
-            self.firebase_created_at = value
 
     def get_email_verified(self) -> bool:
-        if self.email_verified is not None:
-            return bool(self.email_verified)
-        return bool(self.firebase_email_verified)
+        return bool(self.email_verified)
 
-    def set_email_verified(self, value: bool, *, mirror_legacy: bool = True) -> None:
-        verified = bool(value)
-        self.email_verified = verified
-        if mirror_legacy:
-            self.firebase_email_verified = verified
+    def set_email_verified(self, value: bool, *, mirror_legacy: bool = False) -> None:
+        del mirror_legacy
+        self.email_verified = bool(value)
 
     def get_display_name(self) -> str | None:
-        return self.display_name or self.firebase_display_name or self.full_name
+        return self.display_name or self.full_name
 
-    def set_display_name(self, value: str | None, *, mirror_legacy: bool = True) -> None:
+    def set_display_name(self, value: str | None, *, mirror_legacy: bool = False) -> None:
+        del mirror_legacy
         self.display_name = value
-        if mirror_legacy:
-            self.firebase_display_name = value
         if value and not self.full_name:
             self.full_name = value
 
     def get_photo_url(self) -> str | None:
-        return self.photo_url or self.firebase_photo_url
+        return self.photo_url
 
-    def set_photo_url(self, value: str | None, *, mirror_legacy: bool = True) -> None:
+    def set_photo_url(self, value: str | None, *, mirror_legacy: bool = False) -> None:
+        del mirror_legacy
         self.photo_url = value
-        if mirror_legacy:
-            self.firebase_photo_url = value
 
     def get_preferences_data(self) -> dict[str, Any]:
-        canonical = self._copy_mapping(self.preferences)
-        if canonical:
-            return canonical
-
-        legacy_preferences = self._legacy_claims().get("preferences")
-        if isinstance(legacy_preferences, dict):
-            return dict(legacy_preferences)
-
-        return canonical
+        return self._copy_mapping(self.preferences)
 
     def set_preferences_data(
         self,
         value: dict[str, Any] | None,
         *,
-        mirror_legacy: bool = True,
+        mirror_legacy: bool = False,
     ) -> None:
-        normalized = self._copy_mapping(value)
-        self.preferences = normalized
-        if mirror_legacy:
-            self._set_legacy_claim("preferences", normalized)
+        del mirror_legacy
+        self.preferences = self._copy_mapping(value)
 
     def get_specialty(self) -> str | None:
         if self.specialty:
             return self.specialty
 
-        legacy_claims = self._legacy_claims()
-        legacy_specialty = legacy_claims.get("specialty")
-        if isinstance(legacy_specialty, str) and legacy_specialty.strip():
-            return legacy_specialty
-
         specialties = self.get_specialties_data()
         return specialties[0] if specialties else None
 
-    def set_specialty(self, value: str | None, *, mirror_legacy: bool = True) -> None:
+    def set_specialty(self, value: str | None, *, mirror_legacy: bool = False) -> None:
+        del mirror_legacy
         self.specialty = value
-        if mirror_legacy:
-            self._set_legacy_claim("specialty", value)
 
     def get_specialties_data(self) -> list[str]:
-        canonical = [item for item in self._copy_list(self.specialties) if isinstance(item, str)]
-        if canonical:
-            return canonical
-
-        legacy_claims = self._legacy_claims()
-        legacy_specialties = legacy_claims.get("specialties")
-        if isinstance(legacy_specialties, list):
-            return [item for item in legacy_specialties if isinstance(item, str)]
-
-        legacy_specialty = legacy_claims.get("specialty")
-        if isinstance(legacy_specialty, str) and legacy_specialty.strip():
-            return [legacy_specialty]
-
-        return canonical
+        return [item for item in self._copy_list(self.specialties) if isinstance(item, str)]
 
     def set_specialties_data(
         self,
         value: list[str] | None,
         *,
-        mirror_legacy: bool = True,
+        mirror_legacy: bool = False,
     ) -> None:
+        del mirror_legacy
         normalized = [item for item in self._copy_list(value) if isinstance(item, str)]
         self.specialties = normalized
-        if mirror_legacy:
-            self._set_legacy_claim("specialties", normalized)
-            if normalized:
-                self._set_legacy_claim("specialty", normalized[0])
+        self.specialty = normalized[0] if normalized else None
 
     def get_license_number(self) -> str | None:
-        return self.license_number or self._legacy_claims().get("license_number")
+        return self.license_number
 
-    def set_license_number(self, value: str | None, *, mirror_legacy: bool = True) -> None:
+    def set_license_number(self, value: str | None, *, mirror_legacy: bool = False) -> None:
+        del mirror_legacy
         self.license_number = value
-        if mirror_legacy:
-            self._set_legacy_claim("license_number", value)
 
     def get_phone(self) -> str | None:
-        return self.phone or self._legacy_claims().get("phone")
+        return self.phone
 
-    def set_phone(self, value: str | None, *, mirror_legacy: bool = True) -> None:
+    def set_phone(self, value: str | None, *, mirror_legacy: bool = False) -> None:
+        del mirror_legacy
         self.phone = value
-        if mirror_legacy:
-            self._set_legacy_claim("phone", value)
 
     def get_bio(self) -> str | None:
-        return self.bio or self._legacy_claims().get("bio")
+        return self.bio
 
-    def set_bio(self, value: str | None, *, mirror_legacy: bool = True) -> None:
+    def set_bio(self, value: str | None, *, mirror_legacy: bool = False) -> None:
+        del mirror_legacy
         self.bio = value
-        if mirror_legacy:
-            self._set_legacy_claim("bio", value)
 
     def get_avatar_url(self) -> str | None:
-        return self.avatar_url or self._legacy_claims().get("avatar_url")
+        return self.avatar_url
 
-    def set_avatar_url(self, value: str | None, *, mirror_legacy: bool = True) -> None:
+    def set_avatar_url(self, value: str | None, *, mirror_legacy: bool = False) -> None:
+        del mirror_legacy
         self.avatar_url = value
-        if mirror_legacy:
-            self._set_legacy_claim("avatar_url", value)
 
     @property
     def password_hash(self):

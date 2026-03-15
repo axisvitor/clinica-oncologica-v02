@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.audit_log import AuditEventType
 from app.models.user import User
 from app.models.appointment import Appointment
 from app.schemas.admin_validation import validate_password_strength as _shared_validate_password_strength
@@ -23,6 +24,33 @@ from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_audit_event_type(value: Any) -> Optional[str]:
+    """Normalize stored audit event labels to the canonical lowercase contract."""
+    if value is None:
+        return None
+
+    candidate = value.value if hasattr(value, "value") else str(value)
+    normalized = candidate.strip()
+    if not normalized:
+        return None
+
+    lowered = normalized.lower()
+    try:
+        return AuditEventType(lowered).value
+    except ValueError:
+        try:
+            return AuditEventType[normalized.upper()].value
+        except KeyError:
+            return lowered
+
+
+def audit_metadata_severity(event_metadata: Optional[Dict[str, Any]]) -> str:
+    """Read audit severity from metadata with the admin default."""
+    metadata = event_metadata or {}
+    severity = metadata.get("severity")
+    return str(severity) if severity is not None else "info"
 
 
 def _serialize_user(user: User, fields: Optional[List[str]] = None) -> dict:
@@ -44,11 +72,9 @@ def _serialize_user(user: User, fields: Optional[List[str]] = None) -> dict:
         "is_active": user.is_active,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
-        "last_login": getattr(
-            user,
-            "last_login",
-            getattr(user, "firebase_last_sign_in", None),
-        ),
+        "last_login": user.get_last_login()
+        if hasattr(user, "get_last_login")
+        else getattr(user, "last_login", None),
     }
 
     if fields:
