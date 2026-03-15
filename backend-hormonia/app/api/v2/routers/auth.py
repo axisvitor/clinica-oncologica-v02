@@ -774,16 +774,22 @@ async def logout_all(
 
     try:
         user_uuid = UUID(user_id)
-        db.query(SessionModel).filter(
-            SessionModel.user_id == user_uuid, SessionModel.is_active
-        ).update(
-            {SessionModel.is_active: False, SessionModel.revoked_at: now_sao_paulo()}
+        db_deleted_count = (
+            db.query(SessionModel)
+            .filter(SessionModel.user_id == user_uuid, SessionModel.is_active)
+            .update(
+                {SessionModel.is_active: False, SessionModel.revoked_at: now_sao_paulo()}
+            )
         )
         db.commit()
     except Exception as e:
         logger.error(f"Error revoking all DB sessions: {e}")
         db.rollback()
         raise BusinessRuleError("Failed to revoke all sessions")
+
+    # The runtime source of truth for session count is DB state; Redis may be empty in
+    # legitimate bootstrap conditions even when DB had active sessions.
+    sessions_deleted = max(int(deleted_count or 0), int(db_deleted_count or 0))
 
     # Clear session cookie
     response.delete_cookie(
@@ -797,7 +803,7 @@ async def logout_all(
     return {
         "message": "Logged out from all devices",
         "success": True,
-        "sessions_deleted": deleted_count,
+        "sessions_deleted": sessions_deleted,
     }
 
 
