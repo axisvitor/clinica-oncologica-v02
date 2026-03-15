@@ -16,8 +16,9 @@ Médicos e operadores precisam acessar e operar o sistema com confiabilidade, e 
 - M004/S01 concluído: o runtime oficial de auth/sessão agora tem uma fronteira executável de resíduo (`runtime-residue-allowlist.json` + `verify-runtime-residue.sh` + regressão pytest) que mostra exatamente onde `firebase_uid`, `/session/*`, `X-Session-ID`, bearer fallback, websocket `session_id` e narrativa Firebase ainda sobrevivem.
 - M004/S02–S04 concluídos: backend e frontend oficiais já rodam no contrato canônico session-first, o backend aceita apenas a sessão por cookie no caminho oficial, `X-Session-ID`/session-as-Bearer/query fallback foram aposentados, e `/session/*` ficou reduzido a um tombstone 410 explícito.
 - M004/S05 concluído: Redis/session/cache/login/websocket-adjacent auth, auditoria/admin/docs e tipos frontend adjacentes agora usam o runtime canônico por `id` / `user_id`; `firebase_uid` saiu do caminho funcional oficial e o frontend ficou com zero resíduo aprovado no verificador.
+- M004/S06 concluído: stack local sobe sem Firebase Auth e valida `run-mounted-proof.sh --all` (auth/session-first acceptance + smoke roteado de `/dashboard`, `/admin`, `/whatsapp`) em runtime montado; status e artefatos em `/tmp/gsd-s06-mounted-proof` e `frontend-hormonia/test-results`.
 - O verificador de S01 voltou a ser um gate honesto para o slice inteiro: `--report all`/`--check all` ficam verdes, listando apenas o inventário reduzido de resíduo backend permitido como compatibilidade/rejeição passiva (`firebase_uid`, `x_session_id`, bearer fallback e websocket query) e nenhum resíduo frontend aprovado.
-- O próximo foco é M004/S06: subir o stack local sem Firebase Auth e reexecutar `/login`, `/dashboard`, `/admin` e `/whatsapp` no estado montado contra essa fronteira reduzida.
+- O próximo foco é M005: Fechamento definitivo de schema/migrações (R051) e, em seguida, M006 para purga final de código morto e resíduos legados (R052).
 
 ## Architecture / Key Patterns
 
@@ -36,6 +37,6 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M001: Bulletproof Flow Pipeline — fluxo WhatsApp resiliente com retry, recovery, observabilidade e prova integrada ponta a ponta.
 - [x] M002: First-Party Authentication Cutover — login local, recuperação/first-access, cutover frontend/realtime e hard cut sem Firebase Auth para staff concluídos.
 - [x] M003: Structural Refactor And Dead-Code Cleanup — hotspots críticos menores, compatibilidade obsoleta reduzida e base mais segura de manter sem regressão visível desnecessária.
-- [ ] M004: Convergência Canônica de Runtime — runtime oficial sem Firebase, auth/sessão convergidos e superfícies oficiais alinhadas ao contrato canônico.
+- [x] M004: Convergência Canônica de Runtime — runtime oficial sem Firebase, auth/sessão convergidos e superfícies oficiais alinhadas ao contrato canônico.
 - [ ] M005: Fechamento Definitivo de Schema e Migrações — schema/Alembic alinhados ao modelo final, sem resíduo estrutural de Firebase e sem migrações ambíguas penduradas.
 - [ ] M006: Purga Final de Código Morto e Resíduo Legado — bridges, aliases, tombstones, docs e código morto restantes removidos com prova integrada final.

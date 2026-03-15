@@ -14,17 +14,6 @@ Guidelines:
 
 ## Active
 
-### R047 — Firebase sai de vez do runtime oficial
-- Class: constraint
-- Status: active
-- Description: O runtime oficial do sistema deixa de depender de Firebase para autenticação, sessão, identidade da equipe ou narrativa operacional do caminho feliz.
-- Why it matters: Enquanto Firebase ainda estiver vivo no runtime oficial, a base continua com transição aberta e comportamento ambíguo.
-- Source: user
-- Primary owning slice: M004/S05
-- Supporting slices: M004/S01, M004/S02, M004/S03, M004/S04, M004/S06
-- Validation: mapped
-- Notes: S05 fechou a dependência funcional adjacente de Firebase no runtime por prova de contrato; S06 ainda precisa revalidar o estado montado local sem Firebase Auth antes desta requirement sair de Active.
-
 
 ### R051 — Schema e migrações refletem o modelo final, não o legado de transição
 - Class: quality-attribute
@@ -47,17 +36,6 @@ Guidelines:
 - Supporting slices: none
 - Validation: mapped
 - Notes: M006 herda a disciplina de manifests, guardrails e provas montadas estabelecida em M003.
-
-### R053 — A convergência final fecha com prova integrada, não só com cleanup estático
-- Class: quality-attribute
-- Status: active
-- Description: O encerramento da frente M004–M006 precisa provar o sistema montado em estado final, em vez de depender apenas de grep, manifests e diffs de código.
-- Why it matters: Cleanup sem prova integrada deixa dúvida sobre o que realmente continua funcionando.
-- Source: inferred
-- Primary owning slice: M006/S?? (provisional)
-- Supporting slices: M004/S06, M005/S?? (provisional)
-- Validation: mapped
-- Notes: Cada milestone terá sua própria prova, mas a frente toda fecha só quando o estado final estiver replayável e confiável.
 
 ## Validated
 
@@ -292,6 +270,28 @@ Guidelines:
 - Validation: validated
 - Notes: Verified by M004/S03’s focused frontend proof packs, green routed `/login` → `/admin/*` coverage, green websocket diagnostic proof, green build, and a green residue guard showing zero approved frontend auth/session/Firebase residue.
 
+### R047 — Firebase sai de vez do runtime oficial
+- Class: constraint
+- Status: validated
+- Description: O runtime oficial do sistema deixa de depender de Firebase para autenticação, sessão, identidade da equipe ou narrativa operacional do caminho feliz.
+- Why it matters: Enquanto Firebase ainda estiver vivo no runtime oficial, a base continua com transição aberta e comportamento ambíguo.
+- Source: user
+- Primary owning slice: M004/S05
+- Supporting slices: M004/S01, M004/S02, M004/S03, M004/S04, M004/S06
+- Validation: validated
+- Notes: S05 fechou a dependência funcional adjacente de Firebase no runtime por prova de contrato e S06 revalidou o estado montado sem Firebase Auth.
+
+### R053 — A convergência final fecha com prova integrada, não só com cleanup estático
+- Class: quality-attribute
+- Status: validated
+- Description: O encerramento da frente M004–M006 precisa provar o sistema montado em estado final, em vez de depender apenas de grep, manifests e diffs de código.
+- Why it matters: Cleanup sem prova integrada deixa dúvida sobre o que realmente continua funcionando.
+- Source: inferred
+- Primary owning slice: M006/S?? (provisional)
+- Supporting slices: M004/S06, M005/S?? (provisional)
+- Validation: validated by M004/S06/--all proof and surfaced smoke artifacts
+- Notes: O estado final do stack montado com auth/session-first e rotas críticas foi validado neste slice; permanece dívida estrutural em schema/migração para R051 e limpeza de legado para R052.
+
 ### R048 — Auth/sessão converge para um contrato canônico único
 - Class: continuity
 - Status: validated
@@ -509,13 +509,13 @@ Guidelines:
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
 |---|---|---|---|---|---|
-| R047 | constraint | active | M004/S05 | M004/S01, M004/S02, M004/S03, M004/S04, M004/S06 | mapped |
+| R047 | constraint | validated | M004/S05 | M004/S01, M004/S02, M004/S03, M004/S04, M004/S06 | validated |
 | R048 | continuity | validated | M004/S02 | M004/S01, M004/S03, M004/S04 | validated |
 | R049 | integration | validated | M004/S02 | M004/S01, M004/S04, M004/S05 | validated |
 | R050 | primary-user-loop | validated | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | validated |
 | R051 | quality-attribute | active | M005/S?? (provisional) | none | mapped |
 | R052 | operability | active | M006/S?? (provisional) | none | mapped |
-| R053 | quality-attribute | active | M006/S?? (provisional) | M004/S06, M005/S?? (provisional) | mapped |
+| R053 | quality-attribute | validated | M006/S?? (provisional) | M004/S06, M005/S?? (provisional) | validated by M004/S06 --all proof |
 | R001 | continuity | validated | M001/S01 | none | validated |
 | R002 | operability | validated | M001/S02 | none | validated |
 | R003 | failure-visibility | validated | M001/S03 | none | validated |
@@ -555,7 +555,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 4
+- Active requirements: 2
 - Mapped to slices: 4
-- Validated: 21
+- Validated: 23
 - Unmapped active requirements: 0

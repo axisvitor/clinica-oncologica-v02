@@ -66,7 +66,7 @@ This milestone is complete only when all are true:
 - [x] **S05: Resíduo funcional de Firebase removido do runtime adjacente** `risk:medium` `depends:[S02,S03]`
   > After this: cache, auditoria, tipos/docs operacionais e módulos adjacentes em escopo param de tratar Firebase como parte viva do sistema.
 
-- [ ] **S06: Prova integrada de runtime sem Firebase** `risk:medium` `depends:[S04,S05]`
+- [x] **S06: Prova integrada de runtime sem Firebase** `risk:medium` `depends:[S04,S05]`
   > After this: o stack local sobe sem Firebase Auth e reprova login/restore/logout mais smoke de `/dashboard`, `/admin` e `/whatsapp` no estado montado.
 
 ## Boundary Map
