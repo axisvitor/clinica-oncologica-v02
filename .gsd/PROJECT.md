@@ -21,6 +21,7 @@ Médicos e operadores precisam acessar e operar o sistema com confiabilidade, e 
 - O harness compartilhado de testes em Postgres agora provisiona o schema via `alembic upgrade head` quando `TEST_DATABASE_URL` está definido, o que faz as suites de runtime validarem o head real em vez de um `Base.metadata.create_all()` incompleto.
 - M005/S04 concluído: `.gsd/milestones/M005/slices/S04/run-final-schema-proof.sh` prepara os histories `fresh` e `existing`, reexecuta os packs críticos pós-M004 no head final e sobe um uvicorn real no mesmo schema para provar `/health/ready`, `/api/v2/system/config` e o fluxo `login -> verify-session -> /users/me -> logout` sem Firebase.
 - M005 concluído: o controle plane Alembic, a convergência estrutural do head canônico e a prova montada do backend agora contam a mesma história operacional sobre o schema final.
+- O closeout consolidado está publicado em `.gsd/milestones/M005/M005-SUMMARY.md`, e o runner final de schema de S04 vira o baseline de não-regressão para a frente seguinte.
 - O próximo foco é M006: remover o resíduo morto/compat restante com prova e sem regredir o runner final de schema.
 - Prova final de M004 consolidada em `.gsd/milestones/M004/M004-SUMMARY.md`.
 

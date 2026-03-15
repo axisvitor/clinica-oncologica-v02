@@ -279,7 +279,7 @@ Guidelines:
 - Primary owning slice: M005/S03
 - Supporting slices: M005/S01, M005/S02
 - Validation: validated by M005/S03 clean+existing head convergence proof and canonical runtime contract suites
-- Notes: S01 tornou o controle plane do Alembic operável só com configuração de banco; S02 publicou a fronteira histórica explícita para `firebase_sync_history`, `audit_logs.firebase_uid` e payloads canônicos; S03 provou em Postgres real que `base -> head` e `m005_s02_t01_publish_firebase_history_boundary -> head` convergem para o mesmo head `m005_s03_t02_align_audit_history_head`, com `users`, `audit_logs` e `firebase_sync_history` alinhados ao contrato canônico vivo sem reviver resíduo Firebase estrutural.
+- Notes: S01 tornou o controle plane do Alembic operável só com configuração de banco; S02 publicou a fronteira histórica explícita para `firebase_sync_history`, `audit_logs.firebase_uid` e payloads canônicos; S03 provou em Postgres real que `base -> head` e `m005_s02_t01_publish_firebase_history_boundary -> head` convergem para o mesmo head `m005_s03_t02_align_audit_history_head`, com `users`, `audit_logs` e `firebase_sync_history` alinhados ao contrato canônico vivo sem reviver resíduo Firebase estrutural. Milestone closeout consolidado em `.gsd/milestones/M005/M005-SUMMARY.md`.
 
 ### R053 — A convergência final fecha com prova integrada, não só com cleanup estático
 - Class: quality-attribute
@@ -290,7 +290,7 @@ Guidelines:
 - Primary owning slice: M005/S04
 - Supporting slices: M004/S06, M005/S01, M005/S03
 - Validation: validated by M004/S06 mounted runtime proof plus M005/S04 final-schema fresh/existing backend replay on the canonical head
-- Notes: M004/S06 validou o stack montado sem Firebase no runtime oficial; M005/S01 acrescentou a prova de operabilidade/replay do controle plane de migrations em Postgres real; M005/S03 acrescentou a prova de convergência estrutural do head canônico em Postgres real; M005/S04 fechou a lacuna operacional ao reexecutar o backend real e os loops críticos pós-M004 nesse head consolidado para histories `fresh` e `existing`.
+- Notes: M004/S06 validou o stack montado sem Firebase no runtime oficial; M005/S01 acrescentou a prova de operabilidade/replay do controle plane de migrations em Postgres real; M005/S03 acrescentou a prova de convergência estrutural do head canônico em Postgres real; M005/S04 fechou a lacuna operacional ao reexecutar o backend real e os loops críticos pós-M004 nesse head consolidado para histories `fresh` e `existing`. Milestone closeout consolidado em `.gsd/milestones/M005/M005-SUMMARY.md`.
 
 ### R048 — Auth/sessão converge para um contrato canônico único
 - Class: continuity
