@@ -22,6 +22,7 @@
 - `cd backend-hormonia && pytest -q tests/api/v2/test_canonical_user_profile_contracts.py tests/services/audit/test_audit_service.py`
 - `cd backend-hormonia && pytest -q tests/api/v2/test_canonical_user_profile_contracts.py -k 'canonical_profile or canonical_preferences'`
 - `cd backend-hormonia && env -i PATH="$PATH" HOME="$HOME" DATABASE_URL='postgresql://postgres:postgres@localhost:55432/hormonia_test' python3 -m alembic -c alembic.ini current`
+- `cd backend-hormonia && pytest -q tests/services/audit/test_audit_service.py -k 'canonical or historical or enum'`
 
 ## Observability / Diagnostics
 
@@ -44,7 +45,7 @@
   - Do: adicionar uma revision linear a partir de `m005_s02_t01_publish_firebase_history_boundary` que introduza/backfille colunas neutras para login/profile/settings vivos em `users`; atualizar `User` e as superfícies oficiais de user/auth/physician para dual-read/write pelos nomes canônicos; tirar preferências/perfil do papel de storage canônico de `firebase_custom_claims`; manter `firebase_uid` e `auth_provider` apenas como compat explícita enquanto ainda houver leitores/tests que dependem deles.
   - Verify: `cd backend-hormonia && pytest -q tests/api/v2/test_canonical_user_profile_contracts.py`
   - Done when: payloads oficiais e writes de `users`/`auth`/`physicians` usam o contrato neutro, e `firebase_custom_claims` deixa de ser o storage canônico vivo para preferências e perfil.
-- [ ] **T02: Alinhar audit/history e provar convergência clean+existing no mesmo head** `est:2h`
+- [x] **T02: Alinhar audit/history e provar convergência clean+existing no mesmo head** `est:2h`
   - Why: sem fechar `audit_logs` e `firebase_sync_history` contra o head real, S03 ainda fica com um schema que opera mas não conta a mesma história em banco novo e banco existente.
   - Files: `backend-hormonia/alembic/versions/<s03_audit_history_alignment>.py`, `backend-hormonia/app/models/audit_log.py`, `backend-hormonia/app/models/user_sync_log.py`, `backend-hormonia/tests/migrations/test_canonical_schema_head_convergence.py`, `backend-hormonia/tests/migrations/test_firebase_historical_boundary.py`, `backend-hormonia/tests/migrations/test_alembic_operability.py`, `backend-hormonia/tests/services/audit/test_audit_service.py`
   - Do: adicionar a revision linear final que cria/backfille `user_role`/`audit_event_type` quando necessário e converte `users.role` e `audit_logs.event_type` para enums canônicos em clean e upgraded paths; remover `firebase_uid` do contrato vivo de `AuditLog` em vez de inventá-lo no head; decidir o destino archival de `supabase_user_id` / `sync_action` / `sync_status` em `firebase_sync_history`; e estender a harness de migrations com fingerprint estrutural para comparar `base -> head` e `S02 head -> head`.

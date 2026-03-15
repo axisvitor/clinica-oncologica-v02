@@ -15,17 +15,6 @@ Guidelines:
 ## Active
 
 
-### R051 — Schema e migrações refletem o modelo final, não o legado de transição
-- Class: quality-attribute
-- Status: active
-- Description: O schema ativo, os modelos e o grafo Alembic deixam de carregar resíduo estrutural de Firebase/legado como parte necessária do sistema atual.
-- Why it matters: Sem fechar o banco e as migrações, a convergência fica incompleta e frágil para novos ambientes ou upgrades.
-- Source: user
-- Primary owning slice: M005/S?? (provisional)
-- Supporting slices: M005/S01, M005/S02
-- Validation: mapped
-- Notes: S01 já provou que o controle plane do Alembic carrega, percorre e faz replay em Postgres real só com configuração de banco; S02 publicou a fronteira histórica explícita para `firebase_sync_history`, `audit_logs.firebase_uid` e payloads canônicos sem reviver Firebase como contrato vivo. Ainda faltam a convergência canônica do head/schema e a prova integrada das slices seguintes.
-
 ### R052 — Código morto e compatibilidades restantes são removidos com prova
 - Class: operability
 - Status: active
@@ -281,6 +270,17 @@ Guidelines:
 - Validation: validated
 - Notes: S05 fechou a dependência funcional adjacente de Firebase no runtime por prova de contrato e S06 revalidou o estado montado sem Firebase Auth.
 
+### R051 — Schema e migrações refletem o modelo final, não o legado de transição
+- Class: quality-attribute
+- Status: validated
+- Description: O schema ativo, os modelos e o grafo Alembic deixam de carregar resíduo estrutural de Firebase/legado como parte necessária do sistema atual.
+- Why it matters: Sem fechar o banco e as migrações, a convergência fica incompleta e frágil para novos ambientes ou upgrades.
+- Source: user
+- Primary owning slice: M005/S03
+- Supporting slices: M005/S01, M005/S02
+- Validation: validated by M005/S03 clean+existing head convergence proof and canonical runtime contract suites
+- Notes: S01 tornou o controle plane do Alembic operável só com configuração de banco; S02 publicou a fronteira histórica explícita para `firebase_sync_history`, `audit_logs.firebase_uid` e payloads canônicos; S03 provou em Postgres real que `base -> head` e `m005_s02_t01_publish_firebase_history_boundary -> head` convergem para o mesmo head `m005_s03_t02_align_audit_history_head`, com `users`, `audit_logs` e `firebase_sync_history` alinhados ao contrato canônico vivo sem reviver resíduo Firebase estrutural.
+
 ### R053 — A convergência final fecha com prova integrada, não só com cleanup estático
 - Class: quality-attribute
 - Status: validated
@@ -288,9 +288,9 @@ Guidelines:
 - Why it matters: Cleanup sem prova integrada deixa dúvida sobre o que realmente continua funcionando.
 - Source: inferred
 - Primary owning slice: M006/S?? (provisional)
-- Supporting slices: M004/S06, M005/S01
+- Supporting slices: M004/S06, M005/S01, M005/S03
 - Validation: validated by M004/S06/--all proof and surfaced smoke artifacts
-- Notes: O estado final do stack montado com auth/session-first e rotas críticas foi validado em M004/S06; S01 acrescenta a prova de operabilidade/replay do controle plane de migrations em Postgres real, enquanto a dívida estrutural de schema/migração segue em R051 e a limpeza final de legado segue em R052.
+- Notes: O estado final do stack montado com auth/session-first e rotas críticas foi validado em M004/S06; S01 acrescentou a prova de operabilidade/replay do controle plane de migrations em Postgres real; S03 acrescentou a prova de convergência estrutural do head canônico em Postgres real. Ainda falta S04 reexecutar o backend real nesse head consolidado para fechar M005 sem dúvida operacional.
 
 ### R048 — Auth/sessão converge para um contrato canônico único
 - Class: continuity
@@ -513,9 +513,9 @@ Guidelines:
 | R048 | continuity | validated | M004/S02 | M004/S01, M004/S03, M004/S04 | validated |
 | R049 | integration | validated | M004/S02 | M004/S01, M004/S04, M004/S05 | validated |
 | R050 | primary-user-loop | validated | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | validated |
-| R051 | quality-attribute | active | M005/S?? (provisional) | M005/S01, M005/S02 | mapped |
+| R051 | quality-attribute | validated | M005/S03 | M005/S01, M005/S02 | validated |
 | R052 | operability | active | M006/S?? (provisional) | none | mapped |
-| R053 | quality-attribute | validated | M006/S?? (provisional) | M004/S06, M005/S01 | validated by M004/S06 --all proof |
+| R053 | quality-attribute | validated | M006/S?? (provisional) | M004/S06, M005/S01, M005/S03 | validated by M004/S06 --all proof |
 | R001 | continuity | validated | M001/S01 | none | validated |
 | R002 | operability | validated | M001/S02 | none | validated |
 | R003 | failure-visibility | validated | M001/S03 | none | validated |
@@ -555,7 +555,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 2
-- Mapped to slices: 4
-- Validated: 24
+- Active requirements: 1
+- Mapped to slices: 1
+- Validated: 25
 - Unmapped active requirements: 0

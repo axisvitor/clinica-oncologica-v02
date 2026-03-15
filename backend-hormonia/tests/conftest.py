@@ -976,16 +976,70 @@ def _ensure_users_canonical_profile_columns(engine):
         connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500) NULL"))
 
 
+def _dedupe_metadata_indexes_by_name():
+    """Avoid duplicate Index objects with the same database name in test metadata."""
+    for table in Base.metadata.tables.values():
+        indexes = list(table.indexes)
+        deduped_by_name = {}
+        duplicate_names = []
+
+        for idx in indexes:
+            if idx.name in deduped_by_name:
+                duplicate_names.append(idx.name)
+                continue
+            deduped_by_name[idx.name] = idx
+
+        if duplicate_names:
+            print(
+                "[tests.conftest] Deduplicating metadata indexes "
+                f"table={table.name} names={sorted(set(duplicate_names))}"
+            )
+            table.indexes = set(deduped_by_name.values())
+
+
+
+def _reset_public_schema(engine):
+    with engine.begin() as connection:
+        connection.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+        connection.execute(text("CREATE SCHEMA public"))
+
+
+
+def _upgrade_postgres_test_schema_to_head(engine, db_url: str) -> None:
+    from alembic import command
+    from alembic.config import Config
+
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    config = Config(os.path.join(repo_root, "alembic.ini"))
+    config.set_main_option("script_location", os.path.join(repo_root, "alembic"))
+    config.set_main_option("sqlalchemy.url", db_url)
+
+    previous_db_url = os.environ.get("DATABASE_URL")
+    try:
+        os.environ["DATABASE_URL"] = db_url
+        _reset_public_schema(engine)
+        print("[tests.conftest] Provisioning Postgres test schema via alembic upgrade head")
+        command.upgrade(config, "head")
+    finally:
+        if previous_db_url is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = previous_db_url
+
+
 @pytest.fixture(scope="session")
 def test_engine():
     # Detect if we should use Postgres or SQLite
-    db_url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
+    explicit_test_db_url = os.getenv("TEST_DATABASE_URL")
+    db_url = explicit_test_db_url or os.getenv("DATABASE_URL")
     allow_postgres = os.getenv("USE_TEST_POSTGRES", "").lower() in ("1", "true", "yes")
     db_host = urlparse(db_url).hostname if db_url else None
     is_local_host = db_host in {"localhost", "127.0.0.1", "::1"}
+    use_local_postgres = bool(db_url and "postgresql" in db_url and (allow_postgres or is_local_host))
+
     # Allow running tests against local postgres if available, even in dev mode
     # ensuring we never run against prod is handled by the user ensuring they are local
-    if db_url and "postgresql" in db_url and (allow_postgres or is_local_host):
+    if use_local_postgres:
         # USE TEST POSTGRES
         # Do not use StaticPool for Postgres as it prevents multiple connections
         engine = create_engine(
@@ -1004,20 +1058,25 @@ def test_engine():
         # Apply SQLite compatibility fixes BEFORE create_all
         _apply_sqlite_type_fixes()
 
+    _dedupe_metadata_indexes_by_name()
+
     # Legacy call for any remaining issues (now mostly redundant for SQLite)
     _replace_postgres_types_with_sqlite(engine)
 
-    # DANGER: Skipping drop_all to avoid wiping local dev DB during ad-hoc testing
-    # try:
-    #     Base.metadata.drop_all(bind=engine)
-    # except Exception as e:
-    #     print(f"Warning during drop_all: {e}")
+    if explicit_test_db_url and use_local_postgres:
+        _upgrade_postgres_test_schema_to_head(engine, db_url)
+    else:
+        # DANGER: Skipping drop_all to avoid wiping local dev DB during ad-hoc testing
+        # try:
+        #     Base.metadata.drop_all(bind=engine)
+        # except Exception as e:
+        #     print(f"Warning during drop_all: {e}")
 
-    # Create all tables with checkfirst to avoid errors
-    try:
-        Base.metadata.create_all(bind=engine, checkfirst=True)
-    except Exception as e:
-        print(f"Warning during create_all: {e}")
+        # Create all tables with checkfirst to avoid errors
+        try:
+            Base.metadata.create_all(bind=engine, checkfirst=True)
+        except Exception as e:
+            print(f"Warning during create_all: {e}")
 
     _ensure_patients_whatsapp_opt_out_column(engine)
     _ensure_notifications_type_column(engine)

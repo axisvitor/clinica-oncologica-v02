@@ -17,7 +17,9 @@ Médicos e operadores precisam acessar e operar o sistema com confiabilidade, e 
 - O verificador de S01 é o gate vivo do contrato: `--report all`/`--check all` listam apenas resíduos backend de compatibilidade/rejeição (`firebase_uid`, `x_session_id`, `session_bearer_fallback`, `websocket_session_id_query`) e zero resíduo aprovado no frontend.
 - M005/S01 concluído: `alembic history`, `heads`, `upgrade head` e `current` agora rodam em Postgres scrubbed só com configuração de banco; revisions históricas e backfills vazios deixaram de puxar `app.config.settings`, WuzAPI ou Firebase para o controle plane de migrations.
 - M005/S02 concluído: `user_sync_log` foi publicado como `firebase_sync_history`, `audit_logs.firebase_uid` ficou quarantined como resíduo histórico/read-only, e payloads oficiais de users/admin/physicians deixaram de anunciar `firebase_uid` como contrato vivo sem quebrar a compat fallback centrada em `user_id`.
-- O próximo foco é M005/S03: convergir banco novo e banco existente ao mesmo head canônico sem resíduo estrutural Firebase ainda necessário ao runtime oficial.
+- M005/S03 concluído: banco novo (`base -> head`) e banco existente (`m005_s02_t01_publish_firebase_history_boundary -> head`) agora convergem para `m005_s03_t02_align_audit_history_head`, com `users` republicado sob colunas canônicas neutras, `audit_logs.event_type` em enum canônico e `firebase_sync_history` mantido apenas como histórico explícito.
+- O harness compartilhado de testes em Postgres agora provisiona o schema via `alembic upgrade head` quando `TEST_DATABASE_URL` está definido, o que faz as suites de runtime validarem o head real em vez de um `Base.metadata.create_all()` incompleto.
+- O próximo foco é M005/S04: subir o backend real nesse head consolidado e revalidar os loops críticos pós-M004 em schema novo e schema atualizado.
 - Prova final de M004 consolidada em `.gsd/milestones/M004/M004-SUMMARY.md`.
 
 ## Architecture / Key Patterns

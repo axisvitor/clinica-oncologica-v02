@@ -55,7 +55,7 @@ This milestone is complete only when all are true:
   > After this: um mantenedor consegue rodar `alembic history`, `heads`, `current` e um upgrade real em banco de teste sem WuzAPI/Firebase env; o grafo volta a ser uma superfície operacional própria.
 - [x] **S02: Legado Firebase isolado como histórico explícito** `risk:high` `depends:[S01]`
   > After this: um banco com rastros Firebase preserva apenas o que foi escolhido como histórico explícito, enquanto `users`, `audit_logs` e `user_sync_log` deixam de apresentar esses dados como contrato vivo do modelo canônico.
-- [ ] **S03: Head canônico de schema sem resíduo estrutural vivo** `risk:high` `depends:[S01,S02]`
+- [x] **S03: Head canônico de schema sem resíduo estrutural vivo** `risk:high` `depends:[S01,S02]`
   > After this: banco novo e banco existente chegam ao mesmo head com modelos, enums, índices e migrations contando a mesma história canônica sem resíduo Firebase estrutural necessário ao runtime oficial.
 - [ ] **S04: Prova integrada de upgrade e backend no schema final** `risk:medium` `depends:[S03]`
   > After this: o backend sobe no head consolidado e a prova montada revalida os loops críticos pós-M004 sobre schema recém-bootstrapado e schema atualizado.
