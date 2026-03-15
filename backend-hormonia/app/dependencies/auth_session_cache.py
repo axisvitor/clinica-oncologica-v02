@@ -23,19 +23,19 @@ def resolve_canonical_user_id(identity_payload: Dict[str, Any]) -> Optional[str]
 
 def serialize_user_data(user: Any) -> Dict[str, Any]:
     """Normalize a user model into the canonical auth/session cache payload."""
+    last_login = user.get_last_login() if hasattr(user, "get_last_login") else getattr(user, "last_login", getattr(user, "firebase_last_sign_in", None))
+    photo_url = user.get_photo_url() if hasattr(user, "get_photo_url") else getattr(user, "photo_url", getattr(user, "firebase_photo_url", None))
     return {
         "id": str(user.id),
-        "firebase_uid": user.firebase_uid,
+        "firebase_uid": getattr(user, "firebase_uid", None),
         "email": user.email,
         "full_name": user.full_name,
         "role": user.role.value if hasattr(user.role, "value") else str(user.role),
         "is_active": user.is_active,
         "created_at": user.created_at.isoformat() if getattr(user, "created_at", None) else None,
         "updated_at": user.updated_at.isoformat() if getattr(user, "updated_at", None) else None,
-        "last_login": user.firebase_last_sign_in.isoformat()
-        if getattr(user, "firebase_last_sign_in", None)
-        else None,
-        "photo_url": getattr(user, "firebase_photo_url", None),
+        "last_login": last_login.isoformat() if last_login else None,
+        "photo_url": photo_url,
     }
 
 

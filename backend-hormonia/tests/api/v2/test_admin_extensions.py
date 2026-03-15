@@ -37,7 +37,6 @@ def audit_logs(db_session: Session, test_admin_user):
             user_id=test_admin_user.id,
             user_email=test_admin_user.email,
             user_role="admin",
-            firebase_uid=f"legacy-firebase-{index}",
             ip_address=f"192.168.1.{index + 1}",
             user_agent="TestAgent/1.0",
             resource="/api/v2/auth/login" if index == 0 else "/api/v2/admin-extensions/audit-logs/export",

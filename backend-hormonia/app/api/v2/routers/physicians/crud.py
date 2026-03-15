@@ -88,47 +88,64 @@ async def _serialize_physician(
 
     workload_level = _calculate_workload_level(total_patients)
 
-    # Get specialties from Firebase custom claims
-    specialties = []
-    if physician.firebase_custom_claims and isinstance(
-        physician.firebase_custom_claims, dict
-    ):
-        specialties = physician.firebase_custom_claims.get("specialties", [])
+    # Get specialties from canonical storage with legacy fallback
+    specialties = (
+        physician.get_specialties_data()
+        if hasattr(physician, "get_specialties_data")
+        else []
+    )
 
     # Get status
     status_value = (
         PhysicianStatus.ACTIVE if physician.is_active else PhysicianStatus.INACTIVE
     )
 
+    display_name = (
+        physician.get_display_name()
+        if hasattr(physician, "get_display_name")
+        else physician.full_name
+    )
+    photo_url = (
+        physician.get_photo_url()
+        if hasattr(physician, "get_photo_url")
+        else getattr(physician, "photo_url", None)
+    )
+    email_verified = (
+        physician.get_email_verified()
+        if hasattr(physician, "get_email_verified")
+        else getattr(physician, "email_verified", False)
+    )
+    last_login = (
+        physician.get_last_login()
+        if hasattr(physician, "get_last_login")
+        else getattr(physician, "last_login", None)
+    )
+
     # Base response
     response = {
         "id": str(physician.id),
         "email": physician.email,
-        "full_name": physician.full_name or physician.firebase_display_name,
+        "full_name": physician.full_name or display_name,
         "role": physician.role.value
         if hasattr(physician.role, "value")
         else str(physician.role),
         "is_active": physician.is_active,
-        "firebase_email_verified": physician.firebase_email_verified,
-        "firebase_display_name": physician.firebase_display_name,
-        "firebase_photo_url": physician.firebase_photo_url,
+        "email_verified": email_verified,
+        "display_name": display_name,
+        "photo_url": photo_url,
         "specialties": specialties,
         "status": status_value.value,
-        "license_number": physician.firebase_custom_claims.get("license_number")
-        if physician.firebase_custom_claims
+        "license_number": physician.get_license_number()
+        if hasattr(physician, "get_license_number")
         else None,
-        "phone": physician.firebase_custom_claims.get("phone")
-        if physician.firebase_custom_claims
-        else None,
-        "bio": physician.firebase_custom_claims.get("bio")
-        if physician.firebase_custom_claims
-        else None,
+        "phone": physician.get_phone() if hasattr(physician, "get_phone") else None,
+        "bio": physician.get_bio() if hasattr(physician, "get_bio") else None,
         "assigned_patients_count": total_patients,
         "active_patients_count": active_patients,
         "workload_level": workload_level.value,
         "created_at": physician.created_at,
         "updated_at": physician.updated_at,
-        "last_login": physician.firebase_last_sign_in,
+        "last_login": last_login,
     }
 
     # Add statistics if requested
@@ -202,6 +219,7 @@ async def list_physicians(
             or_(
                 User.full_name.ilike(search_filter),
                 User.email.ilike(search_filter),
+                User.display_name.ilike(search_filter),
                 User.firebase_display_name.ilike(search_filter),
             )
         )
@@ -381,35 +399,49 @@ async def update_physician(
     if "is_active" in update_dict:
         physician.is_active = update_dict["is_active"]
 
-    # Update Firebase custom claims.
-    # Reassign a new dict so SQLAlchemy reliably persists JSON changes.
+    # Preserve compatibility-only claim keys still read elsewhere.
     claims = dict(physician.firebase_custom_claims or {})
 
     if "specialties" in update_dict:
-        claims["specialties"] = [
+        normalized_specialties = [
             s.value if isinstance(s, Specialty) else s
             for s in update_dict["specialties"]
         ]
+        if hasattr(physician, "set_specialties_data"):
+            physician.set_specialties_data(normalized_specialties)
+        else:
+            physician.specialties = normalized_specialties
 
     if "status" in update_dict:
         status_value = update_dict["status"]
         if isinstance(status_value, PhysicianStatus):
             status_value = status_value.value
-        claims["status"] = status_value
+        if hasattr(physician, "_set_legacy_claim"):
+            physician._set_legacy_claim("status", status_value)
+        else:
+            claims["status"] = status_value
         physician.is_active = status_value == PhysicianStatus.ACTIVE.value
 
     if "license_number" in update_dict:
-        claims["license_number"] = update_dict[
-            "license_number"
-        ]
+        if hasattr(physician, "set_license_number"):
+            physician.set_license_number(update_dict["license_number"])
+        else:
+            physician.license_number = update_dict["license_number"]
 
     if "phone" in update_dict:
-        claims["phone"] = update_dict["phone"]
+        if hasattr(physician, "set_phone"):
+            physician.set_phone(update_dict["phone"])
+        else:
+            physician.phone = update_dict["phone"]
 
     if "bio" in update_dict:
-        claims["bio"] = update_dict["bio"]
+        if hasattr(physician, "set_bio"):
+            physician.set_bio(update_dict["bio"])
+        else:
+            physician.bio = update_dict["bio"]
 
-    physician.firebase_custom_claims = claims
+    if not hasattr(physician, "_set_legacy_claim"):
+        physician.firebase_custom_claims = claims
 
     # Commit changes
     await db.commit()

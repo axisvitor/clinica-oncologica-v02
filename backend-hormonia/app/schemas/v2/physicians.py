@@ -235,11 +235,9 @@ class PhysicianResponse(BaseModel):
     is_active: bool = Field(True, description="Account active status")
 
     # Live auth/profile fields
-    firebase_email_verified: bool = Field(False, description="Email verified status")
-    firebase_display_name: Optional[str] = Field(
-        None, description="Firebase display name"
-    )
-    firebase_photo_url: Optional[str] = Field(None, description="Profile photo URL")
+    email_verified: bool = Field(False, description="Email verified status")
+    display_name: Optional[str] = Field(None, description="Preferred display name")
+    photo_url: Optional[str] = Field(None, description="Profile photo URL")
 
     # Professional info
     specialties: List[Specialty] = Field(
@@ -278,7 +276,9 @@ class PhysicianResponse(BaseModel):
                 "full_name": "Dr. Maria Santos",
                 "role": "doctor",
                 "is_active": True,
-                "firebase_email_verified": True,
+                "email_verified": True,
+                "display_name": "Dra. Maria Santos",
+                "photo_url": "https://example.com/avatar.jpg",
                 "specialties": ["oncology", "endocrinology"],
                 "status": "active",
                 "license_number": "CRM/SP-123456",

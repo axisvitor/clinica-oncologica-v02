@@ -85,6 +85,8 @@ def resolve_user_role(
 
 def user_to_cache_dict(user: User) -> Dict[str, Any]:
     """Convert a ``User`` model to the canonical runtime cache payload."""
+    last_login = user.get_last_login() if hasattr(user, "get_last_login") else getattr(user, "last_login", getattr(user, "firebase_last_sign_in", None))
+    photo_url = user.get_photo_url() if hasattr(user, "get_photo_url") else getattr(user, "photo_url", getattr(user, "firebase_photo_url", None))
     return {
         "id": str(user.id),
         "email": user.email,
@@ -93,10 +95,8 @@ def user_to_cache_dict(user: User) -> Dict[str, Any]:
         "is_active": user.is_active,
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "updated_at": user.updated_at.isoformat() if user.updated_at else None,
-        "last_login": user.firebase_last_sign_in.isoformat()
-        if user.firebase_last_sign_in
-        else None,
-        "photo_url": getattr(user, "firebase_photo_url", None),
+        "last_login": last_login.isoformat() if last_login else None,
+        "photo_url": photo_url,
     }
 
 
@@ -114,10 +114,19 @@ def session_user_data_to_user(user_data: Dict[str, Any]) -> User:
 
         if "last_login" in user_dict:
             last_login = user_dict.pop("last_login")
+            if last_login and not user_dict.get("last_login"):
+                user_dict["last_login"] = last_login
             if last_login and not user_dict.get("firebase_last_sign_in"):
                 user_dict["firebase_last_sign_in"] = last_login
 
-        for ts_field in ["created_at", "updated_at", "firebase_last_sign_in"]:
+        if "photo_url" in user_dict:
+            photo_url = user_dict.pop("photo_url")
+            if photo_url and not user_dict.get("photo_url"):
+                user_dict["photo_url"] = photo_url
+            if photo_url and not user_dict.get("firebase_photo_url"):
+                user_dict["firebase_photo_url"] = photo_url
+
+        for ts_field in ["created_at", "updated_at", "last_login", "firebase_last_sign_in"]:
             if user_dict.get(ts_field) and isinstance(user_dict[ts_field], str):
                 try:
                     user_dict[ts_field] = datetime.fromisoformat(user_dict[ts_field])

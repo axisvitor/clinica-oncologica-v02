@@ -160,7 +160,6 @@ class AuditLogService:
                 event_status=event_status,
                 user_id=user_id,
                 user_email=user_email,
-                firebase_uid=None,
                 ip_address=ip_address,
                 user_agent=user_agent,
                 resource=resource,

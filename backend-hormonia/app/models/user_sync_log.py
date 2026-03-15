@@ -53,7 +53,10 @@ class FirebaseSyncHistory(Base):
         JSONB,
         default=dict,
         nullable=False,
-        comment="Captured payload for the preserved historical sync event",
+        comment=(
+            "Captured payload for the preserved historical sync event; legacy transition "
+            "columns are folded into changes.historical_shape at the canonical head"
+        ),
     )
     success = Column(
         Boolean,

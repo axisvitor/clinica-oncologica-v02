@@ -176,7 +176,11 @@ class FirebaseUserSyncService:
                     if cached_user and cached_user.is_active:
                         logger.info(f"Redis cache hit for user: {email_lower}")
                         # Update last sign-in timestamp (lightweight update)
-                        cached_user.firebase_last_sign_in = datetime.now()
+                        if hasattr(cached_user, "set_last_login"):
+                            cached_user.set_last_login(datetime.now())
+                        else:
+                            cached_user.last_login = datetime.now()
+                            cached_user.firebase_last_sign_in = datetime.now()
                         await self.db.commit()
                         return cached_user, False
             except Exception as cache_err:
@@ -596,7 +600,7 @@ class FirebaseUserSyncService:
         else:
             role = UserRole.DOCTOR  # Default to doctor for all other roles
 
-        # Create user
+        auth_created_at = self._parse_timestamp(firebase_data.get("auth_time"))
         new_user = User(
             email=email,
             hashed_password=None,  # No password for Firebase users
@@ -605,11 +609,23 @@ class FirebaseUserSyncService:
             is_active=True,
             auth_provider=AuthProvider.FIREBASE,
             firebase_uid=firebase_uid,
+            email_verified=firebase_data.get("email_verified", False),
+            display_name=firebase_data.get("name") or firebase_data.get("display_name"),
+            photo_url=firebase_data.get("picture"),
             firebase_email_verified=firebase_data.get("email_verified", False),
-            firebase_display_name=firebase_data.get("name"),
+            firebase_display_name=firebase_data.get("name") or firebase_data.get("display_name"),
             firebase_photo_url=firebase_data.get("picture"),
             firebase_custom_claims=custom_claims,
-            firebase_created_at=self._parse_timestamp(firebase_data.get("auth_time")),
+            auth_created_at=auth_created_at,
+            firebase_created_at=auth_created_at,
+            preferences=custom_claims.get("preferences") if isinstance(custom_claims.get("preferences"), dict) else {},
+            specialty=custom_claims.get("specialty") if isinstance(custom_claims.get("specialty"), str) else None,
+            specialties=custom_claims.get("specialties") if isinstance(custom_claims.get("specialties"), list) else ([custom_claims.get("specialty")] if isinstance(custom_claims.get("specialty"), str) else []),
+            license_number=custom_claims.get("license_number") if isinstance(custom_claims.get("license_number"), str) else None,
+            phone=custom_claims.get("phone") if isinstance(custom_claims.get("phone"), str) else None,
+            bio=custom_claims.get("bio") if isinstance(custom_claims.get("bio"), str) else None,
+            avatar_url=custom_claims.get("avatar_url") if isinstance(custom_claims.get("avatar_url"), str) else None,
+            last_login=datetime.now(),
             firebase_last_sign_in=datetime.now(),
             last_firebase_sync=datetime.now(),
         )
@@ -652,8 +668,17 @@ class FirebaseUserSyncService:
 
         # Update display name
         new_name = firebase_data.get("name") or firebase_data.get("display_name")
-        if new_name and user.firebase_display_name != new_name:
-            user.firebase_display_name = new_name
+        current_display_name = (
+            user.get_display_name()
+            if hasattr(user, "get_display_name")
+            else getattr(user, "display_name", getattr(user, "firebase_display_name", None))
+        )
+        if new_name and current_display_name != new_name:
+            if hasattr(user, "set_display_name"):
+                user.set_display_name(new_name)
+            else:
+                user.display_name = new_name
+                user.firebase_display_name = new_name
             # Update full_name if not set
             if not user.full_name:
                 user.full_name = new_name
@@ -661,14 +686,32 @@ class FirebaseUserSyncService:
 
         # Update email verification status
         email_verified = firebase_data.get("email_verified", False)
-        if user.firebase_email_verified != email_verified:
-            user.firebase_email_verified = email_verified
+        current_email_verified = (
+            user.get_email_verified()
+            if hasattr(user, "get_email_verified")
+            else bool(getattr(user, "email_verified", getattr(user, "firebase_email_verified", False)))
+        )
+        if current_email_verified != email_verified:
+            if hasattr(user, "set_email_verified"):
+                user.set_email_verified(email_verified)
+            else:
+                user.email_verified = email_verified
+                user.firebase_email_verified = email_verified
             changed = True
 
         # Update photo URL
         new_photo = firebase_data.get("picture")
-        if new_photo and user.firebase_photo_url != new_photo:
-            user.firebase_photo_url = new_photo
+        current_photo_url = (
+            user.get_photo_url()
+            if hasattr(user, "get_photo_url")
+            else getattr(user, "photo_url", getattr(user, "firebase_photo_url", None))
+        )
+        if new_photo and current_photo_url != new_photo:
+            if hasattr(user, "set_photo_url"):
+                user.set_photo_url(new_photo)
+            else:
+                user.photo_url = new_photo
+                user.firebase_photo_url = new_photo
             changed = True
 
         # Update custom claims (includes role)
@@ -682,6 +725,23 @@ class FirebaseUserSyncService:
         )
         if user.firebase_custom_claims != new_claims:
             user.firebase_custom_claims = new_claims
+            if hasattr(user, "set_preferences_data"):
+                if isinstance(new_claims.get("preferences"), dict):
+                    user.set_preferences_data(new_claims.get("preferences"))
+                if isinstance(new_claims.get("specialties"), list):
+                    user.set_specialties_data(new_claims.get("specialties"))
+                elif isinstance(new_claims.get("specialty"), str):
+                    user.set_specialties_data([new_claims.get("specialty")])
+                if isinstance(new_claims.get("specialty"), str):
+                    user.set_specialty(new_claims.get("specialty"))
+                if isinstance(new_claims.get("license_number"), str):
+                    user.set_license_number(new_claims.get("license_number"))
+                if isinstance(new_claims.get("phone"), str):
+                    user.set_phone(new_claims.get("phone"))
+                if isinstance(new_claims.get("bio"), str):
+                    user.set_bio(new_claims.get("bio"))
+                if isinstance(new_claims.get("avatar_url"), str):
+                    user.set_avatar_url(new_claims.get("avatar_url"))
             # Update role if changed in custom claims
             role_str = self._extract_role_from_claims(new_claims)
             if role_str == "admin":
@@ -697,7 +757,11 @@ class FirebaseUserSyncService:
                 logger.info(f"Updated role for user {user.id}: {new_role.value}")
 
         # Always update last sign-in and sync timestamps
-        user.firebase_last_sign_in = datetime.now()
+        if hasattr(user, "set_last_login"):
+            user.set_last_login(datetime.now())
+        else:
+            user.last_login = datetime.now()
+            user.firebase_last_sign_in = datetime.now()
         user.last_firebase_sync = datetime.now()
 
         if changed:
@@ -739,15 +803,53 @@ class FirebaseUserSyncService:
         # Link Firebase data
         user.firebase_uid = firebase_uid
         user.auth_provider = AuthProvider.FIREBASE
-        user.firebase_email_verified = firebase_data.get("email_verified", False)
-        user.firebase_display_name = firebase_data.get("name")
-        user.firebase_photo_url = firebase_data.get("picture")
+        if hasattr(user, "set_email_verified"):
+            user.set_email_verified(firebase_data.get("email_verified", False))
+        else:
+            user.email_verified = firebase_data.get("email_verified", False)
+            user.firebase_email_verified = firebase_data.get("email_verified", False)
+        if hasattr(user, "set_display_name"):
+            user.set_display_name(firebase_data.get("name") or firebase_data.get("display_name"))
+        else:
+            user.display_name = firebase_data.get("name") or firebase_data.get("display_name")
+            user.firebase_display_name = firebase_data.get("name") or firebase_data.get("display_name")
+        if hasattr(user, "set_photo_url"):
+            user.set_photo_url(firebase_data.get("picture"))
+        else:
+            user.photo_url = firebase_data.get("picture")
+            user.firebase_photo_url = firebase_data.get("picture")
         # Extract claims with fallback logic
         user.firebase_custom_claims = await self._extract_claims(
             firebase_uid, firebase_data, firebase_data
         )
-        user.firebase_created_at = self._parse_timestamp(firebase_data.get("auth_time"))
-        user.firebase_last_sign_in = datetime.now()
+        if hasattr(user, "set_preferences_data") and isinstance(user.firebase_custom_claims.get("preferences"), dict):
+            user.set_preferences_data(user.firebase_custom_claims.get("preferences"))
+        if hasattr(user, "set_specialty") and isinstance(user.firebase_custom_claims.get("specialty"), str):
+            user.set_specialty(user.firebase_custom_claims.get("specialty"))
+        if hasattr(user, "set_specialties_data"):
+            if isinstance(user.firebase_custom_claims.get("specialties"), list):
+                user.set_specialties_data(user.firebase_custom_claims.get("specialties"))
+            elif isinstance(user.firebase_custom_claims.get("specialty"), str):
+                user.set_specialties_data([user.firebase_custom_claims.get("specialty")])
+        if hasattr(user, "set_license_number") and isinstance(user.firebase_custom_claims.get("license_number"), str):
+            user.set_license_number(user.firebase_custom_claims.get("license_number"))
+        if hasattr(user, "set_phone") and isinstance(user.firebase_custom_claims.get("phone"), str):
+            user.set_phone(user.firebase_custom_claims.get("phone"))
+        if hasattr(user, "set_bio") and isinstance(user.firebase_custom_claims.get("bio"), str):
+            user.set_bio(user.firebase_custom_claims.get("bio"))
+        if hasattr(user, "set_avatar_url") and isinstance(user.firebase_custom_claims.get("avatar_url"), str):
+            user.set_avatar_url(user.firebase_custom_claims.get("avatar_url"))
+        auth_created_at = self._parse_timestamp(firebase_data.get("auth_time"))
+        if hasattr(user, "set_auth_created_at"):
+            user.set_auth_created_at(auth_created_at)
+        else:
+            user.auth_created_at = auth_created_at
+            user.firebase_created_at = auth_created_at
+        if hasattr(user, "set_last_login"):
+            user.set_last_login(datetime.now())
+        else:
+            user.last_login = datetime.now()
+            user.firebase_last_sign_in = datetime.now()
         user.last_firebase_sync = datetime.now()
 
         await self.db.commit()

@@ -932,6 +932,50 @@ def _ensure_audit_logs_event_category_constraint(engine):
         connection.execute(text(constraint_sql))
 
 
+def _ensure_users_canonical_profile_columns(engine):
+    """Ensure Postgres test schemas include the canonical S03 users profile/settings columns."""
+    if engine.dialect.name != "postgresql":
+        return
+
+    inspector = sa_inspect(engine)
+    if not inspector.has_table("users"):
+        print("[tests.conftest] users table missing; skipping canonical users guard")
+        return
+
+    user_columns = {column["name"] for column in inspector.get_columns("users")}
+    required_columns = {
+        "last_login",
+        "auth_created_at",
+        "email_verified",
+        "display_name",
+        "photo_url",
+        "preferences",
+        "specialty",
+        "specialties",
+        "license_number",
+        "phone",
+        "bio",
+        "avatar_url",
+    }
+    if required_columns.issubset(user_columns):
+        return
+
+    print("[tests.conftest] Applying schema patch: align canonical users profile columns")
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMPTZ NULL"))
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_created_at TIMESTAMPTZ NULL"))
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false"))
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name VARCHAR(255) NULL"))
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url VARCHAR(500) NULL"))
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB NOT NULL DEFAULT '{}'::jsonb"))
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS specialty VARCHAR(255) NULL"))
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS specialties JSONB NOT NULL DEFAULT '[]'::jsonb"))
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS license_number VARCHAR(50) NULL"))
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(32) NULL"))
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT NULL"))
+        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500) NULL"))
+
+
 @pytest.fixture(scope="session")
 def test_engine():
     # Detect if we should use Postgres or SQLite
@@ -981,6 +1025,7 @@ def test_engine():
     _ensure_sessions_session_token_column(engine)
     _ensure_audit_logs_live_columns(engine)
     _ensure_audit_logs_event_category_constraint(engine)
+    _ensure_users_canonical_profile_columns(engine)
 
     try:
         yield engine

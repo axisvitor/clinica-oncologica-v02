@@ -108,7 +108,8 @@ def _auth_error_content(request: Request, *, error: str, message: str) -> dict[s
 def _serialize_authenticated_user(user) -> dict[str, Any]:
     """Normalize authenticated-user metadata for login/session responses."""
     role = user.role.value if hasattr(user.role, "value") else str(user.role)
-    last_login = getattr(user, "firebase_last_sign_in", None)
+    last_login = user.get_last_login() if hasattr(user, "get_last_login") else getattr(user, "last_login", getattr(user, "firebase_last_sign_in", None))
+    photo_url = user.get_photo_url() if hasattr(user, "get_photo_url") else getattr(user, "photo_url", getattr(user, "firebase_photo_url", None))
     return {
         "id": str(user.id),
         "email": user.email,
@@ -118,7 +119,7 @@ def _serialize_authenticated_user(user) -> dict[str, Any]:
         "created_at": user.created_at,
         "updated_at": user.updated_at,
         "last_login": last_login,
-        "photo_url": getattr(user, "firebase_photo_url", None),
+        "photo_url": photo_url,
     }
 
 
@@ -676,7 +677,7 @@ async def verify_session(
             or "doctor",
             "created_at": getattr(current_user, "created_at", None),
             "updated_at": getattr(current_user, "updated_at", None),
-            "last_login": getattr(current_user, "firebase_last_sign_in", None),
+            "last_login": current_user.get_last_login() if hasattr(current_user, "get_last_login") else getattr(current_user, "last_login", None),
         }
 
     # Enrich user data with database timestamps if not in cache
@@ -684,7 +685,7 @@ async def verify_session(
     if not current_user.get("created_at") or not current_user.get("updated_at"):
         current_user["created_at"] = db_user.created_at
         current_user["updated_at"] = db_user.updated_at
-        current_user["last_login"] = db_user.firebase_last_sign_in
+        current_user["last_login"] = db_user.get_last_login() if hasattr(db_user, "get_last_login") else getattr(db_user, "last_login", None)
 
     return _serialize_session(
         session, current_user=current_user, current_session_id=normalized_session_id
@@ -977,28 +978,35 @@ async def update_profile(
         user.email = update_data.email
         updated = True
     
-    # Store phone and specialty in firebase_custom_claims (or a dedicated field)
-    claims = user.firebase_custom_claims or {}
     if update_data.phone is not None:
-        claims["phone"] = update_data.phone
+        if hasattr(user, "set_phone"):
+            user.set_phone(update_data.phone)
+        else:
+            user.phone = update_data.phone
         updated = True
     if update_data.specialty is not None:
-        claims["specialty"] = update_data.specialty
+        if hasattr(user, "set_specialty"):
+            user.set_specialty(update_data.specialty)
+            if update_data.specialty and hasattr(user, "get_specialties_data") and hasattr(user, "set_specialties_data"):
+                existing_specialties = user.get_specialties_data()
+                if not existing_specialties:
+                    user.set_specialties_data([update_data.specialty])
+        else:
+            user.specialty = update_data.specialty
         updated = True
-    
+
     if updated:
-        user.firebase_custom_claims = claims
         user.updated_at = now_sao_paulo()
         db.commit()
         db.refresh(user)
-    
+
     return {
         "id": str(user.id),
         "email": user.email,
         "full_name": user.full_name,
-        "phone": claims.get("phone"),
-        "specialty": claims.get("specialty"),
-        "avatar_url": claims.get("avatar_url"),
+        "phone": user.get_phone() if hasattr(user, "get_phone") else getattr(user, "phone", None),
+        "specialty": user.get_specialty() if hasattr(user, "get_specialty") else getattr(user, "specialty", None),
+        "avatar_url": user.get_avatar_url() if hasattr(user, "get_avatar_url") else getattr(user, "avatar_url", None),
         "updated_at": user.updated_at.isoformat() if user.updated_at else None,
     }
 
@@ -1215,9 +1223,10 @@ async def upload_avatar(
     # Update user's avatar_url in database
     user = db.query(User).filter(User.id == user_uuid).first()
     if user:
-        claims = user.firebase_custom_claims or {}
-        claims["avatar_url"] = avatar_url
-        user.firebase_custom_claims = claims
+        if hasattr(user, "set_avatar_url"):
+            user.set_avatar_url(avatar_url)
+        else:
+            user.avatar_url = avatar_url
         user.updated_at = now_sao_paulo()
         db.commit()
     

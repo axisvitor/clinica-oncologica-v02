@@ -56,6 +56,8 @@ async def _get_redis_client():
 
 
 def _serialize_user(user: User, include_relationships: bool = False) -> dict:
+    last_login = user.get_last_login() if hasattr(user, "get_last_login") else getattr(user, "last_login", None)
+    photo_url = user.get_photo_url() if hasattr(user, "get_photo_url") else getattr(user, "photo_url", None)
     data = {
         "id": str(user.id),
         "email": user.email,
@@ -64,8 +66,8 @@ def _serialize_user(user: User, include_relationships: bool = False) -> dict:
         "is_active": user.is_active,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
-        "last_login": getattr(user, "firebase_last_sign_in", None),
-        "photo_url": getattr(user, "firebase_photo_url", None),
+        "last_login": last_login,
+        "photo_url": photo_url,
     }
     if include_relationships:
         if hasattr(user, "patients"):
@@ -91,12 +93,11 @@ def _apply_profile_field_selection(user_data: dict, fields: Optional[List[str]])
 
 
 def _get_user_preferences(user: User) -> UserPreferencesV2:
-    """Get user preferences from firebase_custom_claims or return defaults."""
-    # Note: "metadata" is a reserved SQLAlchemy attribute, so we check firebase_custom_claims instead
-    if hasattr(user, "firebase_custom_claims") and user.firebase_custom_claims:
-        prefs = user.firebase_custom_claims.get("preferences", {})
-        if prefs:
-            return UserPreferencesV2(**prefs)
+    """Get canonical user preferences with legacy fallback during transition."""
+    if hasattr(user, "get_preferences_data"):
+        preferences_data = user.get_preferences_data()
+        if preferences_data:
+            return UserPreferencesV2(**preferences_data)
     return UserPreferencesV2()
 
 
@@ -246,9 +247,10 @@ async def patch_preferences(
         ]
         raise HTTPException(status_code=422, detail=safe_errors)
 
-    claims = dict(getattr(user, "firebase_custom_claims", {}) or {})
-    claims["preferences"] = validated_preferences
-    user.firebase_custom_claims = claims
+    if hasattr(user, "set_preferences_data"):
+        user.set_preferences_data(validated_preferences)
+    else:
+        user.preferences = validated_preferences
     user.updated_at = now_sao_paulo()
 
     db.commit()

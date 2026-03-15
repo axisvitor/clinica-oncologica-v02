@@ -240,7 +240,11 @@ class AuthService:
             state_changed = True
 
         user.auth_provider = AuthProvider.LOCAL
-        user.firebase_last_sign_in = now
+        if hasattr(user, "set_last_login"):
+            user.set_last_login(now)
+        else:
+            user.last_login = now
+            user.firebase_last_sign_in = now
         user.updated_at = now
         self.db.add(user)
         self.db.flush()

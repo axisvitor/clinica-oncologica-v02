@@ -46,8 +46,8 @@ def _serialize_user(user: User, fields: Optional[List[str]] = None) -> dict:
         "updated_at": user.updated_at,
         "last_login": getattr(
             user,
-            "firebase_last_sign_in",
-            getattr(user, "last_login", None),
+            "last_login",
+            getattr(user, "firebase_last_sign_in", None),
         ),
     }
 

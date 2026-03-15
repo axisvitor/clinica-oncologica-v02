@@ -30,7 +30,6 @@ def historical_audit_log(db_session: Session, test_admin_user: User) -> AuditLog
         user_id=test_admin_user.id,
         user_email=test_admin_user.email,
         user_role="admin",
-        firebase_uid=MASKED_FIREBASE_UID,
         ip_address="127.0.0.1",
         user_agent="pytest",
         resource="/api/v2/admin-extensions/audit-logs/export",
@@ -163,10 +162,10 @@ class TestCanonicalPayloadBoundary:
         assert (
             "firebase_uid" not in payload
         ), "canonical_payload surface=physician_detail leak=firebase_uid"
-        assert payload["firebase_display_name"] == test_doctor_user.firebase_display_name, (
+        assert payload["display_name"] == test_doctor_user.get_display_name(), (
             "canonical_payload surface=physician_detail live_field=display_name_missing"
         )
-        assert payload["firebase_photo_url"] == test_doctor_user.firebase_photo_url, (
+        assert payload["photo_url"] == test_doctor_user.get_photo_url(), (
             "canonical_payload surface=physician_detail live_field=photo_url_missing"
         )
         assert payload["last_login"] is not None, (

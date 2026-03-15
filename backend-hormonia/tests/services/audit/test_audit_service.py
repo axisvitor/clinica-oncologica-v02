@@ -9,7 +9,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.middleware.hipaa_audit_middleware import HIPAAAuditMiddleware
-from app.models.audit_log import AuditEventType
+from app.models.audit_log import AuditEventType, AuditLog
 from app.models.user import User, UserRole
 from app.services.audit.audit_service import AuditEventContext, AuditService
 from app.services.audit_log import AuditLogService as LegacyAuditLogService
@@ -67,9 +67,21 @@ class TestCanonicalAuditService:
 
         assert audit_log.user_id == user_id
         assert audit_log.session_id == "cookie-session"
-        assert audit_log.firebase_uid is None
+        assert "firebase_uid" not in AuditLog.__table__.columns, (
+            "audit_contract surface=orm firebase_uid_live_column=true"
+        )
+        assert not hasattr(audit_log, "firebase_uid")
         assert audit_log.event_metadata == {"session_source": "cookie"}
         assert audit_log.resource_identifiers == {"patient_id": context.resource_identifiers["patient_id"]}
+
+    def test_enum_backed_audit_log_contract_omits_firebase_uid_column(self):
+        column_names = set(AuditLog.__table__.columns.keys())
+        assert "firebase_uid" not in column_names, (
+            "audit_contract surface=orm firebase_uid_live_column=true"
+        )
+        assert getattr(AuditLog.__table__.c.event_type.type, "name", None) == "audit_event_type", (
+            "audit_contract surface=orm enum_missing=audit_event_type"
+        )
 
     @pytest.mark.asyncio
     async def test_log_event_calculates_changed_fields_without_legacy_identity_dependency(
@@ -121,8 +133,9 @@ class TestLegacyAuditLogServiceBoundary:
         )
 
         assert (
-            audit_log.firebase_uid is None
-        ), "audit_contract surface=legacy_writer persisted_firebase_uid=true"
+            "firebase_uid" not in AuditLog.__table__.columns
+        ), "audit_contract surface=orm firebase_uid_live_column=true"
+        assert not hasattr(audit_log, "firebase_uid")
         assert audit_log.event_metadata == {
             "session_source": "cookie"
         }, "audit_contract surface=legacy_writer metadata_firebase_uid_present=true"
@@ -136,8 +149,9 @@ class TestLegacyAuditLogServiceBoundary:
         audit_log = audit_service.log_login_success(audit_user)
 
         assert (
-            audit_log.firebase_uid is None
-        ), "audit_contract surface=login_success_helper persisted_firebase_uid=true"
+            "firebase_uid" not in AuditLog.__table__.columns
+        ), "audit_contract surface=orm firebase_uid_live_column=true"
+        assert not hasattr(audit_log, "firebase_uid")
         assert audit_log.event_metadata == {}
 
 

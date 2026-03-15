@@ -98,7 +98,12 @@ class AuditLog(BaseModel):
 
     # Event information
     event_type = Column(
-        SQLEnum(AuditEventType, name="audit_event_type", native_enum=True),
+        SQLEnum(
+            AuditEventType,
+            name="audit_event_type",
+            native_enum=True,
+            values_callable=lambda values: [value.value for value in values],
+        ),
         nullable=False,
         index=True,
         comment="Type of security event",
@@ -136,15 +141,6 @@ class AuditLog(BaseModel):
         comment="User email (for tracking failed login attempts)",
     )
     user_role = Column(String(50), nullable=True, comment="User role at event time")
-    firebase_uid = Column(
-        String(255),
-        nullable=True,
-        index=True,
-        comment=(
-            "Historical Firebase UID residue preserved for pre-cutover audit rows; "
-            "canonical writes must keep this null"
-        ),
-    )
 
     # Session tracking
     session_id = Column(String(255), nullable=True, comment="Session identifier")
@@ -262,8 +258,6 @@ class AuditLog(BaseModel):
         Index(
             "idx_audit_event_status_time", "event_type", "event_status", "created_at"
         ),
-        # Historical Firebase UID lookups for pre-cutover residue only
-        Index("idx_audit_firebase_time", "firebase_uid", "created_at"),
         # Index for email-based queries (failed login tracking)
         Index("idx_audit_email_time", "user_email", "created_at"),
     )

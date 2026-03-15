@@ -300,6 +300,8 @@ class UserV2Response(UserV2Base):
     created_at: datetime
     updated_at: datetime
     last_login: Optional[datetime] = Field(None, description="Last login timestamp")
+    display_name: Optional[str] = Field(None, description="Preferred display name")
+    email_verified: Optional[bool] = Field(None, description="Email verification status")
     photo_url: Optional[str] = Field(None, description="User profile photo URL")
 
     # Optional eager-loaded relationships
@@ -483,6 +485,8 @@ class AuthenticatedUserV2(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
+    display_name: Optional[str] = None
+    email_verified: Optional[bool] = None
     photo_url: Optional[str] = None
 
     model_config = ConfigDict(
