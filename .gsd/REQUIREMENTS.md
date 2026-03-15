@@ -21,10 +21,10 @@ Guidelines:
 - Description: O restante do código morto, bridges, aliases, tombstones e compatibilidades sem uso real é removido com evidência e verificação, não por gosto.
 - Why it matters: A lapidação final só fecha quando o repositório deixa de carregar resíduo morto como se fosse parte legítima do sistema.
 - Source: user
-- Primary owning slice: M006/S?? (provisional)
-- Supporting slices: none
+- Primary owning slice: M006/S04
+- Supporting slices: M006/S01, M006/S02, M006/S03
 - Validation: mapped
-- Notes: M006 herda a disciplina de manifests, guardrails e provas montadas estabelecida em M003.
+- Notes: M006 herda a disciplina de manifests, guardrails e provas montadas estabelecida em M003; o roadmap fecha a requirement com auth/session honestos, schema purgado, repo surfaces limpas e pack final replayable.
 
 ## Validated
 
@@ -514,7 +514,7 @@ Guidelines:
 | R049 | integration | validated | M004/S02 | M004/S01, M004/S04, M004/S05 | validated |
 | R050 | primary-user-loop | validated | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | validated |
 | R051 | quality-attribute | validated | M005/S03 | M005/S01, M005/S02 | validated |
-| R052 | operability | active | M006/S?? (provisional) | none | mapped |
+| R052 | operability | active | M006/S04 | M006/S01, M006/S02, M006/S03 | mapped |
 | R053 | quality-attribute | validated | M005/S04 | M004/S06, M005/S01, M005/S03 | validated by M004/S06 mounted runtime proof plus M005/S04 final-schema backend replay |
 | R001 | continuity | validated | M001/S01 | none | validated |
 | R002 | operability | validated | M001/S02 | none | validated |
