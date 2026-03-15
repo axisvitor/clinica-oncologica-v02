@@ -24,7 +24,7 @@ Guidelines:
 - Primary owning slice: M006/S04
 - Supporting slices: M006/S01, M006/S02, M006/S03
 - Validation: mapped
-- Notes: M006 herda a disciplina de manifests, guardrails e provas montadas estabelecida em M003; o roadmap fecha a requirement com auth/session honestos, schema purgado, repo surfaces limpas e pack final replayable.
+- Notes: M006 herda a disciplina de manifests, guardrails e provas montadas estabelecida em M003; S01 já aposentou o seam vivo de auth/session no backend e republicou o guard com zero approved hits nessas categorias, mas R052 permanece ativa até S02–S04 fecharem schema, superfícies repo-wide e o pack final replayable.
 
 ## Validated
 

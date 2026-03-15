@@ -393,6 +393,96 @@ def test_scope_handling_ignores_other_runtime_half(tmp_path: Path) -> None:
     assert "frontend_only_drift.ts" in frontend_check.stdout
 
 
+def test_proof_only_boundary_passes_check_and_reports_separately(tmp_path: Path) -> None:
+    base_allowlist = _fixture_allowlist()
+    x_session_category = json.loads(
+        json.dumps(
+            next(
+                category
+                for category in base_allowlist["categories"]
+                if category["id"] == "x_session_id"
+            )
+        )
+    )
+    x_session_category["scopes"]["backend"]["approved"] = []
+    x_session_category["scopes"]["backend"]["proof_only"] = [
+        {
+            "path": "backend-hormonia/app/api/v2/routers/auth.py",
+            "proof": "backend-hormonia/tests/api/v2/test_auth_hard_cut_cleanup.py::test_verify_session_rejects_legacy_transport_without_cookie",
+            "anchors": [
+                {
+                    "type": "literal",
+                    "pattern": 'header_id = request.headers.get("X-Session-ID")',
+                    "label": "auth_header_proof_boundary",
+                }
+            ],
+        }
+    ]
+    allowlist = {
+        "schema_version": 1,
+        "scope_defaults": base_allowlist["scope_defaults"],
+        "categories": [x_session_category],
+    }
+
+    allowlist_path = _write_base_fixture(tmp_path, allowlist_override=allowlist)
+    report = _run_guard(tmp_path, allowlist_path, "--report", "backend")
+    check = _run_guard(tmp_path, allowlist_path, "--check", "backend")
+
+    assert report.returncode == 0
+    assert check.returncode == 0
+    assert "[backend]" in report.stdout
+    assert "  - no approved residue" in report.stdout
+    assert "[backend-proof-only]" in report.stdout
+    assert "category=x_session_id file=backend-hormonia/app/api/v2/routers/auth.py" in report.stdout
+    assert "proof=backend-hormonia/tests/api/v2/test_auth_hard_cut_cleanup.py::test_verify_session_rejects_legacy_transport_without_cookie" in report.stdout
+
+
+def test_moved_proof_boundary_reports_anchor_name(tmp_path: Path) -> None:
+    base_allowlist = _fixture_allowlist()
+    x_session_category = json.loads(
+        json.dumps(
+            next(
+                category
+                for category in base_allowlist["categories"]
+                if category["id"] == "x_session_id"
+            )
+        )
+    )
+    x_session_category["scopes"]["backend"]["approved"] = []
+    x_session_category["scopes"]["backend"]["proof_only"] = [
+        {
+            "path": "backend-hormonia/app/api/v2/routers/auth.py",
+            "anchors": [
+                {
+                    "type": "literal",
+                    "pattern": 'header_id = request.headers.get("X-Session-ID")',
+                    "label": "auth_header_proof_boundary",
+                }
+            ],
+        }
+    ]
+    allowlist = {
+        "schema_version": 1,
+        "scope_defaults": base_allowlist["scope_defaults"],
+        "categories": [x_session_category],
+    }
+
+    allowlist_path = _write_base_fixture(tmp_path, allowlist_override=allowlist)
+    _write_file(
+        tmp_path,
+        "backend-hormonia/app/api/v2/routers/auth.py",
+        'def resolve(request, user):\n'
+        '    legacy_header = request.headers.get("X-Session-ID")\n',
+    )
+
+    result = _run_guard(tmp_path, allowlist_path, "--check", "backend")
+
+    assert result.returncode == 1
+    assert "category=x_session_id" in result.stdout
+    assert "moved_proof_boundary=backend-hormonia/app/api/v2/routers/auth.py" in result.stdout
+    assert "anchor=auth_header_proof_boundary" in result.stdout
+
+
 def test_moved_hotspot_reports_anchor_name(tmp_path: Path) -> None:
     allowlist_path = _write_base_fixture(tmp_path)
     _write_file(

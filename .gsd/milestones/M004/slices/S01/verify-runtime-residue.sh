@@ -59,6 +59,9 @@ categories: List[Dict[str, Any]] = config.get("categories", [])
 
 failures: List[str] = []
 reports: Dict[str, List[Tuple[str, str, int]]] = {scope: [] for scope in selected_scopes}
+proof_reports: Dict[str, List[Tuple[str, str, int, str]]] = {
+    scope: [] for scope in selected_scopes
+}
 text_cache: Dict[str, str] = {}
 
 
@@ -142,6 +145,9 @@ for category in categories:
         approved_entries = {
             entry["path"]: entry for entry in scope_config.get("approved", [])
         }
+        proof_entries = {
+            entry["path"]: entry for entry in scope_config.get("proof_only", [])
+        }
 
         actual_counts: Dict[str, int] = {}
         for candidate in expand_roots(roots, extensions):
@@ -156,6 +162,11 @@ for category in categories:
         for rel_path in sorted(actual_counts):
             if rel_path in approved_entries:
                 reports[scope_name].append((category_id, rel_path, actual_counts[rel_path]))
+            elif rel_path in proof_entries:
+                proof = str(proof_entries[rel_path].get("proof", "")).strip()
+                proof_reports[scope_name].append(
+                    (category_id, rel_path, actual_counts[rel_path], proof)
+                )
             else:
                 failures.append(
                     f"category={category_id} unexpected_file={rel_path} count={actual_counts[rel_path]}"
@@ -182,14 +193,44 @@ for category in categories:
                     )
                     break
 
+        for proof_path, entry in sorted(proof_entries.items()):
+            if proof_path not in actual_counts:
+                continue
+
+            target = repo_root / proof_path
+            if not target.exists():
+                continue
+
+            text = get_text(target)
+            for anchor in entry.get("anchors", []):
+                if not matcher_hits_text(anchor, text):
+                    failures.append(
+                        f"category={category_id} moved_proof_boundary={proof_path} anchor={anchor['label']}"
+                    )
+                    break
+
 for scope_name in selected_scopes:
     print(f"[{scope_name}]")
     scope_report = sorted(reports[scope_name], key=lambda item: (item[0], item[1]))
     if not scope_report:
         print("  - no approved residue")
+    else:
+        for category_id, rel_path, count in scope_report:
+            print(f"  - category={category_id} file={rel_path} count={count}")
+
+for scope_name in selected_scopes:
+    print(f"[{scope_name}-proof-only]")
+    scope_report = sorted(
+        proof_reports[scope_name], key=lambda item: (item[0], item[1], item[3])
+    )
+    if not scope_report:
+        print("  - no proof-only residue")
         continue
-    for category_id, rel_path, count in scope_report:
-        print(f"  - category={category_id} file={rel_path} count={count}")
+    for category_id, rel_path, count, proof in scope_report:
+        proof_suffix = f" proof={proof}" if proof else ""
+        print(
+            f"  - category={category_id} file={rel_path} count={count}{proof_suffix}"
+        )
 
 if not failures:
     print(f"\nRESULT: {mode} {scope_arg} OK")

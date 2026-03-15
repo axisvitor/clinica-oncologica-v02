@@ -205,6 +205,18 @@ def test_login_verify_reset_password_rotate_and_logout_without_firebase_staff_au
     assert legacy_header_verify_data["message"] == "Session cookie required"
     assert legacy_header_verify_data["error"] == "HTTP_ERROR"
 
+    legacy_bearer_verify_response = client.get(
+        "/api/v2/auth/verify-session",
+        headers={"Authorization": f"Bearer {session_id}"},
+    )
+    assert (
+        legacy_bearer_verify_response.status_code == status.HTTP_401_UNAUTHORIZED
+    ), legacy_bearer_verify_response.text
+    legacy_bearer_verify_data = legacy_bearer_verify_response.json()
+    assert legacy_bearer_verify_data["detail"] == "Session cookie required"
+    assert legacy_bearer_verify_data["message"] == "Session cookie required"
+    assert legacy_bearer_verify_data["error"] == "HTTP_ERROR"
+
     assert login_data["valid"] is True
     assert login_data["user"]["id"] == str(user.id)
     assert login_data["user"]["email"] == user.email

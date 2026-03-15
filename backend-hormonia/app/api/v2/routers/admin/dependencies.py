@@ -12,6 +12,7 @@ from fastapi.security import HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.database.async_engine import get_async_db
 from app.dependencies import auth_role_dependencies
 from app.dependencies.auth_dependencies import (
@@ -22,7 +23,6 @@ from app.dependencies.auth_dependencies import (
 from app.models.user import User, UserRole
 
 
-# HTTPBearer instance for admin authentication
 _admin_bearer = HTTPBearer(auto_error=False)
 
 
@@ -64,10 +64,11 @@ async def get_admin_user(
     is present at all. Cookie-backed staff sessions remain the canonical path.
     """
     auth_header = request.headers.get("Authorization", "")
-    session_cookie_id = request.cookies.get("session_id")
+    session_cookie_id = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    x_session_id = request.headers.get("X-Session-ID")
+    authorization = auth_header or None
     has_legacy_transport = bool(
-        request.headers.get("X-Session-ID")
-        or (auth_header and auth_header.startswith("Bearer "))
+        x_session_id or (authorization and authorization.startswith("Bearer "))
     )
     has_auth_attempt = bool(session_cookie_id or has_legacy_transport)
 
@@ -102,8 +103,8 @@ async def get_admin_user(
         session_dependency,
         request=request,
         session_cookie_id=session_cookie_id,
-        x_session_id=None,
-        authorization=None,
+        x_session_id=x_session_id,
+        authorization=authorization,
         redis_cache=redis_cache,
     )
     current_user = await _invoke_dependency(

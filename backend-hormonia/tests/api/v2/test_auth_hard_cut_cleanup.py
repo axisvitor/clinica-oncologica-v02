@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi import Request, status
+from fastapi import HTTPException, Request, status
 
+from app.api.v2.routers.admin import dependencies as admin_dependencies
 from app.config import settings
 from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
 from app.main import app
@@ -217,6 +220,106 @@ def test_password_change_rejects_legacy_header_transport_without_cookie(client):
     assert data["detail"] == "Session cookie required"
     assert data["message"] == "Session cookie required"
     assert data["error"] == "HTTP_ERROR"
+
+
+def test_password_change_rejects_legacy_bearer_transport_without_cookie(client):
+    csrf_token = get_csrf_token()
+
+    response = client.put(
+        "/api/v2/auth/password",
+        headers={
+            "Authorization": "Bearer legacy-session",
+            "X-CSRF-Token": csrf_token,
+        },
+        cookies={"csrf_token": csrf_token},
+        json={
+            "current_password": "WrongPass123!",
+            "new_password": "NewHardCut123!",
+        },
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED, response.text
+    data = response.json()
+    assert data["detail"] == "Session cookie required"
+    assert data["message"] == "Session cookie required"
+    assert data["error"] == "HTTP_ERROR"
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"X-Session-ID": "legacy-session"},
+        {"Authorization": "Bearer legacy-session"},
+    ],
+)
+def test_verify_session_rejects_legacy_transport_without_cookie(client, headers):
+    response = client.get("/api/v2/auth/verify-session", headers=headers)
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED, response.text
+    data = response.json()
+    assert data["detail"] == "Session cookie required"
+    assert data["message"] == "Session cookie required"
+    assert data["error"] == "HTTP_ERROR"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("headers", "expected_x_session_id", "expected_authorization"),
+    [
+        ({"X-Session-ID": "legacy-admin-session"}, "legacy-admin-session", None),
+        (
+            {"Authorization": "Bearer legacy-admin-session"},
+            None,
+            "Bearer legacy-admin-session",
+        ),
+    ],
+)
+async def test_admin_dependency_rejects_legacy_transport_without_cookie_even_in_test_mode(
+    monkeypatch,
+    headers,
+    expected_x_session_id,
+    expected_authorization,
+):
+    request = MagicMock(spec=Request)
+    request.headers = headers
+    request.cookies = {}
+    request.state = SimpleNamespace()
+    request.app = SimpleNamespace(dependency_overrides={})
+    db = AsyncMock()
+    redis_cache = object()
+
+    async def _session_override(
+        *,
+        request: Request,
+        session_cookie_id=None,
+        x_session_id=None,
+        authorization=None,
+        redis_cache=None,
+    ):
+        assert session_cookie_id is None
+        assert x_session_id == expected_x_session_id
+        assert authorization == expected_authorization
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session cookie required",
+            headers={"WWW-Authenticate": "Session"},
+        )
+
+    request.app.dependency_overrides = {
+        admin_dependencies.get_current_user_from_session: _session_override,
+    }
+    monkeypatch.setenv("TESTING", "1")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await admin_dependencies.get_admin_user(
+            request=request,
+            db=db,
+            redis_cache=redis_cache,
+        )
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert exc_info.value.detail == "Session cookie required"
+    db.execute.assert_not_awaited()
 
 
 def test_password_change_rejects_wrong_current_password_with_stable_diagnostics(

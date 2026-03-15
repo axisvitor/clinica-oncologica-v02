@@ -83,7 +83,6 @@ def admin_session_auth():
     try:
         yield {
             "headers": {
-                "X-Session-ID": session_id,
                 "X-CSRF-Token": csrf_token,
             },
             "cookies": {

@@ -1,22 +1,25 @@
 """
 Unit tests for authentication dependencies.
 """
-
+from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, call
 from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials
 
 from app.config import settings
 from app.core.permissions import Permission, PermissionChecker
+from app.dependencies import auth_dependencies
 from app.dependencies.auth_dependencies import (
     GenericRedisCache,
     _get_user_from_db_by_session,
     _validate_firebase_uid,
     get_current_user_from_session,
 )
-from app.models.user import UserRole
+from app.models.user import User, UserRole
 
 
 def _build_request() -> Request:
@@ -126,6 +129,119 @@ async def test_session_bearer_transport_rejected_without_cookie(monkeypatch):
     assert exc_info.value.status_code == 401
     assert exc_info.value.detail == "Session cookie required"
     redis_cache.get_session.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_delegates_to_session_contract_for_mixed_cookie_and_bearer():
+    request = _build_request()
+    request.state = SimpleNamespace()
+    request.cookies = {settings.SESSION_COOKIE_NAME: "cookie-session"}
+    request.headers = {
+        "X-Session-ID": "legacy-header-session",
+        "Authorization": "Bearer legacy-bearer-session",
+    }
+    credentials = HTTPAuthorizationCredentials(
+        scheme="Bearer",
+        credentials="legacy-bearer-session",
+    )
+    user_id = uuid4()
+    session_user = {
+        "id": str(user_id),
+        "email": "cookie@example.com",
+        "full_name": "Cookie Backed User",
+        "role": "doctor",
+        "is_active": True,
+    }
+    expected_user = User(
+        id=user_id,
+        email=session_user["email"],
+        full_name=session_user["full_name"],
+        role=UserRole.DOCTOR,
+        is_active=True,
+    )
+    session_dependency = AsyncMock(return_value=session_user)
+    user_object_dependency = AsyncMock(return_value=expected_user)
+
+    original_session_dependency = auth_dependencies.get_current_user_from_session
+    original_user_object_dependency = auth_dependencies.get_current_user_object_from_session
+    auth_dependencies.get_current_user_from_session = session_dependency
+    auth_dependencies.get_current_user_object_from_session = user_object_dependency
+    try:
+        result = await auth_dependencies.get_current_user(
+            request=request,
+            credentials=credentials,
+            services=SimpleNamespace(db=MagicMock()),
+        )
+    finally:
+        auth_dependencies.get_current_user_from_session = original_session_dependency
+        auth_dependencies.get_current_user_object_from_session = original_user_object_dependency
+
+    assert result is expected_user
+    session_dependency.assert_awaited_once_with(
+        request=request,
+        session_cookie_id="cookie-session",
+        x_session_id="legacy-header-session",
+        authorization="Bearer legacy-bearer-session",
+    )
+    user_object_dependency.assert_awaited_once_with(session_user)
+    assert request.state.user_id == session_user["id"]
+    assert request.state.user_role == session_user["role"]
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_rejects_bearer_only_via_session_contract():
+    request = _build_request()
+    request.state = SimpleNamespace()
+    request.cookies = {}
+    request.headers = {}
+    credentials = HTTPAuthorizationCredentials(
+        scheme="Bearer",
+        credentials="legacy-bearer-session",
+    )
+    session_dependency = AsyncMock(
+        side_effect=HTTPException(
+            status_code=401,
+            detail="Session cookie required",
+            headers={"WWW-Authenticate": "Session"},
+        )
+    )
+    user_object_dependency = AsyncMock()
+
+    original_session_dependency = auth_dependencies.get_current_user_from_session
+    original_user_object_dependency = auth_dependencies.get_current_user_object_from_session
+    auth_dependencies.get_current_user_from_session = session_dependency
+    auth_dependencies.get_current_user_object_from_session = user_object_dependency
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            await auth_dependencies.get_current_user(
+                request=request,
+                credentials=credentials,
+                services=SimpleNamespace(db=MagicMock()),
+            )
+    finally:
+        auth_dependencies.get_current_user_from_session = original_session_dependency
+        auth_dependencies.get_current_user_object_from_session = original_user_object_dependency
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Session cookie required"
+    session_dependency.assert_awaited_once_with(
+        request=request,
+        session_cookie_id=None,
+        x_session_id=None,
+        authorization="Bearer legacy-bearer-session",
+    )
+    user_object_dependency.assert_not_awaited()
+
+
+def test_auth_dependencies_source_retires_legacy_bearer_firebase_seam():
+    source = Path(auth_dependencies.__file__).read_text(encoding="utf-8")
+
+    for needle in (
+        "authenticate_legacy_bearer_user",
+        "_get_auth_legacy_firebase",
+        "_get_firebase_service",
+    ):
+        assert needle not in source
 
 
 def test_has_permission_admin():

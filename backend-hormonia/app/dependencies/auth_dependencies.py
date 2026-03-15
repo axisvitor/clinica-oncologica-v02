@@ -1,26 +1,9 @@
-"""Authentication Dependencies - Firebase Authentication + Redis Sessions
-
-Dual authentication system:
-1. Session-based auth (RECOMMENDED): Ultra-fast Redis sessions (~2-5ms)
-2. Firebase token auth (DEPRECATED): Backward compatibility only
-
-All Supabase fallback code has been removed.
-"""
-"""
-MIGRATION STATUS: Phase 1 - Async Database Operations with Timeouts
-- ✅ _get_user_from_db_async() - New async function with timeout support
-- ✅ get_current_user_from_session() - Migrated to async DB with 5s timeout
-- ✅ get_current_user() - Migrated to async DB with 5s timeout
-- 🔜 Phase 2: Migrate other endpoints (user_repository, etc.)
-- 🔜 Phase 3: Remove deprecated sync functions
-"""
+"""Authentication dependencies for the canonical session-first staff auth flow."""
 
 from fastapi import Depends, HTTPException, status, Header, Cookie, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, List, Any, TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
-import importlib
 import logging
 import asyncio
 import inspect
@@ -45,72 +28,12 @@ logger = logging.getLogger(__name__)
 
 security = HTTPBearer(auto_error=False)
 
-_legacy_auth_module = None
-_firebase_service = None
-_firebase_service_initialized = False
-
-
-def _get_auth_legacy_firebase():
-    """Import the legacy Firebase compatibility seam only when a legacy path needs it."""
-    global _legacy_auth_module
-    if _legacy_auth_module is None:
-        _legacy_auth_module = importlib.import_module("app.dependencies.auth_legacy_firebase")
-    return _legacy_auth_module
-
-
-def _get_firebase_service():
-    """Lazily initialize the optional Firebase Admin service for legacy compatibility."""
-    global _firebase_service, _firebase_service_initialized
-    if not _firebase_service_initialized:
-        _firebase_service = _get_auth_legacy_firebase().initialize_firebase_service(
-            settings_obj=settings
-        )
-        _firebase_service_initialized = True
-    return _firebase_service
-
 # =============================================================================
 # CORE AUTHENTICATION DEPENDENCIES
 # =============================================================================
 
 # Firebase UID validation pattern (definitive contract)
 _FIREBASE_UID_STRICT_PATTERN = re.compile(r"^[A-Za-z0-9]{28}$")
-
-# Email validation pattern: basic RFC 5322 compliant pattern
-_EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
-
-def _validate_email(email: str) -> None:
-    """
-    Validate email format.
-
-    Args:
-        email: The email address to validate
-
-    Raises:
-        HTTPException: If the email format is invalid
-    """
-    if not email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email is required"
-        )
-
-    if not isinstance(email, str):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email must be a string"
-        )
-
-    if len(email) > 254:  # RFC 5321
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email exceeds maximum length of 254 characters"
-        )
-
-    if not _EMAIL_PATTERN.match(email):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid email format"
-        )
 
 
 def _validate_firebase_uid(firebase_uid: str) -> None:
@@ -396,31 +319,6 @@ async def get_generic_cache() -> GenericRedisCache:
         raise
 
 
-def _get_user_from_db_sync(firebase_uid: str, db: Session) -> Optional[User]:
-    """Fetch a user using an existing synchronous session."""
-    from sqlalchemy import select
-
-    stmt = select(User).where(User.firebase_uid == firebase_uid)
-    result = db.execute(stmt)
-    return result.scalar_one_or_none()
-
-
-def _should_use_sync_db(services: "ServiceProvider") -> bool:
-    db = getattr(services, "db", None)
-    if db is None:
-        return False
-    if isinstance(db, AsyncSession):
-        return False
-    if isinstance(db, Session):
-        return True
-
-    try:
-        bind = db.get_bind()
-    except Exception:
-        return False
-    return bind is not None and getattr(bind.dialect, "name", None) == "sqlite"
-
-
 async def _get_user_from_db_async(
     firebase_uid: str, session: AsyncSession
 ) -> Optional[User]:
@@ -599,7 +497,8 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     services: "ServiceProvider" = Depends(_get_service_provider),
 ) -> User:
-    """Resolve the current user via session-first auth with legacy bearer fallback."""
+    """Resolve the current user strictly via the canonical session-first contract."""
+    _ = services
     request_cookies = getattr(request, "cookies", {}) or {}
     request_headers = getattr(request, "headers", {}) or {}
     session_cookie_id = None
@@ -618,33 +517,20 @@ async def get_current_user(
         x_session_id = None
         authorization_header = None
 
-    if session_cookie_id or x_session_id:
-        session_user_data = await get_current_user_from_session(
-            request=request,
-            session_cookie_id=session_cookie_id,
-            x_session_id=x_session_id,
-            authorization=authorization_header,
-        )
-        request.state.user_id = session_user_data.get("id") or session_user_data.get(
-            "user_id"
-        )
-        request.state.user_role = session_user_data.get("role")
-        return await get_current_user_object_from_session(session_user_data)
+    if authorization_header is None and credentials is not None:
+        authorization_header = f"{credentials.scheme} {credentials.credentials}"
 
-    legacy_auth = _get_auth_legacy_firebase()
-    return await legacy_auth.authenticate_legacy_bearer_user(
+    session_user_data = await get_current_user_from_session(
         request=request,
-        credentials=credentials,
-        services=services,
-        firebase_service=_get_firebase_service(),
-        validate_firebase_uid=_validate_firebase_uid,
-        validate_email=_validate_email,
-        resolve_user_role=_resolve_user_role,
-        should_use_sync_db=_should_use_sync_db,
-        get_user_from_db_sync=_get_user_from_db_sync,
-        get_user_from_db_async=_get_user_from_db_async,
-        serialize_user=user_to_cache_dict,
+        session_cookie_id=session_cookie_id,
+        x_session_id=x_session_id,
+        authorization=authorization_header,
     )
+    request.state.user_id = session_user_data.get("id") or session_user_data.get(
+        "user_id"
+    )
+    request.state.user_role = session_user_data.get("role")
+    return await get_current_user_object_from_session(session_user_data)
 
 
 async def get_current_active_user(

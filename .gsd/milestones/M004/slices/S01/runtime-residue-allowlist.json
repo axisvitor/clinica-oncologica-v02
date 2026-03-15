@@ -95,11 +95,16 @@
             "backend-hormonia/app/api/v2/routers/physicians/**",
             "backend-hormonia/app/api/v2/routers/patients/base.py",
             "backend-hormonia/app/api/v2/templates_shared.py",
-            "backend-hormonia/app/api/v2/routers/docs/**"
+            "backend-hormonia/app/api/v2/routers/docs/**",
+            "backend-hormonia/app/dependencies/auth_legacy_firebase.py",
+            "backend-hormonia/app/api/v2/user_cache_shared.py",
+            "backend-hormonia/app/api/v2/routers/users.py"
           ],
-          "approved": [
+          "approved": [],
+          "proof_only": [
             {
               "path": "backend-hormonia/app/dependencies/auth_dependencies.py",
+              "proof": "backend-hormonia/tests/unit/test_auth_session_identity_contract.py;backend-hormonia/tests/unit/test_auth_session_cache_canonical_identity.py",
               "anchors": [
                 {
                   "type": "literal",
@@ -109,17 +114,8 @@
               ]
             },
             {
-              "path": "backend-hormonia/app/dependencies/auth_legacy_firebase.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "firebase_uid = cached_token[\"firebase_uid\"]",
-                  "label": "auth_legacy_firebase_cached_uid_lookup"
-                }
-              ]
-            },
-            {
               "path": "backend-hormonia/app/dependencies/auth_role_dependencies.py",
+              "proof": "backend-hormonia/tests/api/v2/test_auth_dependency_override_contract.py::test_roles_admin_dependency_accepts_canonical_user_id_without_firebase_uid",
               "anchors": [
                 {
                   "type": "literal",
@@ -130,6 +126,7 @@
             },
             {
               "path": "backend-hormonia/app/dependencies/auth_session_cache.py",
+              "proof": "backend-hormonia/tests/unit/test_auth_session_cache_canonical_identity.py",
               "anchors": [
                 {
                   "type": "literal",
@@ -140,6 +137,7 @@
             },
             {
               "path": "backend-hormonia/app/dependencies/auth_session_contract.py",
+              "proof": "backend-hormonia/tests/unit/test_auth_session_identity_contract.py;backend-hormonia/tests/api/v2/test_auth_session_priority.py",
               "anchors": [
                 {
                   "type": "literal",
@@ -149,32 +147,13 @@
               ]
             },
             {
-              "path": "backend-hormonia/app/api/v2/routers/admin/utils.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "\"firebase_uid\": getattr(user, \"firebase_uid\", None),",
-                  "label": "admin_utils_serializes_firebase_uid"
-                }
-              ]
-            },
-            {
               "path": "backend-hormonia/app/api/v2/routers/auth.py",
+              "proof": "backend-hormonia/tests/api/v2/test_auth_hard_cut_cleanup.py::test_logout_all_revokes_sessions_using_canonical_user_id_when_firebase_uid_missing",
               "anchors": [
                 {
                   "type": "literal",
                   "pattern": "compatibility cache adapters may still match legacy `firebase_uid` values.",
                   "label": "auth_router_firebase_uid_compat_comment"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/user_cache_shared.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "sanitized.pop(\"firebase_uid\", None)",
-                  "label": "user_cache_shared_sanitizes_firebase_uid"
                 }
               ]
             }
@@ -208,9 +187,11 @@
             "backend-hormonia/app/routers/auth_session.py",
             "backend-hormonia/app/dependencies/auth_dependencies.py"
           ],
-          "approved": [
+          "approved": [],
+          "proof_only": [
             {
               "path": "backend-hormonia/app/api/websockets.py",
+              "proof": "backend-hormonia/tests/api/test_websocket_session_auth_contract.py::test_websocket_rejects_legacy_session_transport_without_cookie",
               "anchors": [
                 {
                   "type": "literal",
@@ -221,6 +202,7 @@
             },
             {
               "path": "backend-hormonia/app/dependencies/auth_dependencies.py",
+              "proof": "backend-hormonia/tests/unit/test_auth_dependencies.py::test_get_current_user_delegates_to_session_contract_for_mixed_cookie_and_bearer",
               "anchors": [
                 {
                   "type": "literal",
@@ -231,6 +213,7 @@
             },
             {
               "path": "backend-hormonia/app/api/v2/routers/admin/dependencies.py",
+              "proof": "backend-hormonia/tests/api/v2/test_auth_hard_cut_cleanup.py::test_admin_dependency_rejects_legacy_transport_without_cookie_even_in_test_mode",
               "anchors": [
                 {
                   "type": "literal",
@@ -276,9 +259,11 @@
           "exclude": [
             "backend-hormonia/app/api/v2/routers/platform_sync.py"
           ],
-          "approved": [
+          "approved": [],
+          "proof_only": [
             {
               "path": "backend-hormonia/app/dependencies/auth_session_contract.py",
+              "proof": "backend-hormonia/tests/api/v2/test_auth_session_priority.py::test_session_auth_rejects_legacy_transport_without_cookie",
               "anchors": [
                 {
                   "type": "literal",
@@ -289,10 +274,11 @@
             },
             {
               "path": "backend-hormonia/app/api/v2/routers/admin/dependencies.py",
+              "proof": "backend-hormonia/tests/api/v2/test_auth_hard_cut_cleanup.py::test_admin_dependency_rejects_legacy_transport_without_cookie_even_in_test_mode",
               "anchors": [
                 {
                   "type": "literal",
-                  "pattern": "or (auth_header and auth_header.startswith(\"Bearer \"))",
+                  "pattern": "x_session_id or (authorization and authorization.startswith(\"Bearer \"))",
                   "label": "admin_dependencies_legacy_bearer_detection"
                 }
               ]
@@ -338,9 +324,11 @@
           "roots": [
             "backend-hormonia/app/api/websockets.py"
           ],
-          "approved": [
+          "approved": [],
+          "proof_only": [
             {
               "path": "backend-hormonia/app/api/websockets.py",
+              "proof": "backend-hormonia/tests/api/test_websocket_session_auth_contract.py::test_websocket_rejects_legacy_session_transport_without_cookie",
               "anchors": [
                 {
                   "type": "literal",
