@@ -12,6 +12,7 @@ from app.middleware.hipaa_audit_middleware import HIPAAAuditMiddleware
 from app.models.audit_log import AuditEventType
 from app.models.user import User, UserRole
 from app.services.audit.audit_service import AuditEventContext, AuditService
+from app.services.audit_log import AuditLogService as LegacyAuditLogService
 from app.utils.security import get_password_hash
 from tests.conftest import SyncToAsyncSessionAdapter
 
@@ -101,6 +102,43 @@ class TestCanonicalAuditService:
         assert len(hashed) == 64
         assert hashed == AuditService.hash_session_token("my-secret-session-token")
         assert hashed != "my-secret-session-token"
+
+
+class TestLegacyAuditLogServiceBoundary:
+    def test_log_event_persists_null_firebase_uid_and_strips_metadata(self, db_session, audit_user):
+        audit_service = LegacyAuditLogService(db_session)
+
+        audit_log = audit_service.log_event(
+            event_type=AuditEventType.LOGIN_SUCCESS,
+            event_status="success",
+            user_id=audit_user.id,
+            user_email=audit_user.email,
+            firebase_uid="masked-legacy-firebase-uid",
+            metadata={
+                "session_source": "cookie",
+                "firebase_uid": "masked-legacy-firebase-uid",
+            },
+        )
+
+        assert (
+            audit_log.firebase_uid is None
+        ), "audit_contract surface=legacy_writer persisted_firebase_uid=true"
+        assert audit_log.event_metadata == {
+            "session_source": "cookie"
+        }, "audit_contract surface=legacy_writer metadata_firebase_uid_present=true"
+
+    def test_login_success_helper_keeps_canonical_audit_row_null(self, db_session, audit_user):
+        audit_user.firebase_uid = "masked-legacy-firebase-uid"
+        db_session.commit()
+        db_session.refresh(audit_user)
+
+        audit_service = LegacyAuditLogService(db_session)
+        audit_log = audit_service.log_login_success(audit_user)
+
+        assert (
+            audit_log.firebase_uid is None
+        ), "audit_contract surface=login_success_helper persisted_firebase_uid=true"
+        assert audit_log.event_metadata == {}
 
 
 class TestCanonicalHIPAAAuditMiddleware:

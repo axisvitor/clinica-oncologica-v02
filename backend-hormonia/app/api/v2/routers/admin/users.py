@@ -317,7 +317,7 @@ async def list_users(
     summary="Get User Details",
     description="Retrieve detailed information about a specific user. Cached for 10 minutes.",
 )
-@cache_response(ttl=600, key_prefix="admin:user")  # Cache for 10 minutes
+@cache_response(ttl=600, key_prefix="admin:user:v2")  # Cache for 10 minutes
 async def get_user(
     user_id: UUID,
     fields: Optional[str] = Query(

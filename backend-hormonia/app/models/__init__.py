@@ -26,7 +26,7 @@ from app.models.physician import (
 
 # Audit logging models
 from app.models.audit_log import AuditLog, AuditEventType
-from app.models.user_sync_log import UserSyncLog
+from app.models.user_sync_log import FirebaseSyncHistory
 
 # Sprint 1: Eager loading optimization models (P1-2)
 from app.models.treatment import Treatment, TreatmentStatus, TreatmentType
@@ -116,7 +116,7 @@ __all__ = [
     # Audit logging models
     "AuditLog",
     "AuditEventType",
-    "UserSyncLog",
+    "FirebaseSyncHistory",
     # Sprint 1: Eager loading optimization models (P1-2)
     "Treatment",
     "TreatmentStatus",

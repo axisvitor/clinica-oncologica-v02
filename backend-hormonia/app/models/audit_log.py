@@ -140,7 +140,10 @@ class AuditLog(BaseModel):
         String(255),
         nullable=True,
         index=True,
-        comment="Firebase UID for Firebase-authenticated users",
+        comment=(
+            "Historical Firebase UID residue preserved for pre-cutover audit rows; "
+            "canonical writes must keep this null"
+        ),
     )
 
     # Session tracking
@@ -259,7 +262,7 @@ class AuditLog(BaseModel):
         Index(
             "idx_audit_event_status_time", "event_type", "event_status", "created_at"
         ),
-        # Index for Firebase UID lookups
+        # Historical Firebase UID lookups for pre-cutover residue only
         Index("idx_audit_firebase_time", "firebase_uid", "created_at"),
         # Index for email-based queries (failed login tracking)
         Index("idx_audit_email_time", "user_email", "created_at"),

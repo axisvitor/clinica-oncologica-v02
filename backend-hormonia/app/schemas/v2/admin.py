@@ -123,7 +123,6 @@ class UserResponse(BaseModel):
     created_at: datetime = Field(..., description="User creation timestamp")
     updated_at: datetime = Field(..., description="User last update timestamp")
     last_login: Optional[datetime] = Field(None, description="Last login timestamp")
-    firebase_uid: Optional[str] = Field(None, description="Firebase UID")
 
     model_config = ConfigDict(from_attributes=True)
 

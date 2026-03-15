@@ -91,11 +91,17 @@ async def test_resolve_session_user_data_uses_embedded_canonical_user_without_fi
         ),
     )
 
-    assert resolution_mode == "redis"
-    assert user_data["id"] == session_payload["user_id"]
+    assert resolution_mode == "redis", (
+        "canonical_identity surface=cache_embedded resolution_mode=unexpected"
+    )
+    assert user_data["id"] == session_payload["user_id"], (
+        "canonical_identity surface=cache_embedded canonical_user_id_missing=true"
+    )
     assert user_data["email"] == session_payload["email"]
     assert user_data["role"] == session_payload["role"]
-    assert user_data["firebase_uid"] is None
+    assert user_data["firebase_uid"] is None, (
+        "canonical_identity surface=cache_embedded firebase_uid_present=true"
+    )
     redis_cache.get_user_by_id.assert_not_called()
     redis_cache.get_user_by_uid.assert_not_called()
 
@@ -141,10 +147,16 @@ async def test_resolve_session_user_data_accepts_embedded_canonical_id_alias_wit
         ),
     )
 
-    assert resolution_mode == "redis"
-    assert user_data["id"] == session_payload["id"]
+    assert resolution_mode == "redis", (
+        "canonical_identity surface=cache_id_alias resolution_mode=unexpected"
+    )
+    assert user_data["id"] == session_payload["id"], (
+        "canonical_identity surface=cache_id_alias canonical_user_id_missing=true"
+    )
     assert user_data["email"] == session_payload["email"]
-    assert user_data["firebase_uid"] is None
+    assert user_data["firebase_uid"] is None, (
+        "canonical_identity surface=cache_id_alias firebase_uid_present=true"
+    )
     redis_cache.get_user_by_id.assert_not_called()
     redis_cache.get_user_by_uid.assert_not_called()
 
@@ -189,10 +201,16 @@ async def test_resolve_session_user_data_prefers_db_lookup_by_user_id_before_fir
         serialize_user=lambda user: auth_session_cache.serialize_user_data(user),
     )
 
-    assert resolution_mode == "redis"
-    assert user_data["id"] == canonical_user_id
+    assert resolution_mode == "redis", (
+        "canonical_identity surface=user_id_priority resolution_mode=unexpected"
+    )
+    assert user_data["id"] == canonical_user_id, (
+        "canonical_identity surface=user_id_priority canonical_user_id_missing=true"
+    )
     assert user_data["email"] == canonical_user.email
-    redis_cache.get_user_by_uid.assert_not_called()
+    assert redis_cache.get_user_by_uid.await_count == 0, (
+        "canonical_identity surface=user_id_priority firebase_uid_cache_fallback_used=true"
+    )
     load_user_from_db_by_user_id.assert_awaited_once_with(canonical_user_id)
 
 
@@ -223,16 +241,24 @@ async def test_resolve_session_user_data_rehydrates_fallback_session_with_canoni
         serialize_user=lambda user: auth_session_cache.serialize_user_data(user),
     )
 
-    assert resolution_mode == "fallback"
-    assert user_data["id"] == str(canonical_user.id)
+    assert resolution_mode == "fallback", (
+        "canonical_identity surface=fallback_rehydrate resolution_mode=unexpected"
+    )
+    assert user_data["id"] == str(canonical_user.id), (
+        "canonical_identity surface=fallback_rehydrate canonical_user_id_missing=true"
+    )
     redis_cache.cache_user_data_by_user_id.assert_awaited_once_with(user_data["id"], user_data, ttl=900)
     redis_cache.cache_user_data.assert_not_called()
     redis_cache.create_session.assert_awaited_once()
     create_session_call = redis_cache.create_session.await_args
     assert create_session_call.kwargs["session_id"] == "fallback-session-contract"
     assert create_session_call.kwargs["user_id"] == user_data["id"]
-    assert create_session_call.kwargs["firebase_uid"] is None
-    assert "firebase_uid" not in create_session_call.kwargs["metadata"]
+    assert create_session_call.kwargs["firebase_uid"] is None, (
+        "canonical_identity surface=fallback_rehydrate session_rehydrated_with_firebase_uid=true"
+    )
+    assert "firebase_uid" not in create_session_call.kwargs["metadata"], (
+        "canonical_identity surface=fallback_rehydrate metadata_firebase_uid_present=true"
+    )
     assert create_session_call.kwargs["metadata"]["session_id"] == "fallback-session-contract"
     assert create_session_call.kwargs["metadata"]["email"] == canonical_user.email
     assert create_session_call.kwargs["metadata"]["max_age_seconds"] == 43200
@@ -267,8 +293,15 @@ async def test_resolve_session_user_data_falls_back_to_firebase_uid_only_when_ca
         serialize_user=lambda user: auth_session_cache.serialize_user_data(user),
     )
 
-    assert resolution_mode == "redis"
-    assert user_data["firebase_uid"] == firebase_uid
+    assert resolution_mode == "redis", (
+        "canonical_identity surface=compat_fallback resolution_mode=unexpected"
+    )
+    assert user_data["firebase_uid"] == firebase_uid, (
+        "canonical_identity surface=compat_fallback firebase_uid_fallback_missing=true"
+    )
     assert user_data["email"] == cached_user["email"]
     validate_firebase_uid.assert_called_once_with(firebase_uid)
+    assert redis_cache.get_user_by_uid.await_count == 1, (
+        "canonical_identity surface=compat_fallback firebase_uid_cache_lookup_missing=true"
+    )
     redis_cache.get_user_by_uid.assert_awaited_once_with(firebase_uid)

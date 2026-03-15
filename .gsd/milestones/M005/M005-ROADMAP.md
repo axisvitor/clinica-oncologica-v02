@@ -53,7 +53,7 @@ This milestone is complete only when all are true:
 
 - [x] **S01: Alembic operável sem segredos de runtime** `risk:high` `depends:[]`
   > After this: um mantenedor consegue rodar `alembic history`, `heads`, `current` e um upgrade real em banco de teste sem WuzAPI/Firebase env; o grafo volta a ser uma superfície operacional própria.
-- [ ] **S02: Legado Firebase isolado como histórico explícito** `risk:high` `depends:[S01]`
+- [x] **S02: Legado Firebase isolado como histórico explícito** `risk:high` `depends:[S01]`
   > After this: um banco com rastros Firebase preserva apenas o que foi escolhido como histórico explícito, enquanto `users`, `audit_logs` e `user_sync_log` deixam de apresentar esses dados como contrato vivo do modelo canônico.
 - [ ] **S03: Head canônico de schema sem resíduo estrutural vivo** `risk:high` `depends:[S01,S02]`
   > After this: banco novo e banco existente chegam ao mesmo head com modelos, enums, índices e migrations contando a mesma história canônica sem resíduo Firebase estrutural necessário ao runtime oficial.

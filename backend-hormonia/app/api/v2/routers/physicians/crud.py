@@ -109,7 +109,6 @@ async def _serialize_physician(
         if hasattr(physician.role, "value")
         else str(physician.role),
         "is_active": physician.is_active,
-        "firebase_uid": physician.firebase_uid,
         "firebase_email_verified": physician.firebase_email_verified,
         "firebase_display_name": physician.firebase_display_name,
         "firebase_photo_url": physician.firebase_photo_url,

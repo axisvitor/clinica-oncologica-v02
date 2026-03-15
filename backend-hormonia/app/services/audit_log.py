@@ -72,6 +72,36 @@ class AuditLogService:
 
         return {"ip_address": ip_address, "user_agent": user_agent}
 
+    @staticmethod
+    def _strip_legacy_firebase_uid(
+        payload: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        if not payload:
+            return {}
+        return {key: value for key, value in payload.items() if key != "firebase_uid"}
+
+    def _sanitize_canonical_audit_inputs(
+        self,
+        *,
+        event_type: AuditEventType,
+        firebase_uid: Optional[str],
+        metadata: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        sanitized_metadata = self._strip_legacy_firebase_uid(metadata)
+        stripped_metadata = bool(metadata) and "firebase_uid" in metadata
+
+        if firebase_uid is not None or stripped_metadata:
+            logger.debug(
+                "Dropping legacy firebase_uid from canonical audit write",
+                extra={
+                    "event_type": event_type.value
+                    if hasattr(event_type, "value")
+                    else str(event_type)
+                },
+            )
+
+        return sanitized_metadata
+
     def log_event(
         self,
         event_type: AuditEventType,
@@ -96,7 +126,7 @@ class AuditLogService:
             event_status: Event outcome (success, failure, error)
             user_id: User ID (if known)
             user_email: User email (for failed login tracking)
-            firebase_uid: Firebase UID (if applicable)
+            firebase_uid: Legacy compatibility input; canonical audit writes discard it
             ip_address: Client IP address
             user_agent: Client user agent
             resource: Resource accessed
@@ -118,20 +148,26 @@ class AuditLogService:
                 if not user_agent:
                     user_agent = client_info["user_agent"]
 
+            sanitized_metadata = self._sanitize_canonical_audit_inputs(
+                event_type=event_type,
+                firebase_uid=firebase_uid,
+                metadata=metadata,
+            )
+
             # Create audit log entry
             audit_entry = AuditLog(
                 event_type=event_type,
                 event_status=event_status,
                 user_id=user_id,
                 user_email=user_email,
-                firebase_uid=firebase_uid,
+                firebase_uid=None,
                 ip_address=ip_address,
                 user_agent=user_agent,
                 resource=resource,
                 action=action,
                 message=message,
                 error_details=error_details,
-                metadata=metadata or {},
+                metadata=sanitized_metadata,
             )
 
             self.db.add(audit_entry)

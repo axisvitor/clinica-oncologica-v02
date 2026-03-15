@@ -234,8 +234,7 @@ class PhysicianResponse(BaseModel):
     role: str = Field("doctor", description="User role")
     is_active: bool = Field(True, description="Account active status")
 
-    # Firebase fields
-    firebase_uid: Optional[str] = Field(None, description="Firebase UID")
+    # Live auth/profile fields
     firebase_email_verified: bool = Field(False, description="Email verified status")
     firebase_display_name: Optional[str] = Field(
         None, description="Firebase display name"

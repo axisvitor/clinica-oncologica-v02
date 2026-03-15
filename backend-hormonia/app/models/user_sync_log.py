@@ -1,57 +1,83 @@
-"""User Sync Log Model
+"""Explicit Firebase sync history surface.
 
-Audit trail for Firebase-PostgreSQL synchronization operations.
+This module preserves the legacy Firebase sync residue behind an append-only,
+historical table. It is intentionally not a live domain model.
 """
 
-from sqlalchemy import Column, String, Boolean, Text, DateTime, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.sql import func
+from __future__ import annotations
+
 import uuid
 
-from app.models.base import BaseModel
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.sql import func
+
+from app.db.base import Base
 
 
-class UserSyncLog(BaseModel):
-    """
-    Audit log for user synchronization operations.
+class FirebaseSyncHistory(Base):
+    """Append-only Firebase sync history preserved for forensic replay."""
 
-    Tracks all sync operations between Firebase and PostgreSQL
-    for debugging and compliance purposes.
-    """
+    __tablename__ = "firebase_sync_history"
 
-    __tablename__ = "user_sync_log"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    firebase_uid = Column(String(255), nullable=False, index=True)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=func.gen_random_uuid(),
+    )
+    firebase_uid = Column(
+        String(255),
+        nullable=True,
+        index=True,
+        comment="Preserved Firebase identifier from the historical sync event",
+    )
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
+        comment="Canonical user linked to the preserved Firebase sync event",
     )
-
-    # Operation details
-    operation = Column(String(50), nullable=False)  # create, update, link, sync
+    operation = Column(
+        String(50),
+        nullable=False,
+        comment="Historical sync operation: create, update, link, or sync",
+    )
     sync_direction = Column(
-        String(20), nullable=False
-    )  # firebase_to_pg, pg_to_firebase
-
-    # Changes and status
-    changes = Column(JSONB, default={}, nullable=False)
-    success = Column(Boolean, nullable=False)
-    error_message = Column(Text, nullable=True)
-
-    # Timestamps
-    created_at = Column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), index=True
+        String(20),
+        nullable=False,
+        comment="Historical direction marker: firebase_to_pg or pg_to_firebase",
     )
-    updated_at = Column(
+    changes = Column(
+        JSONB,
+        default=dict,
+        nullable=False,
+        comment="Captured payload for the preserved historical sync event",
+    )
+    success = Column(
+        Boolean,
+        nullable=False,
+        comment="Whether the historical sync event completed successfully",
+    )
+    error_message = Column(
+        Text,
+        nullable=True,
+        comment="Failure residue captured for historical replay/debugging",
+    )
+    created_at = Column(
         DateTime(timezone=True),
         nullable=False,
         server_default=func.now(),
-        onupdate=func.now(),
         index=True,
+        comment="Timestamp when the Firebase sync history row was appended",
     )
 
-    def __repr__(self):
-        return f"<UserSyncLog(firebase_uid='{self.firebase_uid}', operation='{self.operation}', success={self.success})>"
+    def __repr__(self) -> str:
+        return (
+            "<FirebaseSyncHistory("
+            f"operation='{self.operation}', "
+            f"success={self.success}, "
+            f"has_firebase_uid={bool(self.firebase_uid)}"
+            ")>"
+        )

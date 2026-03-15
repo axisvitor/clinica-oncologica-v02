@@ -22,9 +22,9 @@ Guidelines:
 - Why it matters: Sem fechar o banco e as migrações, a convergência fica incompleta e frágil para novos ambientes ou upgrades.
 - Source: user
 - Primary owning slice: M005/S?? (provisional)
-- Supporting slices: M005/S01
+- Supporting slices: M005/S01, M005/S02
 - Validation: mapped
-- Notes: S01 já provou que o controle plane do Alembic carrega, percorre e faz replay em Postgres real só com configuração de banco; ainda faltam a fronteira histórico-vs-live e a convergência canônica do schema nas slices seguintes.
+- Notes: S01 já provou que o controle plane do Alembic carrega, percorre e faz replay em Postgres real só com configuração de banco; S02 publicou a fronteira histórica explícita para `firebase_sync_history`, `audit_logs.firebase_uid` e payloads canônicos sem reviver Firebase como contrato vivo. Ainda faltam a convergência canônica do head/schema e a prova integrada das slices seguintes.
 
 ### R052 — Código morto e compatibilidades restantes são removidos com prova
 - Class: operability
@@ -513,7 +513,7 @@ Guidelines:
 | R048 | continuity | validated | M004/S02 | M004/S01, M004/S03, M004/S04 | validated |
 | R049 | integration | validated | M004/S02 | M004/S01, M004/S04, M004/S05 | validated |
 | R050 | primary-user-loop | validated | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | validated |
-| R051 | quality-attribute | active | M005/S?? (provisional) | M005/S01 | mapped |
+| R051 | quality-attribute | active | M005/S?? (provisional) | M005/S01, M005/S02 | mapped |
 | R052 | operability | active | M006/S?? (provisional) | none | mapped |
 | R053 | quality-attribute | validated | M006/S?? (provisional) | M004/S06, M005/S01 | validated by M004/S06 --all proof |
 | R001 | continuity | validated | M001/S01 | none | validated |

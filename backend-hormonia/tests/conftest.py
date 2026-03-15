@@ -718,14 +718,14 @@ def _ensure_sessions_session_token_column(engine):
             connection.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS session_metadata JSONB"))
 
 
-def _ensure_audit_logs_firebase_uid_column(engine):
-    """Ensure Postgres test schemas include modern audit_logs columns."""
+def _ensure_audit_logs_live_columns(engine):
+    """Ensure Postgres test schemas include live audit_logs columns without reviving Firebase residue."""
     if engine.dialect.name != "postgresql":
         return
 
     inspector = sa_inspect(engine)
     if not inspector.has_table("audit_logs"):
-        print("[tests.conftest] audit_logs table missing; skipping firebase_uid guard")
+        print("[tests.conftest] audit_logs table missing; skipping live audit guard")
         return
 
     audit_columns = {column["name"] for column in inspector.get_columns("audit_logs")}
@@ -735,7 +735,6 @@ def _ensure_audit_logs_firebase_uid_column(engine):
         "status",
         "user_email",
         "user_role",
-        "firebase_uid",
         "session_id",
         "session_token_hash",
         "device_fingerprint",
@@ -785,7 +784,7 @@ def _ensure_audit_logs_firebase_uid_column(engine):
     if not missing_columns:
         return
 
-    print("[tests.conftest] Applying schema patch: align audit_logs columns")
+    print("[tests.conftest] Applying schema patch: align live audit_logs columns")
     with engine.begin() as connection:
         if "event_category" in missing_columns:
             connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS event_category VARCHAR(50)"))
@@ -798,8 +797,6 @@ def _ensure_audit_logs_firebase_uid_column(engine):
             connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)"))
         if "user_role" in missing_columns:
             connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_role VARCHAR(50)"))
-        if "firebase_uid" in missing_columns:
-            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS firebase_uid VARCHAR(255)"))
         if "session_id" in missing_columns:
             connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS session_id VARCHAR(255)"))
         if "session_token_hash" in missing_columns:
@@ -889,13 +886,6 @@ def _ensure_audit_logs_firebase_uid_column(engine):
             connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ"))
         if "archive_location" in missing_columns:
             connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS archive_location VARCHAR(500)"))
-
-        connection.execute(
-            text(
-                "CREATE INDEX IF NOT EXISTS idx_audit_firebase_time "
-                "ON audit_logs (firebase_uid, created_at)"
-            )
-        )
 
 
 def _ensure_audit_logs_event_category_constraint(engine):
@@ -989,7 +979,7 @@ def test_engine():
     _ensure_notifications_type_column(engine)
     _ensure_alerts_columns(engine)
     _ensure_sessions_session_token_column(engine)
-    _ensure_audit_logs_firebase_uid_column(engine)
+    _ensure_audit_logs_live_columns(engine)
     _ensure_audit_logs_event_category_constraint(engine)
 
     try:

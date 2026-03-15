@@ -76,6 +76,12 @@ def _serialize_user(user: User, include_relationships: bool = False) -> dict:
     return data
 
 
+def _sanitize_user_profile_payload(user_data: dict) -> dict:
+    sanitized = dict(user_data)
+    sanitized.pop("firebase_uid", None)
+    return sanitized
+
+
 def _apply_profile_field_selection(user_data: dict, fields: Optional[List[str]]) -> dict:
     """Apply sparse fieldset while preserving required response-model fields."""
     if not fields:
@@ -122,7 +128,14 @@ async def get_current_user_profile(
         try:
             cached = await redis.get(cache_key)
             if cached:
-                user_data = json.loads(cached)
+                cached_user_data = json.loads(cached)
+                user_data = _sanitize_user_profile_payload(cached_user_data)
+                if cached_user_data != user_data:
+                    await redis.setex(
+                        cache_key,
+                        CACHE_TTL_USER_PROFILE,
+                        json.dumps(user_data, default=str),
+                    )
                 if REQUIRED_USER_PROFILE_FIELDS.issubset(user_data.keys()):
                     return _apply_profile_field_selection(user_data, fields)
                 logger.warning(
@@ -147,7 +160,9 @@ async def get_current_user_profile(
     if not user:
         raise HTTPException(status_code=404)
 
-    user_data = _serialize_user(user, include_relationships=True)
+    user_data = _sanitize_user_profile_payload(
+        _serialize_user(user, include_relationships=True)
+    )
     user_data["preferences"] = _get_user_preferences(user).dict()
 
     if redis:

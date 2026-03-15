@@ -75,6 +75,8 @@ def test_shared_resolve_session_id_uses_cookie_only_contract(
             query_session_id=query_session_id,
         )
         == expected
+    ), (
+        "canonical_identity surface=session_id_resolution cookie_only_contract_broken=true"
     )
 
 
@@ -108,10 +110,14 @@ async def test_messages_helper_accepts_embedded_canonical_session_without_fireba
         redis_cache=redis_cache,
     )
 
-    assert user_data["id"] == session_payload["user_id"]
+    assert user_data["id"] == session_payload["user_id"], (
+        "canonical_identity surface=messages_embedded canonical_user_id_missing=true"
+    )
     assert user_data["email"] == session_payload["email"]
     assert user_data["role"] == session_payload["role"]
-    assert "firebase_uid" not in user_data
+    assert "firebase_uid" not in user_data, (
+        "canonical_identity surface=messages_embedded firebase_uid_present=true"
+    )
     redis_cache.get_user_by_uid.assert_not_called()
     redis_cache.get_user_by_id.assert_not_called()
 
@@ -146,9 +152,13 @@ async def test_shared_helper_accepts_embedded_canonical_id_alias_without_user_id
         redis_cache=redis_cache,
     )
 
-    assert user_data["id"] == session_payload["id"]
+    assert user_data["id"] == session_payload["id"], (
+        "canonical_identity surface=shared_id_alias canonical_user_id_missing=true"
+    )
     assert user_data["email"] == session_payload["email"]
-    assert "firebase_uid" not in user_data
+    assert "firebase_uid" not in user_data, (
+        "canonical_identity surface=shared_id_alias firebase_uid_present=true"
+    )
     redis_cache.get_user_by_uid.assert_not_called()
     redis_cache.get_user_by_id.assert_not_called()
 
@@ -180,8 +190,12 @@ async def test_shared_helper_rejects_firebase_uid_only_session_payload_without_l
             redis_cache=redis_cache,
         )
 
-    assert exc_info.value.status_code == 401
-    assert exc_info.value.detail == "Invalid session data"
+    assert exc_info.value.status_code == 401, (
+        "canonical_identity surface=shared_reject_uid_only unexpected_status=true"
+    )
+    assert exc_info.value.detail == "Invalid session data", (
+        "canonical_identity surface=shared_reject_uid_only unexpected_detail=true"
+    )
     redis_cache.get_user_by_uid.assert_not_called()
     redis_cache.get_user_by_id.assert_not_called()
 
@@ -218,9 +232,13 @@ async def test_tasks_dependency_uses_cookie_only_canonical_session():
         redis_cache=redis_cache,
     )
 
-    assert user_data["id"] == session_payload["user_id"]
+    assert user_data["id"] == session_payload["user_id"], (
+        "canonical_identity surface=tasks_cookie_session canonical_user_id_missing=true"
+    )
     assert user_data["role"] == session_payload["role"]
-    assert "firebase_uid" not in user_data
+    assert "firebase_uid" not in user_data, (
+        "canonical_identity surface=tasks_cookie_session firebase_uid_present=true"
+    )
     redis_cache.get_session.assert_awaited_once_with("cookie-session")
 
 
@@ -254,10 +272,16 @@ async def test_user_cache_shared_returns_canonical_runtime_payload_without_fireb
         fetch_user_by_id=fetch_user_by_id,
     )
 
-    assert user_data["id"] == canonical_user_id
+    assert user_data["id"] == canonical_user_id, (
+        "canonical_identity surface=user_cache_runtime canonical_user_id_missing=true"
+    )
     assert user_data["email"] == "shared.db@example.com"
-    assert "firebase_uid" not in user_data
-    redis_cache.get_user_by_uid.assert_not_called()
+    assert "firebase_uid" not in user_data, (
+        "canonical_identity surface=user_cache_runtime firebase_uid_present=true"
+    )
+    assert redis_cache.get_user_by_uid.await_count == 0, (
+        "canonical_identity surface=user_cache_runtime firebase_uid_cache_lookup_used=true"
+    )
     redis_cache.cache_user_data.assert_not_called()
     fetch_user_by_id.assert_awaited_once_with(canonical_user_id)
     redis_cache.cache_user_data_by_user_id.assert_awaited_once_with(
@@ -292,10 +316,16 @@ async def test_user_cache_shared_strips_legacy_firebase_uid_from_cached_user_pay
         ),
     )
 
-    assert user_data["id"] == canonical_user_id
+    assert user_data["id"] == canonical_user_id, (
+        "canonical_identity surface=user_cache_cached canonical_user_id_missing=true"
+    )
     assert user_data["email"] == "cached.shared@example.com"
-    assert "firebase_uid" not in user_data
-    redis_cache.get_user_by_uid.assert_not_called()
+    assert "firebase_uid" not in user_data, (
+        "canonical_identity surface=user_cache_cached firebase_uid_present=true"
+    )
+    assert redis_cache.get_user_by_uid.await_count == 0, (
+        "canonical_identity surface=user_cache_cached firebase_uid_cache_lookup_used=true"
+    )
 
 
 @pytest.mark.asyncio
@@ -325,7 +355,11 @@ async def test_user_cache_shared_rejects_missing_canonical_user_id_without_fireb
             ),
         )
 
-    assert exc_info.value.status_code == 401
-    assert exc_info.value.detail == "Invalid session data"
+    assert exc_info.value.status_code == 401, (
+        "canonical_identity surface=user_cache_missing_user_id unexpected_status=true"
+    )
+    assert exc_info.value.detail == "Invalid session data", (
+        "canonical_identity surface=user_cache_missing_user_id unexpected_detail=true"
+    )
     redis_cache.get_user_by_uid.assert_not_called()
     redis_cache.cache_user_data.assert_not_called()

@@ -24,6 +24,7 @@ from typing import Optional, Dict, Any, Tuple
 from sqlalchemy import select, text
 
 from app.models.user import User, UserRole, AuthProvider
+from app.models.user_sync_log import FirebaseSyncHistory
 from app.services.firebase_auth_service import FirebaseAuthService
 from app.config import get_firebase_security_config, get_settings
 from app.monitoring.prometheus_exporters import metrics_exporter
@@ -230,7 +231,7 @@ class FirebaseUserSyncService:
                 await self._update_user_from_firebase(
                     user, firebase_data, custom_claims
                 )
-                await self._log_sync(
+                await self._append_firebase_sync_history(
                     firebase_uid, user.id, "update", "firebase_to_pg", {}, True
                 )
                 # Cache user for faster subsequent logins
@@ -242,7 +243,7 @@ class FirebaseUserSyncService:
             user = user_result.scalar_one_or_none()
             if user:
                 await self._link_firebase_to_user(user, firebase_uid, firebase_data)
-                await self._log_sync(
+                await self._append_firebase_sync_history(
                     firebase_uid, user.id, "link", "firebase_to_pg", {}, True
                 )
                 # Cache user for faster subsequent logins
@@ -259,7 +260,7 @@ class FirebaseUserSyncService:
             await self._log_security_event(
                 "success", "user_created", firebase_uid, email_lower
             )
-            await self._log_sync(
+            await self._append_firebase_sync_history(
                 firebase_uid, new_user.id, "create", "firebase_to_pg", {}, True
             )
             # Cache new user for faster subsequent logins
@@ -269,13 +270,13 @@ class FirebaseUserSyncService:
         except ValueError as e:
             # Security validation errors
             logger.error(f"Security validation failed for {firebase_uid}: {str(e)}")
-            await self._log_sync(
+            await self._append_firebase_sync_history(
                 firebase_uid, None, "sync", "firebase_to_pg", {}, False, str(e)
             )
             raise
         except Exception as e:
             logger.error(f"Error syncing Firebase user {firebase_uid}: {str(e)}")
-            await self._log_sync(
+            await self._append_firebase_sync_history(
                 firebase_uid, None, "sync", "firebase_to_pg", {}, False, str(e)
             )
             raise
@@ -857,7 +858,7 @@ class FirebaseUserSyncService:
             # Table might not exist - that's okay, we already logged to file
             logger.debug(f"Audit table not available: {str(e)}")
 
-    async def _log_sync(
+    async def _append_firebase_sync_history(
         self,
         firebase_uid: str,
         user_id: Optional[Any],
@@ -867,22 +868,9 @@ class FirebaseUserSyncService:
         success: bool,
         error_message: Optional[str] = None,
     ):
-        """
-        Log sync operation to audit table.
-
-        Args:
-            firebase_uid: Firebase user ID
-            user_id: PostgreSQL user ID
-            operation: Operation type (create, update, link, sync)
-            sync_direction: Direction (firebase_to_pg, pg_to_firebase)
-            changes: Dictionary of changes made
-            success: Whether operation succeeded
-            error_message: Error message if failed
-        """
+        """Append a preserved Firebase sync event to the historical surface."""
         try:
-            from app.models.user_sync_log import UserSyncLog
-
-            log_entry = UserSyncLog(
+            history_entry = FirebaseSyncHistory(
                 firebase_uid=firebase_uid,
                 user_id=user_id,
                 operation=operation,
@@ -892,16 +880,19 @@ class FirebaseUserSyncService:
                 error_message=error_message,
             )
 
-            self.db.add(log_entry)
+            self.db.add(history_entry)
             await self.db.commit()
 
         except Exception as e:
-            logger.error(f"Failed to log sync operation: {str(e)}")
+            logger.error(f"Failed to append Firebase sync history: {str(e)}")
             try:
                 await self.db.rollback()
             except Exception as rollback_err:
-                logger.warning(f"Rollback failed during sync log operation: {rollback_err}")
-            # Don't raise - logging failure shouldn't break sync
+                logger.warning(
+                    "Rollback failed during Firebase sync history append: "
+                    f"{rollback_err}"
+                )
+            # Don't raise - history write failure shouldn't break sync
 
     async def get_or_create_user(
         self, firebase_uid: str, firebase_data: Dict[str, Any]

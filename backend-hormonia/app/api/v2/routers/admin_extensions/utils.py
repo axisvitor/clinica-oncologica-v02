@@ -10,6 +10,9 @@ from app.models.audit_log import AuditLog
 from app.api.v2.dependencies import apply_field_selection
 
 
+HISTORICAL_AUDIT_METADATA_KEYS = {"firebase_uid"}
+
+
 def serialize_dlq_item(item: FailedMessage, fields: Optional[List[str]] = None) -> dict:
     """
     Serialize DLQ item to dict with optional field selection.
@@ -81,7 +84,7 @@ def serialize_audit_log(
     event_data = {
         key: value
         for key, value in (log.event_metadata or {}).items()
-        if key != "firebase_uid"
+        if key not in HISTORICAL_AUDIT_METADATA_KEYS
     }
 
     # Redact sensitive data if requested

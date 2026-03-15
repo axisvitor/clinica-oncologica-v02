@@ -16,7 +16,8 @@ Médicos e operadores precisam acessar e operar o sistema com confiabilidade, e 
 - M004 concluído: backend + frontend oficiais estão vinculados ao contrato session-first canônico sem Firebase, `/session/*` foi aposentado/tombstonado, e o stack local sobe sem Firebase Auth com smoke roteado de `/login`, `/dashboard`, `/admin`, `/whatsapp`.
 - O verificador de S01 é o gate vivo do contrato: `--report all`/`--check all` listam apenas resíduos backend de compatibilidade/rejeição (`firebase_uid`, `x_session_id`, `session_bearer_fallback`, `websocket_session_id_query`) e zero resíduo aprovado no frontend.
 - M005/S01 concluído: `alembic history`, `heads`, `upgrade head` e `current` agora rodam em Postgres scrubbed só com configuração de banco; revisions históricas e backfills vazios deixaram de puxar `app.config.settings`, WuzAPI ou Firebase para o controle plane de migrations.
-- O próximo foco é M005/S02: decidir e publicar a fronteira histórica explícita do legado Firebase em `users`, `audit_logs` e `user_sync_log` sobre o harness de operabilidade já verde.
+- M005/S02 concluído: `user_sync_log` foi publicado como `firebase_sync_history`, `audit_logs.firebase_uid` ficou quarantined como resíduo histórico/read-only, e payloads oficiais de users/admin/physicians deixaram de anunciar `firebase_uid` como contrato vivo sem quebrar a compat fallback centrada em `user_id`.
+- O próximo foco é M005/S03: convergir banco novo e banco existente ao mesmo head canônico sem resíduo estrutural Firebase ainda necessário ao runtime oficial.
 - Prova final de M004 consolidada em `.gsd/milestones/M004/M004-SUMMARY.md`.
 
 ## Architecture / Key Patterns

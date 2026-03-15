@@ -29,7 +29,7 @@ TARGET_GRAPH_REVISIONS = (
     "019_seed_welcome_message_template",
     "c9a6d2f7b3e1",
 )
-TARGET_HEAD_REVISIONS = ("lgpd03_add_ai_audit_event_types",)
+TARGET_HEAD_REVISIONS = ("m005_s02_t01_publish_firebase_history_boundary",)
 
 
 def _scrubbed_env(extra_env: dict[str, str] | None = None) -> dict[str, str]:

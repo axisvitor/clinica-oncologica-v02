@@ -44,8 +44,11 @@ def _serialize_user(user: User, fields: Optional[List[str]] = None) -> dict:
         "is_active": user.is_active,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
-        "last_login": getattr(user, "last_login", None),
-        "firebase_uid": getattr(user, "firebase_uid", None),
+        "last_login": getattr(
+            user,
+            "firebase_last_sign_in",
+            getattr(user, "last_login", None),
+        ),
     }
 
     if fields:
