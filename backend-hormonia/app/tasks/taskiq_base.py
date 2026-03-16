@@ -4,6 +4,7 @@ Base patterns for Taskiq tasks (M009).
 Provides:
 - DB session dependency via TaskiqDepends (AsyncSession)
 - Task logging helpers (structured start/success/error logging)
+- ETA/delayed dispatch helper (schedule_task_at)
 - Retry configuration documentation and patterns
 
 Usage:
@@ -37,6 +38,7 @@ Retry Configuration (via SmartRetryMiddleware labels):
 
 import logging
 import time
+from datetime import datetime
 from typing import Any, AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -139,3 +141,46 @@ def log_task_error(task_name: str, error: Exception, start_time: float = 0.0, **
         **context,
     }
     logger.error(f"Task failed: {task_name} — {type(error).__name__}: {error}", extra=extra)
+
+
+# ---------------------------------------------------------------------------
+# ETA / delayed dispatch helper — replaces Celery's .apply_async(eta=datetime)
+# ---------------------------------------------------------------------------
+
+async def schedule_task_at(task: Any, scheduled_time: datetime, *args: Any, **kwargs: Any) -> Any:
+    """
+    Schedule a Taskiq task to execute at a specific future time.
+
+    Replaces Celery's `task.apply_async(args=(...,), eta=datetime)` pattern.
+    Uses `ListRedisScheduleSource` to store a one-shot schedule in Redis/Dragonfly
+    that fires at `scheduled_time`.
+
+    Args:
+        task: A Taskiq AsyncKicker-compatible task (e.g. `send_scheduled_message`).
+        scheduled_time: When the task should execute (datetime, should be UTC).
+        *args: Positional arguments passed to the task.
+        **kwargs: Keyword arguments passed to the task.
+
+    Returns:
+        CreatedSchedule — contains `schedule_id` for tracking/cancellation.
+
+    Example:
+        from app.tasks.messaging_taskiq import send_scheduled_message
+        from app.tasks.taskiq_base import schedule_task_at
+
+        result = await schedule_task_at(
+            send_scheduled_message,
+            delivery_time,
+            str(message.id),
+        )
+    """
+    # Lazy import to avoid circular dependency:
+    # taskiq_broker → (broker used by task modules) → taskiq_base → taskiq_broker
+    from app.taskiq_broker import dynamic_schedule_source
+
+    return await task.kicker().schedule_by_time(
+        dynamic_schedule_source,
+        scheduled_time,
+        *args,
+        **kwargs,
+    )

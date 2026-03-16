@@ -54,7 +54,7 @@
 
 ## Tasks
 
-- [ ] **T01: Add ListRedisScheduleSource and ETA dispatch helpers to broker** `est:30m`
+- [x] **T01: Add ListRedisScheduleSource and ETA dispatch helpers to broker** `est:30m`
   - Why: `.apply_async(eta=datetime)` is used in 3 files (send_bulk_messages, task_scheduler.py, retry_handler.py). Taskiq's `LabelScheduleSource` does NOT support `add_schedule()` — `ListRedisScheduleSource` from taskiq-redis does. This must be added before any task migration that needs delayed dispatch.
   - Files: `backend-hormonia/app/taskiq_broker.py`, `backend-hormonia/app/tasks/taskiq_base.py`
   - Do: Add `ListRedisScheduleSource` instance to broker module for dynamic one-shot scheduling. Add `schedule_by_time` helper to `taskiq_base.py` that wraps the `AsyncKicker.schedule_by_time()` pattern. Export the schedule source so call sites can import it. Update scheduler to include both sources.

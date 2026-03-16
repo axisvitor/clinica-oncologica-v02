@@ -17,7 +17,7 @@ import taskiq_fastapi
 from taskiq import TaskiqScheduler
 from taskiq.middlewares import SmartRetryMiddleware
 from taskiq.schedule_sources import LabelScheduleSource
-from taskiq_redis import ListQueueBroker, RedisAsyncResultBackend
+from taskiq_redis import ListQueueBroker, ListRedisScheduleSource, RedisAsyncResultBackend
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +71,17 @@ broker = ListQueueBroker(
 taskiq_fastapi.init(broker, "app.main:app")
 
 # ---------------------------------------------------------------------------
-# Scheduler — uses LabelScheduleSource to read schedule from task decorators
+# Scheduler — combines two schedule sources:
+#   - LabelScheduleSource: reads cron/interval from @broker.task() labels (static, periodic)
+#   - ListRedisScheduleSource: stores one-shot delayed dispatch in Redis (dynamic, ETA)
+#
+# LabelScheduleSource does NOT support add_schedule() — it raises NotImplementedError.
+# ListRedisScheduleSource is required for the .apply_async(eta=datetime) replacement
+# pattern used by task_scheduler.py, retry_handler.py, and send_bulk_messages.
 # ---------------------------------------------------------------------------
 schedule_source = LabelScheduleSource(broker)
-scheduler = TaskiqScheduler(broker, sources=[schedule_source])
+dynamic_schedule_source = ListRedisScheduleSource(url=_broker_url)
+scheduler = TaskiqScheduler(broker, sources=[schedule_source, dynamic_schedule_source])
 
 
 def get_broker_status() -> dict:
@@ -93,7 +100,7 @@ def get_broker_status() -> dict:
                 "queue_name": "hormonia",
                 "result_backend": "RedisAsyncResultBackend",
                 "retry_middleware": "SmartRetryMiddleware",
-                "scheduler": "LabelScheduleSource",
+                "scheduler_sources": ["LabelScheduleSource", "ListRedisScheduleSource"],
             }
         }
     except Exception as e:

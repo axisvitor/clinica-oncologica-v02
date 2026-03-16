@@ -60,6 +60,13 @@ Three call sites need this: `send_bulk_messages` (inside messaging tasks), `task
 - `ListRedisScheduleSource` constructor signature: `ListRedisScheduleSource(url: str)` — takes the Redis URL directly.
 - `AsyncKicker.schedule_by_time(source, time, *args, **kwargs)` — creates a `ScheduledTask` with the given time, calls `source.add_schedule()`, returns `CreatedSchedule`.
 
+## Observability Impact
+
+- **Signals changed:** `get_broker_status()` now reports `"scheduler_sources": ["LabelScheduleSource", "ListRedisScheduleSource"]"` instead of just `"scheduler": "LabelScheduleSource"`. This lets health checks confirm both static (cron) and dynamic (ETA) scheduling are configured.
+- **Inspection:** `dynamic_schedule_source` stores one-shot schedules in Dragonfly (Redis key managed by taskiq-redis). Inspect pending schedules via `redis-cli -p 6380 KEYS "taskiq:schedule:*"`.
+- **Failure visibility:** If `ListRedisScheduleSource` can't reach Dragonfly, `schedule_task_at()` raises a Redis connection error — callers (task_scheduler.py, retry_handler.py) propagate this as a logged exception via `log_task_error`.
+- **No new logs added** — this task adds infrastructure; the logging happens in callers (T02–T04).
+
 ## Expected Output
 
 - `backend-hormonia/app/taskiq_broker.py` — Modified: has `dynamic_schedule_source = ListRedisScheduleSource(url=_broker_url)`, scheduler includes both sources
