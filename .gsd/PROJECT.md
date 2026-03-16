@@ -21,9 +21,10 @@ Diminuir o tempo de consulta e melhorar a qualidade do atendimento oncológico: 
 
 ## Architecture / Key Patterns
 
-- Backend FastAPI com AsyncSession nas rotas API e Session síncrona nos workers Celery.
+- Backend FastAPI com AsyncSession nas rotas API e Session síncrona nos workers Celery (migração para Taskiq em M009).
 - Sessão autenticada baseada em Dragonfly + cookie HttpOnly, com identidade canônica por `user_id`.
 - Frontend dashboard em React/Vite com `AuthContext`, `apiClient` modular e bootstrap de WebSocket.
+- Task queue via Celery com Dragonfly como broker, 35 task files (~12,600 linhas), 40+ periodic tasks no beat schedule (migração para Taskiq async-native planejada em M009).
 - Fluxo de mensagens via WuzAPI com sequenciamento dia-a-dia (`SequentialMessageHandler`), personalização por IA (Gemini) com grounding calibrado, e sistema de follow-up com escalonamento.
 - Templates de fluxo armazenados no banco (`FlowTemplateVersion`), editáveis pelo médico via API de day-configs + DayConfigEditor no dashboard, carregados pelo `EnhancedTemplateLoader` com cache in-memory.
 - Quiz mensal como formulário web enviado por link WhatsApp, com regras de alerta clínico em `quiz_alert_rules.py` e notificações persistentes para o médico.
@@ -44,3 +45,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M006: Purga Final de Código Morto e Resíduo Legado — bridges, aliases, tombstones e código morto removidos com prova final.
 - [x] M007: Refinamento dos Fluxos de Acompanhamento — sequenciamento correto, editor de templates para médico, personalização IA, armazenamento de respostas, quiz review, resumo mensal para consulta.
 - [x] M008: Onboarding Real de Pacientes — stack local rodando, WuzAPI real conectado, templates semeados, fluxo ponta-a-ponta de criação → welcome → ciclo diário → resposta → transição de fase.
+- [ ] M009: Substituição do Celery por Taskiq — migração do task queue para async-native, eliminando ~900 linhas de bridge code sync/async, com paridade funcional total.

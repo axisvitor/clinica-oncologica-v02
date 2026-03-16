@@ -168,6 +168,116 @@ Guidelines:
 - Validation: validated by S06 — SummaryDataAggregator wired to patient_flow_responses + enriched alerts (description + recommendation from JSONB), prompt template with {flow_responses} section, Brain icon quick-access in PhysicianDashboard navigating to ?tab=ai-summary, 13 focused tests proving aggregator integration + 0 regressions across 181 flow tests, frontend typecheck green
 - Notes: `PatientSummaryService` (Gemini 2.5 Flash) was not modified — only its data aggregator was enhanced. Subjective AI summary quality for clinical use requires ongoing human evaluation.
 
+### R077 — Taskiq broker + scheduler substituem Celery app
+- Class: operability
+- Status: active
+- Description: Taskiq broker (Redis-backed via Dragonfly) e scheduler substituem celery_app.py. Worker processa tasks, scheduler dispara periodic tasks, FastAPI lifespan integra startup/shutdown.
+- Why it matters: O Celery é sync-first num codebase async-first. A substituição elimina ~900 linhas de bridging code e simplifica o runtime.
+- Source: user
+- Primary owning slice: M009/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Deve usar Dragonfly na porta 6380 como broker.
+
+### R078 — Base task abstraction Taskiq-native com retry, logging, DB session
+- Class: quality-attribute
+- Status: active
+- Description: Abstração base para tasks Taskiq com SmartRetryMiddleware (exponential backoff + jitter), logging estruturado, e DB session via dependency injection (TaskiqDepends).
+- Why it matters: BaseTask do Celery tem retry config, logging, e session management — a abstração Taskiq precisa cobrir o mesmo sem bridging.
+- Source: inferred
+- Primary owning slice: M009/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Substitui app/tasks/base.py (BaseTask) e app/tasks/config.py (TaskConfig dataclasses).
+
+### R079 — Tasks de messaging migradas para Taskiq
+- Class: core-capability
+- Status: active
+- Description: send_scheduled_message, process_scheduled_messages, retry_failed_messages, send_bulk_messages, DLQ processing, e demais tasks de messaging operam via Taskiq worker.
+- Why it matters: Messaging é o hot path — envio de mensagens WhatsApp para pacientes. Precisa funcionar sem interrupção.
+- Source: user
+- Primary owning slice: M009/S02
+- Supporting slices: M009/S01
+- Validation: unmapped
+- Notes: Inclui migração de call sites (.delay → .kiq) dentro do domínio messaging.
+
+### R080 — Tasks de flow/saga migradas para Taskiq
+- Class: core-capability
+- Status: active
+- Description: process_daily_flows, flow_automation, saga_retry, stuck_detection, monthly_tasks, e demais tasks de flow operam via Taskiq worker com async nativo.
+- Why it matters: Flow tasks são o core do acompanhamento diário — process_daily_flows usa async DB, IA Gemini, e WuzAPI.
+- Source: user
+- Primary owning slice: M009/S03
+- Supporting slices: M009/S01, M009/S02
+- Validation: unmapped
+- Notes: Com Taskiq async-native, tasks podem usar await direto sem hybrid _resolve/_execute.
+
+### R081 — Tasks de quiz/alert/follow-up/monitoring migradas para Taskiq
+- Class: core-capability
+- Status: active
+- Description: Quiz link tasks, trigger tasks, response tasks, alertas, follow-up, LGPD, audit cleanup, webhook DLQ, e monitoring tasks operam via Taskiq.
+- Why it matters: Completa a migração de todas as tasks restantes para Taskiq.
+- Source: user
+- Primary owning slice: M009/S04
+- Supporting slices: M009/S01
+- Validation: unmapped
+- Notes: Pode rodar em paralelo com S02/S03 — depende só de S01.
+
+### R082 — Schedule periódico com paridade total (40+ entries)
+- Class: continuity
+- Status: active
+- Description: Todas as 40+ entries do Celery beat_schedule estão no Taskiq scheduler com timing equivalente (crontab e interval).
+- Why it matters: Sem schedule periódico, tasks como process_daily_flows, retry_failed_messages, e check_patient_alerts não disparam automaticamente.
+- Source: inferred
+- Primary owning slice: M009/S04
+- Supporting slices: M009/S02, M009/S03
+- Validation: unmapped
+- Notes: LabelScheduleSource do Taskiq suporta cron e interval.
+
+### R083 — Call sites migrados (.delay/.apply_async → .kiq)
+- Class: continuity
+- Status: active
+- Description: Todos os ~20 call sites que usam .delay() ou .apply_async() foram migrados para .kiq() do Taskiq.
+- Why it matters: Call sites são a interface entre services/handlers e o task queue — cada um não migrado é um ponto de falha.
+- Source: inferred
+- Primary owning slice: M009/S04
+- Supporting slices: M009/S02, M009/S03
+- Validation: unmapped
+- Notes: Includes call sites em middleware (lgpd), API routes (retry), services (flow recovery, sequential handler), e tasks cross-calling.
+
+### R084 — Bridge code sync/async removido (~900 linhas)
+- Class: operability
+- Status: active
+- Description: async_context_manager.py, run_async_in_celery(), async_helpers.py (partes que só existem para Celery), e demais bridge code removidos.
+- Why it matters: Com Taskiq async-native, o bridge code é dead weight — complexidade sem valor.
+- Source: user
+- Primary owning slice: M009/S05
+- Supporting slices: none
+- Validation: unmapped
+- Notes: async_helpers.py pode ter funções usadas fora de Celery — remover só o que é Celery-specific.
+
+### R085 — Celery + dependências transitivas removidos de requirements.txt
+- Class: operability
+- Status: active
+- Description: celery, celery[redis], kombu, amqp, billiard, flower, e qualquer dep que só existe para Celery são removidos.
+- Why it matters: Dependências mortas aumentam superfície de ataque, tempo de install, e confusão de manutenção.
+- Source: user
+- Primary owning slice: M009/S05
+- Supporting slices: none
+- Validation: unmapped
+- Notes: asgiref pode continuar se usado fora de Celery. prometheus-client provavelmente fica.
+
+### R086 — Pipeline M008 ponta-a-ponta funciona com Taskiq
+- Class: integration
+- Status: active
+- Description: O pipeline completo provado em M008 funciona via Taskiq: create patient → welcome → daily flow → response → transition.
+- Why it matters: M008 é a prova de que o sistema funciona. Se regredir com a migração, o milestone falha.
+- Source: inferred
+- Primary owning slice: M009/S06
+- Supporting slices: M009/S02, M009/S03, M009/S05
+- Validation: unmapped
+- Notes: Verificação final end-to-end — a prova mais importante do milestone.
+
 ## Validated
 
 ### R057 — Sequenciamento de mensagens respeita espera de resposta
@@ -724,6 +834,28 @@ Guidelines:
 - Validation: n/a
 - Notes: Deploy seria milestone separado.
 
+### R087 — Dashboard polish durante M009
+- Class: anti-feature
+- Status: out-of-scope
+- Description: Polimento da experiência do médico no dashboard não está no escopo de M009.
+- Why it matters: M009 é infraestrutura de task queue — misturar com UX seria escopo cruzado.
+- Source: user
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Dashboard polish é M010.
+
+### R088 — Novas tasks ou capabilities durante migração
+- Class: anti-feature
+- Status: out-of-scope
+- Description: M009 não adiciona tasks novas nem muda comportamento — migração preserva paridade funcional exata.
+- Why it matters: Adicionar features durante migração de infraestrutura mistura riscos e torna regressões difíceis de isolar.
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Melhorias funcionais entram em milestone posterior.
+
 ## Traceability
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
@@ -791,10 +923,22 @@ Guidelines:
 | R074 | core-capability | validated | M008/S03 | none | validated by S03 — SQL + loader verification scripts |
 | R075 | constraint | out-of-scope | none | none | n/a |
 | R076 | constraint | out-of-scope | none | none | n/a |
+| R077 | operability | active | M009/S01 | none | unmapped |
+| R078 | quality-attribute | active | M009/S01 | none | unmapped |
+| R079 | core-capability | active | M009/S02 | M009/S01 | unmapped |
+| R080 | core-capability | active | M009/S03 | M009/S01, M009/S02 | unmapped |
+| R081 | core-capability | active | M009/S04 | M009/S01 | unmapped |
+| R082 | continuity | active | M009/S04 | M009/S02, M009/S03 | unmapped |
+| R083 | continuity | active | M009/S04 | M009/S02, M009/S03 | unmapped |
+| R084 | operability | active | M009/S05 | none | unmapped |
+| R085 | operability | active | M009/S05 | none | unmapped |
+| R086 | integration | active | M009/S06 | M009/S02, M009/S03, M009/S05 | unmapped |
+| R087 | anti-feature | out-of-scope | none | none | n/a |
+| R088 | anti-feature | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 0
-- Mapped to slices: 0
+- Active requirements: 10
+- Mapped to slices: 10
 - Validated: 41
 - Unmapped active requirements: 0
