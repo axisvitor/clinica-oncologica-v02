@@ -60,6 +60,12 @@ Write focused unit tests for the GET/PUT day-config endpoints proving the steps�
 - `backend-hormonia/app/services/flow/_flow_orchestration_utils.py` — `_CANONICAL_SEND_MODES = frozenset({"single", "sequential_auto", "wait_response", "wait_each"})`
 - T01 produced the endpoints and schemas — this task tests the data transformation logic
 
+## Observability Impact
+
+- **Signals changed:** None — this task adds tests only, no runtime signal changes.
+- **Future agent inspection:** Run `cd backend-hormonia && .venv/bin/python -m pytest tests/unit/services/flow/test_day_config_editor_api.py -v` to verify day-config contract integrity. 30 tests cover projection, hydration, round-trip, validation, and loader compatibility.
+- **Failure state visible:** Test failures surface as pytest exit code ≠ 0 with assertion details showing exactly which contract property broke (content mismatch, validation gap, send_mode drift).
+
 ## Expected Output
 
 - `backend-hormonia/tests/unit/services/flow/test_day_config_editor_api.py` — New test file with 6+ focused tests covering round-trip, validation, loader compatibility, and edge cases

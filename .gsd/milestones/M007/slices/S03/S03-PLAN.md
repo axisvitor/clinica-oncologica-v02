@@ -52,7 +52,7 @@
   - Verify: `cd backend-hormonia && python -c "from app.schemas.v2.templates import DayConfigItem, DayConfigListResponse, DayConfigListUpdate; print('OK')"` — schemas importable
   - Done when: Both endpoints are importable and the schemas validate correctly; the PUT hydration produces steps that pass `validate_day_config()` manually.
 
-- [ ] **T02: Backend tests — Prove day-config API contract with focused pytest** `est:25m`
+- [x] **T02: Backend tests — Prove day-config API contract with focused pytest** `est:25m`
   - Why: The steps↔day-config projection is the riskiest part — if the hydration is wrong, the runtime will crash on dispatch. Tests prove the contract before the UI is built.
   - Files: `backend-hormonia/tests/unit/services/flow/test_day_config_editor_api.py`
   - Do: Write focused unit tests: (1) round-trip GET→PUT→GET with content changes, (2) validation rejects empty content, (3) validation rejects invalid message_type, (4) PUT on published template returns 409, (5) steps output passes `validate_day_config()`, (6) multi-message day collapses to single message on save, (7) empty days list is valid. Mock DB/Redis at the boundary.
