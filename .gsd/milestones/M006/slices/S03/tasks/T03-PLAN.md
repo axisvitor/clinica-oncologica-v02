@@ -51,3 +51,10 @@ The operator story is dishonest if docs are cleaned but code defaults and deploy
 - `security.py` with narrowed CORS defaults (no Firebase Hosting origins).
 - Cloud Run manifests using canonical env naming.
 - Env templates aligned with current runtime.
+
+## Observability Impact
+
+- **Session TTL resolution**: `auth_session_contract.py` now reads `SESSION_TTL_SECONDS` only (no fallback to `FIREBASE_SESSION_TTL_SECONDS`). If the env var is missing, falls back to `redis_cache.session_ttl` (default 86400). A missing `SESSION_TTL_SECONDS` env var is silent — no error, just the default.
+- **CORS in production**: `get_cors_origins()` no longer auto-injects Firebase Hosting origins. In production with an empty `CORS_ALLOWED_ORIGINS`, CORS will be restricted to `CORS_FRONTEND_URL` and `CORS_QUIZ_URL` only. If those are unset/localhost, production CORS will be empty — requests will fail with CORS errors visible in browser console.
+- **Deployment manifests**: Cloud Run manifests no longer supply `FIREBASE_ADMIN_*` or `WHATSAPP_EVOLUTION_*` env vars. Operators deploying from these manifests must supply Firebase Admin credentials and WuzAPI tokens through their own secret management (e.g., Secret Manager).
+- **Inspection**: `grep -r 'FIREBASE_SESSION_TTL_SECONDS\|WHATSAPP_EVOLUTION_' backend-hormonia/` should return 0 results in app code, manifests, and env templates.

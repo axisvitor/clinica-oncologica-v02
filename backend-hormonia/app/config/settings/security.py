@@ -183,9 +183,9 @@ class SecuritySettings(BaseAppSettings):
         default=7200,
         description="Firebase user object cache TTL in seconds (Layer 2 - Default: 2 hours)",
     )
-    FIREBASE_SESSION_TTL_SECONDS: int = Field(
+    SESSION_TTL_SECONDS: int = Field(
         default=86400,
-        description="Firebase session management TTL in seconds (Layer 3 - Default: 24 hours)",
+        description="Session management TTL in seconds (Layer 3 - Default: 24 hours)",
     )
     SESSION_MAX_AGE_SECONDS: int = Field(
         default=604800,  # 7 days
@@ -215,11 +215,8 @@ class SecuritySettings(BaseAppSettings):
         description="Quiz interface URL (used for CORS in production)",
     )
     CORS_ALLOWED_ORIGINS: List[str] = Field(
-        default=[
-            "https://clinica-oncologica-hosting.web.app",
-            "https://clinica-oncologica-hosting.firebaseapp.com",
-        ],
-        description="Allowed CORS origins (combined with CORS_FRONTEND_URL + CORS_QUIZ_URL)",
+        default=[],
+        description="Allowed CORS origins (combined with CORS_FRONTEND_URL + CORS_QUIZ_URL). Set via env var in production.",
     )
     CORS_ALLOWED_HEADERS: List[str] = Field(
         default=[
@@ -751,17 +748,6 @@ class SecuritySettings(BaseAppSettings):
         """
         origins = set()
         is_production = self.APP_ENVIRONMENT.lower() == "production"
-
-        # Ensure production frontend is always allowed (prevents empty CORS config in deploys).
-        required_prod_origins = {
-            "https://clinica-oncologica-hosting.web.app",
-            "https://clinica-oncologica-hosting.firebaseapp.com",
-        }
-        if is_production:
-            for origin in required_prod_origins:
-                normalized = self._normalize_cors_origin(origin, is_production)
-                if normalized:
-                    origins.add(normalized)
 
         # 1. Explicitly configured origins
         if self.CORS_ALLOWED_ORIGINS:

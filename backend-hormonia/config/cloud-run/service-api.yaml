@@ -93,21 +93,10 @@ spec:
           value: 'true'
         - name: SESSION_ENABLE_COOKIE_SECURE
           value: 'true'
-        - name: FIREBASE_ADMIN_PROJECT_ID
-          value: clinica-oncologica-hosting
-        - name: FIREBASE_ADMIN_CLIENT_EMAIL
-          value: firebase-adminsdk-fbsvc@clinica-oncologica-hosting.iam.gserviceaccount.com
-        - name: FIREBASE_ADMIN_PRIVATE_KEY
-          valueFrom:
-            secretKeyRef:
-              key: latest
-              name: FIREBASE_ADMIN_PRIVATE_KEY
-        - name: FIREBASE_ALLOWED_DOMAINS
-          value: '["neoplasiaslitoral.com"]'
         - name: APP_ADMIN_DASHBOARD_URL
-          value: https://clinica-oncologica-hosting.web.app
+          value: REPLACE_WITH_ADMIN_DASHBOARD_URL
         - name: CORS_FRONTEND_URL
-          value: https://clinica-oncologica-hosting.web.app
+          value: REPLACE_WITH_CORS_FRONTEND_URL
         - name: CORS_QUIZ_URL
           value: https://clinica-quiz-217549452180.us-central1.run.app
         - name: QUIZ_ENABLE_VIA_LINK
@@ -124,24 +113,18 @@ spec:
           value: gemini-3-flash-preview
         - name: WHATSAPP_ENABLE_SERVICE
           value: 'true'
-        - name: WHATSAPP_EVOLUTION_API_URL
-          value: https://evolution-api-217549452180.us-east1.run.app
-        - name: WHATSAPP_EVOLUTION_INSTANCE_NAME
-          value: clinica_oncologica_prod
-        - name: WHATSAPP_EVOLUTION_WEBHOOK_URL
-          value: https://clinica-api-217549452180.us-central1.run.app/webhooks/whatsapp/evolution/clinica_oncologica_prod
-        - name: WHATSAPP_WEBHOOK_HMAC_ENABLED
-          value: 'false'
-        - name: WHATSAPP_EVOLUTION_WEBHOOK_SECRET
+        - name: WHATSAPP_WUZAPI_BASE_URL
+          value: REPLACE_WITH_WHATSAPP_WUZAPI_BASE_URL
+        - name: WHATSAPP_WUZAPI_TOKEN
           valueFrom:
             secretKeyRef:
               key: latest
-              name: WHATSAPP_EVOLUTION_WEBHOOK_SECRET
-        - name: WHATSAPP_EVOLUTION_API_KEY
+              name: WHATSAPP_WUZAPI_TOKEN
+        - name: WHATSAPP_WUZAPI_WEBHOOK_SECRET
           valueFrom:
             secretKeyRef:
               key: latest
-              name: EVOLUTION_API_KEY
+              name: WHATSAPP_WUZAPI_WEBHOOK_SECRET
         - name: QUIZ_SHORT_BASE_URL
           value: https://clinica-api-217549452180.us-central1.run.app/q
         - name: REDIS_SSL_CERT_REQS

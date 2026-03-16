@@ -51,10 +51,6 @@ spec:
           value: REPLACE_WITH_ENCRYPTION_KEY_CURRENT
         - name: WHATSAPP_ENABLE_SERVICE
           value: 'true'
-        - name: FIREBASE_ADMIN_PROJECT_ID
-          value: clinica-oncologica-hosting
-        - name: FIREBASE_ADMIN_CLIENT_EMAIL
-          value: firebase-adminsdk-fbsvc@clinica-oncologica-hosting.iam.gserviceaccount.com
         - name: SECURITY_CSRF_SECRET_KEY
           value: REPLACE_WITH_SECURITY_CSRF_SECRET_KEY
         - name: SECURITY_ALGORITHM
@@ -105,35 +101,22 @@ spec:
           value: '30'
         - name: AUTH_REFRESH_TOKEN_EXPIRE_DAYS
           value: '7'
-        - name: WHATSAPP_EVOLUTION_API_URL
-          value: https://evolution-api-217549452180.us-east1.run.app
-        - name: WHATSAPP_EVOLUTION_INSTANCE_NAME
-          value: clinica_oncologica_prod
-        - name: WHATSAPP_EVOLUTION_WEBHOOK_URL
-          value: https://clinica-api-217549452180.us-central1.run.app/webhooks/whatsapp/evolution/clinica_oncologica_prod
-        - name: WHATSAPP_WEBHOOK_HMAC_ENABLED
-          value: 'false'
-        - name: SECURITY_ALLOW_WEAK_KEYS
-          value: 'true'
-        - name: WHATSAPP_EVOLUTION_WEBHOOK_SECRET
+        - name: WHATSAPP_WUZAPI_BASE_URL
+          value: REPLACE_WITH_WHATSAPP_WUZAPI_BASE_URL
+        - name: WHATSAPP_WUZAPI_TOKEN
           valueFrom:
             secretKeyRef:
               key: latest
-              name: WHATSAPP_EVOLUTION_WEBHOOK_SECRET
-        - name: WHATSAPP_EVOLUTION_API_KEY
+              name: WHATSAPP_WUZAPI_TOKEN
+        - name: WHATSAPP_WUZAPI_WEBHOOK_SECRET
           valueFrom:
             secretKeyRef:
               key: latest
-              name: EVOLUTION_API_KEY
+              name: WHATSAPP_WUZAPI_WEBHOOK_SECRET
         - name: APP_ENABLE_DEBUG
           value: 'false'
         - name: ALLOW_AI_SIMULATION
           value: 'false'
-        - name: FIREBASE_ADMIN_PRIVATE_KEY
-          valueFrom:
-            secretKeyRef:
-              key: latest
-              name: FIREBASE_ADMIN_PRIVATE_KEY
         - name: TZ
           value: America/Sao_Paulo
         - name: CELERY_TIMEZONE

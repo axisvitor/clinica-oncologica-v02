@@ -106,7 +106,6 @@ async def resolve_authenticated_session_user(
 
         session_ttl = (
             getattr(settings, "SESSION_TTL_SECONDS", None)
-            or getattr(settings, "FIREBASE_SESSION_TTL_SECONDS", None)
             or getattr(redis_cache, "session_ttl", 86400)
         )
 
