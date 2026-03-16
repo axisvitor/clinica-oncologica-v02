@@ -51,7 +51,7 @@ class EnhancedFlowEngine(
 
     async def _get_flow_type_from_state(self, flow_state: PatientFlowState) -> str:
         """Helper method to get flow_type from a PatientFlowState using template_version_id."""
-        result = await self.db.execute(
+        result = await self._execute(
             select(FlowTemplateVersion).filter(
                 FlowTemplateVersion.id == flow_state.flow_template_version_id
             )
@@ -62,7 +62,7 @@ class EnhancedFlowEngine(
             logger.error(f"Template version not found for flow state {flow_state.id}")
             return "unknown"
 
-        result = await self.db.execute(
+        result = await self._execute(
             select(FlowKind).filter(FlowKind.id == template_version.flow_kind_id)
         )
         flow_kind = result.scalar_one_or_none()

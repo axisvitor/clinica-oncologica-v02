@@ -3,7 +3,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.integrations.wuzapi.client import RateLimiter, WuzAPIClient
+from app.integrations.wuzapi.client import (
+    RateLimiter,
+    WuzAPIClient,
+    normalize_session_status,
+)
 from app.integrations.wuzapi.errors import WuzAPIError
 
 
@@ -73,8 +77,8 @@ async def test_send_text_uses_correct_auth_header():
         await client.connect()
 
     headers = session_cls.call_args.kwargs["headers"]
-    assert headers["Authorization"] == "token-123"
-    assert not headers["Authorization"].startswith("Bearer")
+    assert headers["Token"] == "token-123"
+    assert "Authorization" not in headers
 
 
 @pytest.mark.asyncio
@@ -221,7 +225,8 @@ async def test_client_connect_creates_session():
         await client.connect()
 
     kwargs = session_cls.call_args.kwargs
-    assert kwargs["headers"]["Authorization"] == "token-123"
+    assert kwargs["headers"]["Token"] == "token-123"
+    assert "Authorization" not in kwargs["headers"]
     assert kwargs["headers"]["Content-Type"] == "application/json"
     assert client.session is not None
 
@@ -248,3 +253,16 @@ async def test_non_success_response_raises():
 
     with pytest.raises(WuzAPIError):
         await client.send_text("5511987654321", "Hello")
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        ({"data": {"Connected": True, "LoggedIn": True}}, {"connected": True, "logged_in": True}),
+        ({"data": {"connected": True, "loggedIn": True}}, {"connected": True, "logged_in": True}),
+        ({"data": {"connected": "true", "logged_in": "1"}}, {"connected": True, "logged_in": True}),
+        ({"data": {"connected": False, "loggedIn": True}}, {"connected": False, "logged_in": True}),
+    ],
+)
+def test_normalize_session_status_accepts_live_and_legacy_casing(payload, expected):
+    assert normalize_session_status(payload) == expected

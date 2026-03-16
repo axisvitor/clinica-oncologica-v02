@@ -115,6 +115,36 @@ class PatientSyncService:
             self._logger.error(f"{error_label} duplicate check failed: {e}")
             return None
 
+    async def _check_duplicate_by_hashed_field_async(
+        self,
+        value: str,
+        hash_builder: Callable[[str], Optional[str]],
+        patient_field: Any,
+        error_label: str,
+        doctor_id: Optional[UUID] = None,
+        exclude_patient_id: Optional[UUID] = None,
+    ) -> Optional[Patient]:
+        """Async duplicate-check query path for AsyncSession callers."""
+        try:
+            field_hash = hash_builder(value)
+            if not field_hash:
+                return None
+            stmt = select(Patient).filter(
+                patient_field == field_hash, Patient.deleted_at.is_(None)
+            )
+
+            if doctor_id:
+                stmt = stmt.filter(Patient.doctor_id == doctor_id)
+
+            if exclude_patient_id:
+                stmt = stmt.filter(Patient.id != exclude_patient_id)
+
+            result = await self.db.execute(stmt)
+            return result.scalars().first()
+        except Exception as e:
+            self._logger.error(f"{error_label} duplicate check failed: {e}")
+            return None
+
     @with_db_retry(max_retries=3)
     def check_duplicate_cpf(
         self,
@@ -137,6 +167,26 @@ class PatientSyncService:
 
         service = get_cpf_encryption_service()
         return self._check_duplicate_by_hashed_field(
+            value=cpf,
+            hash_builder=service.hash_cpf,
+            patient_field=Patient.cpf_hash,
+            error_label="CPF",
+            doctor_id=doctor_id,
+            exclude_patient_id=exclude_patient_id,
+        )
+
+    @with_db_retry(max_retries=3)
+    async def check_duplicate_cpf_async(
+        self,
+        cpf: str,
+        doctor_id: Optional[UUID] = None,
+        exclude_patient_id: Optional[UUID] = None,
+    ) -> Optional[Patient]:
+        """Async-safe duplicate CPF check for AsyncSession callers."""
+        from app.services.encryption import get_cpf_encryption_service
+
+        service = get_cpf_encryption_service()
+        return await self._check_duplicate_by_hashed_field_async(
             value=cpf,
             hash_builder=service.hash_cpf,
             patient_field=Patient.cpf_hash,
@@ -177,6 +227,27 @@ class PatientSyncService:
         )
 
     @with_db_retry(max_retries=3)
+    async def check_duplicate_email_async(
+        self,
+        email: str,
+        doctor_id: Optional[UUID] = None,
+        exclude_patient_id: Optional[UUID] = None,
+    ) -> Optional[Patient]:
+        """Async-safe duplicate email check for AsyncSession callers."""
+        from app.services.encryption import get_lgpd_encryption_service
+
+        service = get_lgpd_encryption_service()
+        normalized_email = email.lower()
+        return await self._check_duplicate_by_hashed_field_async(
+            value=normalized_email,
+            hash_builder=service.hash_email,
+            patient_field=Patient.email_hash,
+            error_label="Email",
+            doctor_id=doctor_id,
+            exclude_patient_id=exclude_patient_id,
+        )
+
+    @with_db_retry(max_retries=3)
     def check_duplicate_phone(
         self,
         phone: str,
@@ -198,6 +269,26 @@ class PatientSyncService:
 
         service = get_lgpd_encryption_service()
         return self._check_duplicate_by_hashed_field(
+            value=phone,
+            hash_builder=service.hash_phone,
+            patient_field=Patient.phone_hash,
+            error_label="Phone",
+            doctor_id=doctor_id,
+            exclude_patient_id=exclude_patient_id,
+        )
+
+    @with_db_retry(max_retries=3)
+    async def check_duplicate_phone_async(
+        self,
+        phone: str,
+        doctor_id: Optional[UUID] = None,
+        exclude_patient_id: Optional[UUID] = None,
+    ) -> Optional[Patient]:
+        """Async-safe duplicate phone check for AsyncSession callers."""
+        from app.services.encryption import get_lgpd_encryption_service
+
+        service = get_lgpd_encryption_service()
+        return await self._check_duplicate_by_hashed_field_async(
             value=phone,
             hash_builder=service.hash_phone,
             patient_field=Patient.phone_hash,

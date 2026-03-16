@@ -10,7 +10,7 @@ File: tests/services/test_patient_integrity_validation.py
 import pytest
 from datetime import date, timedelta
 from uuid import uuid4
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from app.services.patient.integrity_service import PatientIntegrityService
 from app.schemas.patient import PatientCreate, PatientUpdate
@@ -128,7 +128,9 @@ class TestPhoneValidation:
                     mock_doctor_obj = Mock(spec=User)
                     mock_doctor_obj.id = mock_doctor.id
                     mock_doctor_obj.role = UserRole.DOCTOR
-                    integrity_service.db.query.return_value.filter.return_value.first.return_value = mock_doctor_obj
+                    execute_result = Mock()
+                    execute_result.scalars.return_value.first.return_value = mock_doctor_obj
+                    integrity_service.db.execute.return_value = execute_result
 
                     validated = integrity_service.validate_patient_data(
                         patient_data=valid_patient_data,
@@ -218,6 +220,87 @@ class TestDoctorValidation:
                         )
 
                     assert f"Doctor with id {fake_doctor_id} not found" in str(exc_info.value)
+
+
+class TestAsyncValidation:
+    """Test async validation path used by AsyncSession-backed API routes."""
+
+    @pytest.mark.asyncio
+    async def test_async_doctor_exists_validation_passes(
+        self,
+        mock_repository,
+        valid_patient_data,
+        mock_doctor,
+    ):
+        """Async validation must accept a real doctor when db.execute is awaitable."""
+        async_db = AsyncMock()
+        execute_result = Mock()
+        execute_result.scalars.return_value.first.return_value = mock_doctor
+        async_db.execute = AsyncMock(return_value=execute_result)
+
+        integrity_service = PatientIntegrityService(async_db, mock_repository)
+
+        with patch.object(
+            integrity_service,
+            "check_duplicate_cpf_async",
+            new=AsyncMock(return_value=None),
+        ), patch.object(
+            integrity_service,
+            "check_duplicate_email_async",
+            new=AsyncMock(return_value=None),
+        ), patch.object(
+            integrity_service,
+            "check_duplicate_phone_async",
+            new=AsyncMock(return_value=None),
+        ):
+            validated = await integrity_service.validate_patient_data_async(
+                patient_data=valid_patient_data,
+                doctor_id=mock_doctor.id,
+                is_update=False,
+            )
+
+        assert validated["doctor_id"] == mock_doctor.id
+        assert validated["validation_errors"] == []
+        async_db.execute.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_async_duplicate_phone_detection(
+        self,
+        mock_repository,
+        valid_patient_data,
+        mock_doctor,
+    ):
+        """Async validation must use async duplicate checks instead of sync AsyncSession fallbacks."""
+        async_db = AsyncMock()
+        execute_result = Mock()
+        execute_result.scalars.return_value.first.return_value = mock_doctor
+        async_db.execute = AsyncMock(return_value=execute_result)
+
+        integrity_service = PatientIntegrityService(async_db, mock_repository)
+        existing_patient = Mock(spec=Patient)
+        existing_patient.name = "Existing Patient"
+
+        with patch.object(
+            integrity_service,
+            "check_duplicate_cpf_async",
+            new=AsyncMock(return_value=None),
+        ), patch.object(
+            integrity_service,
+            "check_duplicate_email_async",
+            new=AsyncMock(return_value=None),
+        ), patch.object(
+            integrity_service,
+            "check_duplicate_phone_async",
+            new=AsyncMock(return_value=existing_patient),
+        ):
+            with pytest.raises(ValidationError) as exc_info:
+                await integrity_service.validate_patient_data_async(
+                    patient_data=valid_patient_data,
+                    doctor_id=mock_doctor.id,
+                    is_update=False,
+                )
+
+        assert "Patient with phone already exists" in str(exc_info.value)
 
 
 class TestTreatmentDateValidation:
@@ -383,7 +466,9 @@ class TestSuccessfulValidation:
         mock_doctor_obj = Mock(spec=User)
         mock_doctor_obj.id = mock_doctor.id
         mock_doctor_obj.role = UserRole.DOCTOR
-        integrity_service.db.query.return_value.filter.return_value.first.return_value = mock_doctor_obj
+        execute_result = Mock()
+        execute_result.scalars.return_value.first.return_value = mock_doctor_obj
+        integrity_service.db.execute.return_value = execute_result
 
         with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
             with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):

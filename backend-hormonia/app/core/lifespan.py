@@ -570,8 +570,8 @@ async def _initialize_wuzapi_session(app: FastAPI, logger) -> None:
 
         try:
             status_resp = await client.get_session_status()
-            status_data = status_resp.get("data", {})
-            if status_data.get("Connected") and status_data.get("LoggedIn"):
+            normalized = normalize_session_status(status_resp)
+            if normalized["connected"] and normalized["logged_in"]:
                 elapsed = time.time() - start
                 logger.info(
                     f"WuzAPI session already connected ({elapsed:.2f}s) -- skipping reconnect"

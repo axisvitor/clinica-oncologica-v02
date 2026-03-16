@@ -1,6 +1,6 @@
 """Tests for WuzAPI session methods and monitoring endpoints (Phase 35)."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -73,11 +73,42 @@ class TestWuzAPIMonitoringEndpoints:
                 base_url="http://test",
             ) as ac:
                 resp = await ac.get("/monitoring/wuzapi/session/status")
+
             assert resp.status_code == 200
             data = resp.json()
             assert data["connected"] is True
             assert data["logged_in"] is True
             assert data.get("mock") is True
+
+    @pytest.mark.asyncio
+    async def test_session_status_with_live_casing(self, app):
+        with (
+            patch("app.api.v2.monitoring.wuzapi.settings") as mock_settings,
+            patch("app.api.v2.monitoring.wuzapi.get_wuzapi_client") as mock_factory,
+        ):
+            mock_settings.WHATSAPP_WUZAPI_TOKEN = "test-token"
+            mock_settings.WHATSAPP_WUZAPI_BASE_URL = "http://localhost:8080"
+            mock_settings.WHATSAPP_WUZAPI_USE_MOCK = False
+
+            client_instance = MockWuzAPIClient()
+            client_instance.get_session_status = AsyncMock(
+                return_value={
+                    "success": True,
+                    "data": {"connected": True, "loggedIn": True},
+                }
+            )
+            mock_factory.return_value = client_instance
+
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app),
+                base_url="http://test",
+            ) as ac:
+                resp = await ac.get("/monitoring/wuzapi/session/status")
+
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["connected"] is True
+            assert data["logged_in"] is True
 
     @pytest.mark.asyncio
     async def test_session_status_no_token(self, app):
@@ -91,6 +122,7 @@ class TestWuzAPIMonitoringEndpoints:
                 base_url="http://test",
             ) as ac:
                 resp = await ac.get("/monitoring/wuzapi/session/status")
+
             assert resp.status_code == 200
             data = resp.json()
             assert data["connected"] is False
@@ -113,6 +145,7 @@ class TestWuzAPIMonitoringEndpoints:
                 base_url="http://test",
             ) as ac:
                 resp = await ac.get("/monitoring/wuzapi/session/qr")
+
             assert resp.status_code == 200
             data = resp.json()
             assert data["qr"] is not None
@@ -130,6 +163,7 @@ class TestWuzAPIMonitoringEndpoints:
                 base_url="http://test",
             ) as ac:
                 resp = await ac.get("/monitoring/wuzapi/session/qr")
+
             assert resp.status_code == 200
             data = resp.json()
             assert data["qr"] is None

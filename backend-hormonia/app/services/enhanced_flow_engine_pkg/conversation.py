@@ -76,7 +76,7 @@ class FlowConversationMixin:
             List of formatted message strings.
         """
         try:
-            result = await self.db.execute(
+            result = await self._execute(
                 select(Message)
                 .filter(
                     Message.patient_id == patient_id,
@@ -126,7 +126,7 @@ class FlowConversationMixin:
         and the subsequent inbound reply(ies). Returns the last N completed pairs.
         """
         try:
-            result = await self.db.execute(
+            result = await self._execute(
                 select(Message)
                 .filter(
                     Message.patient_id == patient_id,

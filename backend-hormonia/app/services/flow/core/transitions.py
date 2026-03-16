@@ -37,7 +37,7 @@ class FlowCoreTransitionsMixin:
             if repo_result is not None:
                 return repo_result
 
-        result = await self.db.execute(
+        result = await self._execute(
             select(PatientFlowState).filter(
                 PatientFlowState.patient_id == patient_id,
                 PatientFlowState.status == status,
@@ -147,7 +147,7 @@ class FlowCoreTransitionsMixin:
 
         except Exception as exc:
             logger.error(f"Failed to advance patient flow: {exc}")
-            self.db.rollback()
+            await self._rollback()
             raise
 
     async def pause_patient_flow(
@@ -192,7 +192,7 @@ class FlowCoreTransitionsMixin:
 
         except Exception as exc:
             logger.error(f"Failed to pause patient flow: {exc}")
-            self.db.rollback()
+            await self._rollback()
             raise
 
     async def resume_patient_flow(self, patient_id: UUID) -> dict[str, Any]:
@@ -240,7 +240,7 @@ class FlowCoreTransitionsMixin:
 
         except Exception as exc:
             logger.error(f"Failed to resume patient flow: {exc}")
-            self.db.rollback()
+            await self._rollback()
             raise
 
     async def _transition_flow_type(

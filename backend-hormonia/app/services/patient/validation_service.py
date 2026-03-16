@@ -137,6 +137,69 @@ class PatientValidationService:
         validated_data["validation_errors"] = []
         return validated_data
 
+    @with_db_retry(max_retries=3)
+    async def validate_patient_data_async(
+        self,
+        patient_data: PatientCreate | PatientUpdate,
+        doctor_id: Optional[UUID] = None,
+        patient_id: Optional[UUID] = None,
+        is_update: bool = False,
+    ) -> Dict[str, Any]:
+        """Async-safe validation path for callers using AsyncSession."""
+        validation_errors: list[str] = []
+        validated_data: dict[str, Any] = {}
+
+        if hasattr(patient_data, "cpf") and patient_data.cpf:
+            cpf_result = await self._validate_cpf_field_async(
+                patient_data.cpf,
+                doctor_id,
+                patient_id if is_update else None,
+            )
+            if cpf_result.get("errors"):
+                validation_errors.extend(cpf_result["errors"])
+            elif cpf_result.get("cpf"):
+                validated_data["cpf"] = cpf_result["cpf"]
+
+        if hasattr(patient_data, "phone") and patient_data.phone:
+            phone_result = await self._validate_phone_field_async(
+                patient_data.phone,
+                doctor_id,
+                patient_id if is_update else None,
+            )
+            if phone_result.get("errors"):
+                validation_errors.extend(phone_result["errors"])
+            elif phone_result.get("phone"):
+                validated_data["phone"] = phone_result["phone"]
+
+        if hasattr(patient_data, "email") and patient_data.email:
+            email_result = await self._validate_email_field_async(
+                patient_data.email,
+                doctor_id,
+                patient_id if is_update else None,
+            )
+            if email_result.get("errors"):
+                validation_errors.extend(email_result["errors"])
+            elif email_result.get("email"):
+                validated_data["email"] = email_result["email"]
+
+        if not is_update and doctor_id:
+            if not await self._validate_doctor_exists_async(doctor_id):
+                validation_errors.append(
+                    f"Doctor with id {doctor_id} not found or not a doctor"
+                )
+            else:
+                validated_data["doctor_id"] = doctor_id
+
+        validated_data.update(self._validate_additional_fields(patient_data, validation_errors))
+
+        if validation_errors:
+            error_message = "; ".join(validation_errors)
+            self._logger.error(f"Patient validation failed: {error_message}")
+            raise ValidationError(error_message)
+
+        validated_data["validation_errors"] = []
+        return validated_data
+
     def _validate_cpf_field(
         self, cpf: str, doctor_id: Optional[UUID], exclude_patient_id: Optional[UUID]
     ) -> Dict[str, Any]:
@@ -195,6 +258,106 @@ class PatientValidationService:
             errors = []
             if self._duplicate_checker:
                 existing = self._duplicate_checker.check_duplicate_email(normalized_email, doctor_id, exclude_patient_id)
+                if existing:
+                    errors.append(f"Patient with email already exists: {existing.name}")
+            return {"email": normalized_email, "errors": errors}
+        except EmailNotValidError as e:
+            return {"errors": [f"Invalid email format: {str(e)}"]}
+
+    async def _validate_cpf_field_async(
+        self, cpf: str, doctor_id: Optional[UUID], exclude_patient_id: Optional[UUID]
+    ) -> Dict[str, Any]:
+        """Async-safe CPF validation and duplicate detection."""
+        errors = []
+        normalized_cpf = self.normalize_cpf(cpf)
+
+        if not normalized_cpf or len(normalized_cpf) != 11:
+            if normalized_cpf:
+                errors.append(f"CPF must have exactly 11 digits, got {len(normalized_cpf)}")
+            return {"errors": errors}
+
+        try:
+            self.validate_cpf(normalized_cpf)
+            if self._duplicate_checker and hasattr(self._duplicate_checker, "check_duplicate_cpf_async"):
+                existing = await self._duplicate_checker.check_duplicate_cpf_async(
+                    normalized_cpf,
+                    doctor_id,
+                    exclude_patient_id,
+                )
+                if existing:
+                    errors.append(f"Patient with CPF already exists: {existing.name}")
+            elif self._duplicate_checker:
+                existing = self._duplicate_checker.check_duplicate_cpf(
+                    normalized_cpf,
+                    doctor_id,
+                    exclude_patient_id,
+                )
+                if existing:
+                    errors.append(f"Patient with CPF already exists: {existing.name}")
+            return {"cpf": normalized_cpf, "errors": errors}
+        except ValidationError as e:
+            return {"errors": [str(e)]}
+
+    async def _validate_phone_field_async(
+        self, phone: str, doctor_id: Optional[UUID], exclude_patient_id: Optional[UUID]
+    ) -> Dict[str, Any]:
+        """Async-safe phone validation and duplicate detection."""
+        try:
+            is_valid, formatted_phone, error = validate_and_format_phone(phone, default_region="BR", strict=False)
+            if not is_valid:
+                return {"errors": [f"Invalid phone number: {error}"]}
+
+            errors = []
+            if self._duplicate_checker and hasattr(self._duplicate_checker, "check_duplicate_phone_async"):
+                self._logger.info(
+                    "Normalized phone for duplicate check",
+                    extra={
+                        "phone_original": phone,
+                        "phone_normalized": formatted_phone,
+                    },
+                )
+                existing = await self._duplicate_checker.check_duplicate_phone_async(
+                    formatted_phone,
+                    doctor_id,
+                    exclude_patient_id,
+                )
+                if existing:
+                    errors.append(f"Patient with phone already exists: {existing.name}")
+            elif self._duplicate_checker:
+                existing = self._duplicate_checker.check_duplicate_phone(
+                    formatted_phone,
+                    doctor_id,
+                    exclude_patient_id,
+                )
+                if existing:
+                    errors.append(f"Patient with phone already exists: {existing.name}")
+            return {"phone": formatted_phone, "errors": errors}
+        except PhoneValidationError as e:
+            return {"errors": [f"Phone validation error: {str(e)}"]}
+
+    async def _validate_email_field_async(
+        self, email: str, doctor_id: Optional[UUID], exclude_patient_id: Optional[UUID]
+    ) -> Dict[str, Any]:
+        """Async-safe email validation and duplicate detection."""
+        try:
+            validated_email = validate_email(email, check_deliverability=False)
+            normalized_email = validated_email.normalized
+
+            errors = []
+            if self._duplicate_checker and hasattr(self._duplicate_checker, "check_duplicate_email_async"):
+                existing = await self._duplicate_checker.check_duplicate_email_async(
+                    normalized_email,
+                    doctor_id,
+                    exclude_patient_id,
+                )
+                if existing:
+                    errors.append(f"Patient with email already exists: {existing.name}")
+            elif self._duplicate_checker:
+                existing = self._duplicate_checker.check_duplicate_email(
+                    normalized_email,
+                    doctor_id,
+                    exclude_patient_id,
+                )
                 if existing:
                     errors.append(f"Patient with email already exists: {existing.name}")
             return {"email": normalized_email, "errors": errors}

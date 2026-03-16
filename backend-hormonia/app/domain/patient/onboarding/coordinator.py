@@ -149,13 +149,19 @@ class OnboardingCoordinator:
             ValidationError: If validation fails or saga execution fails.
         """
         # Step 1: Validate data using SINGLE SOURCE OF TRUTH
-        # Note: validate_patient_data is synchronous, don't use await
-        self.integrity_service.validate_patient_data(
-            patient_data=patient_data, doctor_id=doctor_id, is_update=False
-        )
+        if hasattr(self.integrity_service, "validate_patient_data_async"):
+            await self.integrity_service.validate_patient_data_async(
+                patient_data=patient_data,
+                doctor_id=doctor_id,
+                is_update=False,
+            )
+        else:
+            self.integrity_service.validate_patient_data(
+                patient_data=patient_data, doctor_id=doctor_id, is_update=False
+            )
         self._logger.info(
             "Patient data validated",
-            extra={"doctor_id": str(doctor_id)}
+            extra={"doctor_id": str(doctor_id), "validation_mode": "async"},
         )
 
         # Step 2: Execução obrigatória via Saga Pattern (direct call to orchestrator)

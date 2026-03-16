@@ -879,6 +879,26 @@ async def create_patient(
             current_user=current_user,
             idempotency_key=x_idempotency_key,  # QW-004: Pass idempotency key to coordinator
         )
+        if created is None:
+            raise BusinessRuleError("Patient creation completed without a patient result")
+
+        try:
+            await db.refresh(created)
+        except Exception as refresh_error:
+            logger.warning(
+                "Failed to refresh created patient before serialization: %s",
+                refresh_error,
+            )
+            refreshed_result = await db.execute(
+                sa_select(PatientModel).filter(
+                    PatientModel.id == created.id,
+                    PatientModel.deleted_at.is_(None),
+                )
+            )
+            refreshed_patient = refreshed_result.scalars().first()
+            if refreshed_patient is not None:
+                created = refreshed_patient
+
         result = await serialize_patient(created)
 
         # QW-006: Store result with idempotency key in Redis (TTL: 24 hours) as secondary cache

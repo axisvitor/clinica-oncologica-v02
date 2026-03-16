@@ -73,12 +73,12 @@ class FlowOrchestrationMixin:
         """
         try:
             gemini_client: Any = self.gemini_client
-            result = await self.db.execute(select(Patient).filter(Patient.id == patient_id))
+            result = await self._execute(select(Patient).filter(Patient.id == patient_id))
             patient = result.scalar_one_or_none()
             if not patient:
                 raise NotFoundError(f"Patient {patient_id} not found")
 
-            result = await self.db.execute(
+            result = await self._execute(
                 select(PatientFlowState).filter(
                     PatientFlowState.patient_id == patient_id,
                     PatientFlowState.status == "active",

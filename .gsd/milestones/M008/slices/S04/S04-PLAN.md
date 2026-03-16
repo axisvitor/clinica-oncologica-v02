@@ -34,14 +34,14 @@
 
 ## Tasks
 
-- [ ] **T01: Criar paciente via API e provar saga completa** `est:40m`
+- [x] **T01: Criar paciente via API e provar saga completa** `est:40m`
   - Why: este é o caminho crítico — se a saga não completar, o paciente nunca recebe nada
   - Files: `backend-hormonia/app/api/v2/routers/patients/crud.py`, `backend-hormonia/app/orchestration/saga_orchestrator/`
   - Do: autenticar como médico, criar paciente via `POST /api/v2/patients` com phone do número de teste. Verificar que saga completa (4 steps), PatientFlowState é criado com flow_type=onboarding e status=active, welcome message é registrada em `messages` e entregue via Celery → WuzAPI → WhatsApp. Debugar e corrigir qualquer falha no caminho.
   - Verify: welcome message recebida no WhatsApp, PatientFlowState exists, saga status=completed
   - Done when: paciente criado, flow state ativo, welcome message no telefone
 
-- [ ] **T02: Trigger manual de process_daily_flows e mensagem do dia** `est:30m`
+- [x] **T02: Trigger manual de process_daily_flows e mensagem do dia** `est:30m`
   - Why: prova que o ciclo diário funciona — template loader carrega conteúdo, IA personaliza, WuzAPI envia
   - Files: `backend-hormonia/app/tasks/flows/batch_tasks.py`, `backend-hormonia/app/tasks/flows/flow_tasks.py`
   - Do: chamar `process_daily_flows` manualmente via Celery (`celery -A app.celery_app call app.tasks.flows.flow_tasks.process_daily_flows`) ou via script Python. Verificar que o paciente criado em T01 recebe mensagem do dia com conteúdo do template. Se day=0 e welcome já foi enviada, pode precisar ajustar current_day. Verificar que step_data é atualizado com last_message_sent.

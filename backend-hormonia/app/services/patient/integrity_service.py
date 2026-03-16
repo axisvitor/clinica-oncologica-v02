@@ -104,6 +104,22 @@ class PatientIntegrityService:
             is_update=is_update,
         )
 
+    @with_db_retry(max_retries=3)
+    async def validate_patient_data_async(
+        self,
+        patient_data: PatientCreate | PatientUpdate,
+        doctor_id: Optional[UUID] = None,
+        patient_id: Optional[UUID] = None,
+        is_update: bool = False,
+    ) -> Dict[str, Any]:
+        """Async-safe validation facade for callers using AsyncSession."""
+        return await self._validation_service.validate_patient_data_async(
+            patient_data=patient_data,
+            doctor_id=doctor_id,
+            patient_id=patient_id,
+            is_update=is_update,
+        )
+
     def _normalize_cpf(self, cpf: Optional[str]) -> Optional[str]:
         """
         Normalize CPF by removing non-digit characters.
@@ -133,6 +149,19 @@ class PatientIntegrityService:
         """Public duplicate-check contract used by validation service."""
         return self._check_duplicate_cpf(cpf, doctor_id, exclude_patient_id)
 
+    async def check_duplicate_cpf_async(
+        self,
+        cpf: str,
+        doctor_id: Optional[UUID] = None,
+        exclude_patient_id: Optional[UUID] = None,
+    ) -> Optional[Patient]:
+        """Async duplicate-check contract used by async validation service."""
+        return await self._sync_service.check_duplicate_cpf_async(
+            cpf,
+            doctor_id,
+            exclude_patient_id,
+        )
+
     def check_duplicate_email(
         self,
         email: str,
@@ -142,6 +171,19 @@ class PatientIntegrityService:
         """Public duplicate-check contract used by validation service."""
         return self._check_duplicate_email(email, doctor_id, exclude_patient_id)
 
+    async def check_duplicate_email_async(
+        self,
+        email: str,
+        doctor_id: Optional[UUID] = None,
+        exclude_patient_id: Optional[UUID] = None,
+    ) -> Optional[Patient]:
+        """Async duplicate-check contract used by async validation service."""
+        return await self._sync_service.check_duplicate_email_async(
+            email,
+            doctor_id,
+            exclude_patient_id,
+        )
+
     def check_duplicate_phone(
         self,
         phone: str,
@@ -150,6 +192,19 @@ class PatientIntegrityService:
     ) -> Optional[Patient]:
         """Public duplicate-check contract used by validation service."""
         return self._check_duplicate_phone(phone, doctor_id, exclude_patient_id)
+
+    async def check_duplicate_phone_async(
+        self,
+        phone: str,
+        doctor_id: Optional[UUID] = None,
+        exclude_patient_id: Optional[UUID] = None,
+    ) -> Optional[Patient]:
+        """Async duplicate-check contract used by async validation service."""
+        return await self._sync_service.check_duplicate_phone_async(
+            phone,
+            doctor_id,
+            exclude_patient_id,
+        )
 
     def _delegate_duplicate_check(
         self,

@@ -1,3 +1,4 @@
+import inspect
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
@@ -64,10 +65,32 @@ class FlowCoreOperationsMixin:
         else:
             self.template_cache = UnifiedCacheService()
 
+    async def _resolve(self, maybe_awaitable: Any) -> Any:
+        if inspect.isawaitable(maybe_awaitable):
+            return await maybe_awaitable
+        return maybe_awaitable
+
+    async def _execute(self, statement):
+        return await self._resolve(self.db.execute(statement))
+
+    async def _commit(self) -> None:
+        await self._resolve(self.db.commit())
+
+    async def _rollback(self) -> None:
+        await self._resolve(self.db.rollback())
+
+    async def _refresh(self, instance: Any) -> None:
+        refresh = getattr(self.db, "refresh", None)
+        if callable(refresh):
+            await self._resolve(refresh(instance))
+
+    async def _flush(self) -> None:
+        await self._resolve(self.db.flush())
+
     async def _commit_flow_state_with_lock(
         self, flow_state: PatientFlowState, expected_version: int
     ) -> None:
-        result = await self.db.execute(
+        result = await self._execute(
             select(PatientFlowState.version).filter(PatientFlowState.id == flow_state.id)
         )
         current_version = result.scalar_one_or_none()
@@ -89,7 +112,7 @@ class FlowCoreOperationsMixin:
             )
 
         flow_state.version = expected_version + 1
-        await self.db.commit()
+        await self._commit()
 
         logger.debug(
             f"Flow state {flow_state.id} updated with optimistic lock: "
@@ -102,12 +125,12 @@ class FlowCoreOperationsMixin:
         flow_type: FlowType = FlowType.ONBOARDING,
         auto_commit: bool = True,
     ) -> PatientFlowState:
-        result = await self.db.execute(select(Patient).filter(Patient.id == patient_id))
+        result = await self._execute(select(Patient).filter(Patient.id == patient_id))
         patient = result.scalar_one_or_none()
         if not patient:
             raise NotFoundError(f"Patient {patient_id} not found")
 
-        result = await self.db.execute(
+        result = await self._execute(
             select(PatientFlowState).filter(
                 PatientFlowState.patient_id == patient_id,
                 PatientFlowState.status == "active",
@@ -117,14 +140,14 @@ class FlowCoreOperationsMixin:
         if existing_flow:
             raise ValidationError("Patient already has active flow")
 
-        result = await self.db.execute(
+        result = await self._execute(
             select(FlowKind).filter(FlowKind.kind_key == flow_type.value)
         )
         flow_kind = result.scalar_one_or_none()
         if not flow_kind:
             raise ValidationError(f"No flow kind found for flow type: {flow_type.value}")
 
-        result = await self.db.execute(
+        result = await self._execute(
             select(FlowTemplateVersion).filter(
                 FlowTemplateVersion.flow_kind_id == flow_kind.id,
                 FlowTemplateVersion.is_active,
@@ -159,16 +182,16 @@ class FlowCoreOperationsMixin:
 
         self.db.add(flow_state)
         if auto_commit:
-            await self.db.commit()
+            await self._commit()
         else:
-            await self.db.flush()
-        await self.db.refresh(flow_state)
+            await self._flush()
+        await self._refresh(flow_state)
 
         logger.info(f"Patient {patient_id} enrolled in flow {flow_type.value}")
         return flow_state
 
     async def calculate_patient_day(self, patient_id: UUID) -> int:
-        result = await self.db.execute(
+        result = await self._execute(
             select(PatientFlowState).filter(
                 PatientFlowState.patient_id == patient_id,
                 PatientFlowState.status == "active",
@@ -195,12 +218,12 @@ class FlowCoreOperationsMixin:
 
     async def get_flow_state(self, patient_id: UUID) -> dict[str, Any]:
         try:
-            result = await self.db.execute(select(Patient).filter(Patient.id == patient_id))
+            result = await self._execute(select(Patient).filter(Patient.id == patient_id))
             patient = result.scalar_one_or_none()
             if not patient:
                 raise NotFoundError(f"Patient {patient_id} not found")
 
-            result = await self.db.execute(
+            result = await self._execute(
                 select(PatientFlowState).filter(
                     PatientFlowState.patient_id == patient_id,
                     PatientFlowState.status == "active",
@@ -319,7 +342,7 @@ class FlowCoreOperationsMixin:
         }
 
         try:
-            await self.db.execute(text("SELECT 1"))
+            await self._execute(text("SELECT 1"))
             results["database"] = True
         except Exception as exc:
             logger.error(f"Database health check failed: {exc}")

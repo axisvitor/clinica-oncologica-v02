@@ -863,10 +863,10 @@ class UnifiedWhatsAppService:
         try:
             wuzapi_client = await self._get_wuzapi_client()
             status_resp = await wuzapi_client.get_session_status()
-            status_data = status_resp.get("data", {})
-            is_connected = status_data.get("Connected", False) and status_data.get(
-                "LoggedIn", False
-            )
+            from app.integrations.wuzapi import normalize_session_status
+
+            normalized = normalize_session_status(status_resp)
+            is_connected = normalized["connected"] and normalized["logged_in"]
             instance_status = "healthy" if is_connected else "degraded"
             _set_component_status("wuzapi_session", instance_status, status_resp)
         except Exception as e:

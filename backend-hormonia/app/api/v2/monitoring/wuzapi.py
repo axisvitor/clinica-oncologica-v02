@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from app.config import settings
-from app.integrations.wuzapi import get_wuzapi_client
+from app.integrations.wuzapi import get_wuzapi_client, normalize_session_status
 from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
@@ -16,13 +16,7 @@ router = APIRouter()
 
 @router.get("/session/status")
 async def get_wuzapi_session_status() -> dict[str, Any]:
-    """SESS-02: Expose WuzAPI session connection state for operators.
-
-    Returns:
-        connected: Whether WhatsApp transport is connected.
-        logged_in: Whether WhatsApp session is authenticated.
-        mock: True when using MockWuzAPIClient.
-    """
+    """SESS-02: Expose WuzAPI session connection state for operators."""
     token = getattr(settings, "WHATSAPP_WUZAPI_TOKEN", None)
     base_url = getattr(settings, "WHATSAPP_WUZAPI_BASE_URL", "")
     use_mock = getattr(settings, "WHATSAPP_WUZAPI_USE_MOCK", False)
@@ -39,10 +33,10 @@ async def get_wuzapi_session_status() -> dict[str, Any]:
         await client.connect()
         try:
             result = await client.get_session_status()
-            data = result.get("data", {})
+            normalized = normalize_session_status(result)
             response: dict[str, Any] = {
-                "connected": data.get("Connected", False),
-                "logged_in": data.get("LoggedIn", False),
+                "connected": normalized["connected"],
+                "logged_in": normalized["logged_in"],
                 "timestamp": now_sao_paulo().isoformat(),
             }
             if use_mock:
@@ -61,11 +55,7 @@ async def get_wuzapi_session_status() -> dict[str, Any]:
 
 @router.get("/session/qr")
 async def get_wuzapi_qr() -> dict[str, Any]:
-    """SESS-03: Return base64 QR code for WhatsApp pairing.
-
-    Returns:
-        qr: Base64-encoded PNG data URI, or None on error.
-    """
+    """SESS-03: Return base64 QR code for WhatsApp pairing."""
     token = getattr(settings, "WHATSAPP_WUZAPI_TOKEN", None)
     base_url = getattr(settings, "WHATSAPP_WUZAPI_BASE_URL", "")
     use_mock = getattr(settings, "WHATSAPP_WUZAPI_USE_MOCK", False)

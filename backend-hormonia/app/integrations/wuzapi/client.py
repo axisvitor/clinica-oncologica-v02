@@ -52,6 +52,35 @@ def _giveup(exc: Exception) -> bool:
     return False
 
 
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def normalize_session_status(response: dict[str, Any] | None) -> dict[str, bool]:
+    """Normalize WuzAPI session status payload across live and legacy casing."""
+    data = (response or {}).get("data") or {}
+    if not isinstance(data, dict):
+        data = {}
+
+    connected = False
+    for key in ("Connected", "connected"):
+        if key in data:
+            connected = _coerce_bool(data.get(key))
+            break
+
+    logged_in = False
+    for key in ("LoggedIn", "loggedIn", "logged_in"):
+        if key in data:
+            logged_in = _coerce_bool(data.get(key))
+            break
+
+    return {"connected": connected, "logged_in": logged_in}
+
+
 class WuzAPIClient:
     def __init__(
         self,
@@ -136,7 +165,6 @@ class WuzAPIClient:
         data: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-
         if not self.session:
             await self.connect()
 
@@ -210,22 +238,20 @@ class WuzAPIClient:
         subscribe: list[str] | None = None,
         immediate: bool = False,
     ) -> dict[str, Any]:
-        """POST /session/connect -- connect to WhatsApp servers.
-
-        Args:
-            subscribe: Event types to receive (e.g. ["Message"]).
-            immediate: If True, connect immediately without waiting.
-
-        Returns:
-            WuzAPI response with connection details and JID.
-        """
+        """POST /session/connect -- connect to WhatsApp servers."""
         payload: dict[str, Any] = {"Immediate": immediate}
         if subscribe:
             payload["Subscribe"] = subscribe
         return await self._make_request("POST", "/session/connect", data=payload)
 
     async def get_session_status(self) -> dict[str, Any]:
-        """GET /session/status -- returns Connected and LoggedIn booleans."""
+        """GET /session/status.
+
+        Live WuzAPI currently returns lowercase/camelCase booleans
+        (`connected`, `loggedIn`), while mocks and older assumptions use
+        `Connected`/`LoggedIn`. Consumers should use
+        :func:`normalize_session_status` instead of reading raw keys.
+        """
         return await self._make_request("GET", "/session/status")
 
     async def get_qr(self) -> dict[str, Any]:

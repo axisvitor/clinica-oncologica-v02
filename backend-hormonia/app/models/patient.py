@@ -83,11 +83,17 @@ class Patient(BaseModel):
     treatment_start_date = Column(Date, nullable=True, index=True)
 
     # Flow control
-    # Use values_callable to ensure enum values (not names) are used in database
-    # name='flow_state' specifies the PostgreSQL ENUM type name (with underscore)
+    # Local/final schema stores patients.flow_state as VARCHAR(50), not a PostgreSQL enum.
+    # Keep ORM validation via FlowState while binding as a plain string to avoid driver
+    # casts to a missing `flow_state` DB type during inserts/updates.
     flow_state = Column(
         Enum(
-            FlowState, values_callable=lambda x: [e.value for e in x], name="flow_state"
+            FlowState,
+            values_callable=lambda x: [e.value for e in x],
+            native_enum=False,
+            create_constraint=False,
+            validate_strings=True,
+            length=50,
         ),
         default=FlowState.ONBOARDING,
         nullable=False,

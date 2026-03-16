@@ -1,9 +1,10 @@
 import os
 
 try:
-    from app.integrations.wuzapi.client import WuzAPIClient
+    from app.integrations.wuzapi.client import WuzAPIClient, normalize_session_status
 except ModuleNotFoundError:  # pragma: no cover - interim during incremental setup
     WuzAPIClient = None
+    normalize_session_status = None
 from app.integrations.wuzapi.errors import MediaTooLargeError, WuzAPIError
 from app.integrations.wuzapi.extractor import (
     RECEIPT_TYPE_TO_STATUS,
@@ -26,10 +27,12 @@ def get_wuzapi_client(base_url: str = "", token: str = "", **kwargs):
 
     return WuzAPIClient(base_url=base_url, token=token, **kwargs)
 
+
 __all__ = [
     "WuzAPIClient",
     "MockWuzAPIClient",
     "get_wuzapi_client",
+    "normalize_session_status",
     "WuzAPIError",
     "MediaTooLargeError",
     "WuzAPISendResponse",

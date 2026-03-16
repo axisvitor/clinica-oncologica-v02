@@ -119,6 +119,12 @@ class TestPatientDoctorIdType:
 class TestPatientFlowStateSerialization:
     """Test Patient.flow_state serialization and deserialization."""
 
+    def test_flow_state_column_matches_varchar_schema(self):
+        """ORM must bind flow_state as VARCHAR to match the local DB schema."""
+        flow_state_type = Patient.__table__.c.flow_state.type
+        assert flow_state_type.native_enum is False
+        assert flow_state_type.create_constraint is False
+
     def test_flow_state_is_enum_not_string(self, db: Session):
         """Test that flow_state is stored as enum value."""
         doctor = User(
