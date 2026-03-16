@@ -8,7 +8,7 @@ S01 retired its primary risk (local stack setup) successfully. The remaining roa
 
 All 7 milestone success criteria have at least one remaining owning slice:
 
-- Stack local sobe e responde health checks → S01 ✅ + S02 (WuzAPI)
+- Stack local sobe e responde health checks → S01 ✅ (validated)
 - WuzAPI conectado envia mensagem real → S02
 - Templates onboarding (15d) e daily follow-up (16-45) no banco → S03
 - Médico cria paciente, welcome chega no WhatsApp → S04
@@ -16,20 +16,27 @@ All 7 milestone success criteria have at least one remaining owning slice:
 - Resposta do paciente persistida em `patient_flow_responses` → S05
 - Transição automática onboarding → daily_follow_up dia 16 → S05
 
+Coverage check: ✅ all criteria have at least one remaining owning slice.
+
 ## Requirement Coverage
 
-- R067 validated by S01. R068–R074 remain active, correctly mapped to S02–S05. No gaps.
+- R067 validated by S01. R068–R074 remain active, correctly mapped to S02–S05. No gaps, no orphans.
 
 ## Deviations Absorbed
 
 - **Non-standard ports** (6380/5434): Well-documented in S01-SUMMARY forward intelligence. Downstream researchers will read correct values.
 - **Sessions alignment migration**: Unplanned but necessary. Alembic head is now `m008_s01_t03_sessions_align`. S03 depends on `flow_kinds`/`flow_template_versions` tables which are present in the 32-table schema.
+- **tenacity version bump**: Required for google-adk compatibility. No downstream impact.
 - **Admin seed user**: Bonus output useful for S04 (dashboard patient creation).
 
-## Boundary Map Note
+## Boundary Map Accuracy
 
-The boundary map references `localhost:6379` but actual Dragonfly port is 6380. S01-SUMMARY's forward intelligence section explicitly calls this out. No roadmap rewrite warranted — researchers consume the summary, not the boundary map ports.
+The boundary map references `localhost:6379` but actual Dragonfly port is 6380. S01-SUMMARY's forward intelligence section explicitly calls this out. No roadmap rewrite warranted — researchers consume the summary, not the boundary map port literals.
 
-## Next Slice
+## Remaining Slice Ordering
 
-S02 (WuzAPI real) and S03 (templates) are independent and can proceed. S02 is the higher-risk path.
+S02 (WuzAPI real) and S03 (templates) are independent and can proceed in parallel. S02 is the higher-risk path. S04 depends on both. S05 depends on S04. No reordering needed.
+
+## Conclusion
+
+Roadmap holds. Proceed to S02/S03.
