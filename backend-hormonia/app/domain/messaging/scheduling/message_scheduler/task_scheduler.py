@@ -46,16 +46,16 @@ class TaskScheduler:
                 )
 
                 # Import here to avoid circular imports
-                from app.tasks.messaging import send_scheduled_message
+                from app.tasks.messaging_taskiq import send_scheduled_message
+                from app.tasks.taskiq_base import schedule_task_at
 
-                # Schedule task with ETA, using the message id
-                task_result = send_scheduled_message.apply_async(
-                    args=[str(message.id)],
-                    eta=delivery_time,
+                # Schedule task with ETA via Taskiq's ListRedisScheduleSource
+                schedule_result = await schedule_task_at(
+                    send_scheduled_message, delivery_time, str(message.id)
                 )
 
                 logger.info(
-                    f"Scheduled Celery task {task_result.id} for message {message.id} "
+                    f"Scheduled Taskiq task {schedule_result.schedule_id} for message {message.id} "
                     f"at {delivery_time.isoformat()}"
                 )
 
@@ -69,7 +69,7 @@ class TaskScheduler:
                     )
 
                 return {
-                    "task_id": task_result.id,
+                    "task_id": str(schedule_result.schedule_id),
                     "eta": delivery_time.isoformat(),
                     "status": "scheduled",
                     "message_id": str(message.id),

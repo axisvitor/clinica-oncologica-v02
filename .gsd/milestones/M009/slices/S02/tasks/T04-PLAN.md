@@ -89,3 +89,12 @@ The Taskiq messaging tasks exist in `messaging_taskiq.py` but nothing calls them
 - `backend-hormonia/app/api/v2/messages/retry.py` — Modified: imports from `messaging_taskiq`, uses `.kiq()` and `.task_id`
 - `backend-hormonia/app/domain/messaging/scheduling/message_scheduler/task_scheduler.py` — Modified: imports from `messaging_taskiq`, uses `schedule_task_at()`
 - `backend-hormonia/app/domain/messaging/scheduling/message_scheduler/retry_handler.py` — Modified: imports from `messaging_taskiq`, uses `schedule_task_at()`
+
+## Observability Impact
+
+- **Changed signal:** `retry.py` endpoints now return `task_id` from Taskiq's `AsyncTaskiqTask.task_id` (UUID format) instead of Celery's `AsyncResult.id`. Consumers of the `/retry-failed` response must use this new ID format for task tracking.
+- **Changed signal:** `task_scheduler.py` returns `schedule_result.schedule_id` (string) instead of Celery `task_result.id`. The `task_id` key in the return dict now holds a Taskiq schedule ID — downstream code that calls `get_task_status(task_id)` still works because the method delegates to `get_celery_task_status` (which will need updating in a future task for full Taskiq status tracking).
+- **Changed signal:** `retry_handler.py` writes `schedule_result.schedule_id` to `message_metadata.retry_task_id`. This changes the format of the stored ID from Celery task UUID to Taskiq schedule UUID — visible when querying `message.message_metadata` in DB.
+- **Inspection:** Search worker logs for `task_name=send_scheduled_message` + `event=task_start` to verify dispatched tasks are being picked up by Taskiq worker.
+- **Failure visibility:** If `schedule_task_at()` fails in `task_scheduler.py` or `retry_handler.py`, the existing try/except blocks log the error and propagate. If `.kiq()` fails in `retry.py`, the HTTP 500 surfaces the issue.
+- **Coexistence check:** `grep "from app.tasks.messaging import" backend-hormonia/app/tasks/flow_automation.py` confirms external Celery callers are not disrupted.

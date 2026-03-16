@@ -14,9 +14,9 @@ from app.database import get_db
 from app.models.message import Message, MessageStatus
 from app.models.user import UserRole
 from app.domain.messaging.core import MessageService
-from app.tasks.messaging import (
-    send_scheduled_message,
-    retry_failed_messages as retry_failed_messages_task,
+from app.tasks.messaging_taskiq import (
+    send_scheduled_message as send_scheduled_message_taskiq,
+    retry_failed_messages as retry_failed_messages_taskiq,
 )
 from app.schemas.v2.messages import (
     MessageV2Response,
@@ -83,8 +83,8 @@ async def retry_message(
     db.commit()
     db.refresh(message)
 
-    # Retry the message via Celery task (after atomic update to avoid race condition)
-    send_scheduled_message.delay(str(message.id))
+    # Retry the message via Taskiq task (after atomic update to avoid race condition)
+    await send_scheduled_message_taskiq.kiq(str(message.id))
 
     return _serialize_message(message)
 
@@ -99,14 +99,14 @@ async def retry_failed_messages(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user_from_session),
 ):
-    """Retry all failed messages via Celery task."""
-    # Dispatch Celery task for async processing
-    task_result = retry_failed_messages_task.delay(limit=limit, max_retries=3)
+    """Retry all failed messages via Taskiq task."""
+    # Dispatch Taskiq task for async processing
+    task_result = await retry_failed_messages_taskiq.kiq(limit=limit, max_retries=3)
 
     return {
         "success": True,
         "message": "Retry process initiated",
-        "task_id": task_result.id,
+        "task_id": task_result.task_id,
         "limit": limit,
     }
 

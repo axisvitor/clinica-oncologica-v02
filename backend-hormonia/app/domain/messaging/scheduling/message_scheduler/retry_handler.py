@@ -62,23 +62,23 @@ class RetryHandler:
         """
         try:
             # Import here to avoid circular imports
-            from app.tasks.messaging import send_scheduled_message
+            from app.tasks.messaging_taskiq import send_scheduled_message
+            from app.tasks.taskiq_base import schedule_task_at
 
-            # Schedule retry task with ETA using the message id
-            task_result = send_scheduled_message.apply_async(
-                args=[str(message.id)],
-                eta=retry_time,
+            # Schedule retry task with ETA via Taskiq's ListRedisScheduleSource
+            schedule_result = await schedule_task_at(
+                send_scheduled_message, retry_time, str(message.id)
             )
 
-            # Update message metadata with retry task ID
+            # Update message metadata with schedule ID
             message_metadata = self._ensure_message_metadata(message)
-            message_metadata["retry_task_id"] = task_result.id
+            message_metadata["retry_task_id"] = str(schedule_result.schedule_id)
             message_metadata["retry_scheduled_at"] = (
                 now_sao_paulo().isoformat()
             )
 
             logger.info(
-                f"Scheduled retry task {task_result.id} for message {message.id} "
+                f"Scheduled retry task {schedule_result.schedule_id} for message {message.id} "
                 f"at {retry_time.isoformat()}"
             )
 

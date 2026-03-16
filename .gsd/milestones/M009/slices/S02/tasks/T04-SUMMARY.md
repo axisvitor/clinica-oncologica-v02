@@ -1,0 +1,1 @@
+T04: Updated 3 messaging-domain call sites (retry.py, task_scheduler.py, retry_handler.py) to dispatch via Taskiq .kiq()/schedule_task_at() instead of Celery .delay()/.apply_async(eta=). Celery messaging.py untouched. External callers (flow_automation.py, batch_tasks.py) still use Celery. All 14 slice-level verification checks pass. S02 complete.
