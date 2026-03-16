@@ -51,7 +51,7 @@
   - Verify: `python3 -c "import ast; ast.parse(open('app/tasks/audit_taskiq.py').read()); ast.parse(open('app/tasks/lgpd_taskiq.py').read()); ast.parse(open('app/tasks/reports_taskiq.py').read()); ast.parse(open('app/tasks/saga_monitoring_taskiq.py').read())"` passes; 11 `@broker.task` decorators across 4 files; 9 `schedule=` entries present; middleware imports from `lgpd_taskiq` not `lgpd_tasks`
   - Done when: 4 new taskiq modules with 11 tasks, 9 schedule labels, LGPD middleware migrated to `.kiq()`, all files parse
 
-- [ ] **T02: Migrate medium complexity modules (alerts, webhook_dlq, monitoring)** `est:2h`
+- [x] **T02: Migrate medium complexity modules (alerts, webhook_dlq, monitoring)** `est:2h`
   - Why: Covers 3 modules (18 tasks, 12 periodic entries) with `async_to_sync`/`run_async` bridge removal and MonitoringTask class flattening. Internal cross-dispatch in alerts (`process_alert_escalation`) handled within module.
   - Files: `backend-hormonia/app/tasks/alerts_taskiq.py` (new), `backend-hormonia/app/tasks/webhook_dlq_taskiq.py` (new), `backend-hormonia/app/tasks/monitoring_taskiq.py` (new)
   - Do: Create 3 parallel `*_taskiq.py` modules. Alerts: remove `async_to_sync` wrappers, call alert_manager methods with `await` directly. Webhook DLQ: remove `run_async()`, call async DLQ service directly, drop `_retry_or_raise` helper (SmartRetryMiddleware handles it). Monitoring: flatten 8 MonitoringTask subclasses into 8 `@broker.task()` async functions — remove `run_async()` for async services, use `get_scoped_session()` for sync constructors (FlowStateRepository, etc). All use structured logging from `taskiq_base`.

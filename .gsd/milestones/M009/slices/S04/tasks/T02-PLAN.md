@@ -81,3 +81,13 @@ Create 3 Taskiq parallel modules for medium-complexity task groups: alerts (7 ta
 - `backend-hormonia/app/tasks/alerts_taskiq.py` — 7 Taskiq tasks, async-native alert processing
 - `backend-hormonia/app/tasks/webhook_dlq_taskiq.py` — 3 Taskiq tasks, async DLQ service calls
 - `backend-hormonia/app/tasks/monitoring_taskiq.py` — 8 Taskiq tasks, flattened from class hierarchy
+
+## Observability Impact
+
+- **New structured log events**: 18 tasks emit `task_start`, `task_success`, `task_error` events via `log_task_start/success/error` with `task_name`, `event`, `duration_ms`, `error_type`, `error_message` fields
+- **Schedule labels**: 12 schedule labels on `@broker.task()` decorators; `taskiq scheduler --dump` reads all labels at startup
+- **Alert monitoring signals**: `alert_monitoring` and `system_health_check` log critical alerts at WARNING/CRITICAL level; `data_integrity_guardrails` logs non-zero counters as WARNING
+- **DLQ health signals**: `monitor_dlq_health` emits `DLQ ALERT:` (critical) and `DLQ WARNING:` (warning) log lines when thresholds exceeded
+- **Retry visibility**: SmartRetryMiddleware logs retry attempts with count/delay for all retry-enabled tasks (all 18)
+- **Failure inspection**: `grep "event.*task_error" <log>` surfaces all 18 tasks; each includes `error_type` and `error_message`
+- **Cross-dispatch tracing**: `periodic_escalation_check` dispatches `process_alert_escalation` via `.kiq()` — linkage visible in Taskiq result backend
