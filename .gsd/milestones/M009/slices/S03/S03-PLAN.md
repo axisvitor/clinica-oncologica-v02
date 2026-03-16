@@ -63,7 +63,7 @@
   - Verify: `grep -c "@broker.task" flows_taskiq.py` = 14; `grep -c "schedule=" flows_taskiq.py` = 10; `grep -c "async_to_sync\|run_async_in_sync\|run_async_in_thread" flows_taskiq.py` = 0; `grep -c "\.delay(\|\.apply_async(" flows_taskiq.py` = 0
   - Done when: 14 total `@broker.task` tasks, 10 schedule labels, zero bridge code, zero Celery dispatch in flows_taskiq.py, AST-valid
 
-- [ ] **T03: Create saga_retry_taskiq.py with 3 saga tasks** `est:25m`
+- [x] **T03: Create saga_retry_taskiq.py with 3 saga tasks** `est:25m`
   - Why: Saga domain is a separate concern — 3 tasks in a separate file. `retry_patient_onboarding_saga` has custom exponential backoff, `scan_and_retry_failed_sagas` dispatches via `.apply_async(countdown=)` → `schedule_task_at()`.
   - Files: `backend-hormonia/app/tasks/saga_retry_taskiq.py` (NEW), `backend-hormonia/app/tasks/saga_retry.py` (read)
   - Do: Create `saga_retry_taskiq.py` with 3 tasks. `retry_patient_onboarding_saga`: SmartRetryMiddleware replaces `self.retry(countdown=60*(2**retries))`. `scan_and_retry_failed_sagas`: switch `.apply_async(countdown=)` to `await schedule_task_at()` for delayed dispatch of retry tasks. `cleanup_old_completed_sagas`: simple async DB cleanup. `SagaOrchestrator.resume_saga()` called with `await` directly (no `run_async` bridge).
