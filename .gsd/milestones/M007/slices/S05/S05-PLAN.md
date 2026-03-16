@@ -26,6 +26,8 @@
 - `cd backend-hormonia && python3 -m pytest tests/api/v2/test_alerts.py -v` — existing alert tests pass (no regressions)
 - `cd backend-hormonia && python3 -m pytest tests/unit/services/flow/ -v` — all flow tests pass
 - `cd frontend-hormonia && npx tsc --noEmit` — frontend typecheck green
+- Diagnostic failure-path check: verify that evaluator errors are caught in `complete_quiz_session()` (try/except wraps the call) — a failing evaluator must not crash quiz completion
+- Diagnostic inspection: `_serialize_alert()` returns `title`, `message`, `recommendation` keys — verifiable via code review or test assertion
 
 ## Observability / Diagnostics
 
@@ -52,7 +54,7 @@
 
 ## Tasks
 
-- [ ] **T01: Wire evaluator into quiz completion and persist notifications** `est:1h`
+- [x] **T01: Wire evaluator into quiz completion and persist notifications** `est:1h`
   - Why: The evaluator exists but is never called; alerts never generate Notification records; the dashboard can't show recommendation text because the serializer doesn't project it. This task closes all three gaps.
   - Files: `backend-hormonia/app/domain/agents/quiz/session_coordinator.py`, `backend-hormonia/app/domain/quizzes/evaluation/response_evaluator.py`, `backend-hormonia/app/api/v2/routers/alerts.py`, `frontend-hormonia/src/pages/PhysicianDashboard.tsx`
   - Do:

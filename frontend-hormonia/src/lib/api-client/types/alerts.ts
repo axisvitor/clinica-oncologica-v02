@@ -15,6 +15,7 @@ export interface Alert {
   severity: AlertSeverity
   title: string
   message: string
+  recommendation?: string
   patient_id?: string
   patient_name?: string
   status: 'pending' | 'acknowledged' | 'resolved' | 'dismissed'

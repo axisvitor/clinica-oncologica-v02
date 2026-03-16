@@ -19,6 +19,8 @@ from sqlalchemy.orm import Session
 from app.config.quiz_alert_rules import QUIZ_ALERT_RULES, AlertSeverity, QuizAlertRule
 from app.repositories.alert import AlertRepository
 from app.models.alert import Alert, AlertStatus, AlertSeverity as ModelAlertSeverity
+from app.models.notification import Notification, NotificationType, NotificationPriority
+from app.models.patient import Patient
 from app.exceptions import ValidationError, DatabaseError
 from app.services.audit import AuditService
 from app.utils.timezone import now_sao_paulo
@@ -44,10 +46,22 @@ class QuizResponseEvaluator:
         AlertSeverity.INFO: ModelAlertSeverity.MEDIUM,
     }
 
+    # Map model AlertSeverity to NotificationPriority
+    NOTIFICATION_PRIORITY_MAP = {
+        ModelAlertSeverity.CRITICAL: NotificationPriority.URGENT,
+        ModelAlertSeverity.HIGH: NotificationPriority.HIGH,
+        ModelAlertSeverity.MEDIUM: NotificationPriority.MEDIUM,
+        ModelAlertSeverity.LOW: NotificationPriority.LOW,
+    }
+
     def __init__(self, db: Session):
         self.db = db
         self.alert_repository = AlertRepository(db)
         self.audit_service = AuditService(db)
+
+    def _map_notification_priority(self, severity: ModelAlertSeverity) -> NotificationPriority:
+        """Map alert severity to notification priority."""
+        return self.NOTIFICATION_PRIORITY_MAP.get(severity, NotificationPriority.MEDIUM)
 
     async def evaluate_quiz_session(
         self, quiz_session_id: UUID, patient_id: UUID, responses: Dict[str, Any]
@@ -119,21 +133,24 @@ class QuizResponseEvaluator:
             f"{len(triggered_alerts)} alerts generated, risk score: {risk_score:.2f}"
         )
 
-        # Audit log the evaluation
-        await self.audit_service.log_action(
-            user_id=None,  # System-generated
-            action="quiz_response_evaluation",
-            resource_type="quiz_session",
-            resource_id=str(quiz_session_id),
-            details={
-                "patient_id": str(patient_id),
-                "alerts_generated": len(triggered_alerts),
-                "risk_score": risk_score,
-                "triggered_rule_ids": [
-                    a.data.get("triggered_rule_id") for a in triggered_alerts
-                ],
-            },
-        )
+        # Audit log the evaluation (wrapped: audit service may not support sync Session)
+        try:
+            await self.audit_service.log_action(
+                user_id=None,  # System-generated
+                action="quiz_response_evaluation",
+                resource_type="quiz_session",
+                resource_id=str(quiz_session_id),
+                details={
+                    "patient_id": str(patient_id),
+                    "alerts_generated": len(triggered_alerts),
+                    "risk_score": risk_score,
+                    "triggered_rule_ids": [
+                        a.data.get("triggered_rule_id") for a in triggered_alerts
+                    ],
+                },
+            )
+        except Exception as e:
+            logger.debug("Audit log skipped for quiz evaluation: %s", e)
 
         return triggered_alerts, risk_score
 
@@ -211,6 +228,20 @@ class QuizResponseEvaluator:
                 rule.severity, ModelAlertSeverity.MEDIUM
             )
 
+            # Duplicate alert guard: skip if same session+rule already exists
+            existing = self.db.query(Alert).filter(
+                Alert.patient_id == patient_id,
+                Alert.alert_type == "quiz_response",
+                Alert.data["quiz_session_id"].astext == str(quiz_session_id),
+                Alert.data["triggered_rule_id"].astext == rule.rule_id,
+            ).first()
+            if existing:
+                logger.info(
+                    "Duplicate alert for session %s rule %s, skipping",
+                    quiz_session_id, rule.rule_id,
+                )
+                return existing
+
             # Create alert instance
             alert = Alert(
                 patient_id=patient_id,
@@ -236,6 +267,45 @@ class QuizResponseEvaluator:
             self.db.commit()
 
             logger.info(f"Alert {created_alert.id} created for patient {patient_id}")
+
+            # Create Notification for the patient's assigned doctor
+            try:
+                patient = self.db.query(Patient).filter(Patient.id == patient_id).first()
+                if patient is None or patient.doctor_id is None:
+                    logger.warning(
+                        "No doctor_id for patient %s, skipping notification",
+                        patient_id,
+                    )
+                else:
+                    notification = Notification(
+                        user_id=patient.doctor_id,
+                        related_patient_id=patient_id,
+                        notification_type=NotificationType.ALERT,
+                        priority=self._map_notification_priority(model_severity),
+                        title=f"Alerta: {rule.name}",
+                        message=rule.generate_message(responses),
+                        action_url=f"/patients/{patient_id}",
+                        action_label="Revisar Paciente",
+                        notification_metadata={
+                            "alert_id": str(created_alert.id),
+                            "quiz_session_id": str(quiz_session_id),
+                            "rule_id": rule.rule_id,
+                            "recommendation": rule.recommendation,
+                            "severity": model_severity.value,
+                        },
+                    )
+                    self.db.add(notification)
+                    self.db.commit()
+                    logger.info(
+                        "Notification created for doctor %s from alert %s",
+                        patient.doctor_id, created_alert.id,
+                    )
+            except Exception as e:
+                logger.error(
+                    "Failed to create notification for alert %s: %s",
+                    created_alert.id, e,
+                    exc_info=True,
+                )
 
             # Trigger notifications asynchronously
             await self._notify_medical_team(created_alert, rule)

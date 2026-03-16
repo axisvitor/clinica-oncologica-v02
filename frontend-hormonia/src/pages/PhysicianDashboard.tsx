@@ -450,6 +450,9 @@ export default function PhysicianDashboard() {
                   <div className="flex-1">
                     <p className="font-medium">{alert.title}</p>
                     <p className="text-sm text-muted-foreground">{alert.message}</p>
+                    {alert.recommendation && (
+                      <p className="text-xs text-amber-600 mt-1">💡 {alert.recommendation}</p>
+                    )}
                   </div>
                   <Button
                     size="sm"

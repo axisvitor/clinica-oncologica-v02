@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     from app.domain.agents.quiz.progress_tracker import ProgressTracker
     from app.domain.agents.quiz.question_presenter import QuestionPresenter
 
-
 def _get_knowledge_graph():
     """Lazy import for KnowledgeGraph to prevent startup failures."""
     try:
@@ -231,6 +230,39 @@ class SessionCoordinator:
 
             # Mark session as completed
             self.quiz_session_service.complete_session(context.session.id)
+
+            # Evaluate quiz responses against clinical alert rules
+            try:
+                from app.domain.quizzes.evaluation.response_evaluator import QuizResponseEvaluator
+
+                # Transform responses_so_far (List[Dict]) into flat Dict[str, Any]
+                flat_responses: Dict[str, Any] = {}
+                for resp in (context.responses_so_far or []):
+                    q_id = resp.get("question_id")
+                    if q_id is not None:
+                        flat_responses[str(q_id)] = resp.get("response_value")
+
+                if flat_responses:
+                    evaluator = QuizResponseEvaluator(self.db_session)
+                    alerts, risk_score = await evaluator.evaluate_quiz_session(
+                        context.session.id, context.patient_id, flat_responses
+                    )
+                    if alerts:
+                        self._logger.info(
+                            "Quiz evaluation produced %d alerts (risk %.1f) for patient %s",
+                            len(alerts), risk_score, context.patient_id,
+                        )
+                else:
+                    self._logger.debug(
+                        "No flat responses to evaluate for session %s",
+                        context.session.id,
+                    )
+            except Exception as e:
+                self._logger.error(
+                    "Quiz response evaluation failed for session %s: %s",
+                    context.session.id, e,
+                    exc_info=True,
+                )
 
             # Trigger comprehensive analysis
             await self.trigger_comprehensive_analysis(context, send_message_callback)

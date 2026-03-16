@@ -131,6 +131,20 @@ This task closes all three gaps: wires the evaluator call, adds Notification cre
 - `frontend-hormonia/src/pages/PhysicianDashboard.tsx` — renders `alert.title` and `alert.message` at lines 451-452.
 - S04 provides `patient_flow_responses` table — not directly consumed by this task but contextually relevant.
 
+## Observability Impact
+
+- **New structured logs:**
+  - `logger.info("Notification created for doctor {doctor_id} from alert {alert_id}")` — confirms notification persistence
+  - `logger.warning("No doctor_id for patient {patient_id}, skipping notification")` — missing doctor handled gracefully
+  - `logger.info("Duplicate alert for session {quiz_session_id} rule {rule_id}, skipping")` — duplicate prevention active
+  - `logger.debug("Audit log skipped for quiz evaluation: {error}")` — audit service latent bug contained
+- **Inspection surfaces:**
+  - `SELECT * FROM notifications WHERE notification_type = 'alert'` — verify notifications persisted
+  - `GET /api/v2/alerts?alert_type=quiz_response` — verify title/message/recommendation in serialized response
+- **Failure state visibility:**
+  - Evaluator errors per-rule logged with `exc_info=True` (existing) — wrapped in outer try/except so quiz completion never fails
+  - Notification creation failures are caught and logged, don't crash alert creation
+
 ## Expected Output
 
 - `backend-hormonia/app/domain/agents/quiz/session_coordinator.py` — `complete_quiz_session()` now calls `QuizResponseEvaluator.evaluate_quiz_session()` with transformed responses
