@@ -51,6 +51,13 @@ Root `frontend-hormonia/lib/flow-engine/*` bridges and `frontend-hormonia/lib/ty
 - `frontend-hormonia/tests/unit/import-boundaries/dead-compat-cleanup.contract.test.ts` — existing contract test pattern to extend.
 - `frontend-hormonia/tsconfig.json` and `tsconfig.build.json` — confirms root `lib/**` is excluded from build.
 
+## Observability Impact
+
+This task is static cleanup — no runtime behavior changes. Observability:
+- **Contract tests**: `dead-compat-cleanup.contract.test.ts` assertions will fail loudly if any deleted file is re-introduced.
+- **Inspection**: `! test -f frontend-hormonia/lib/flow-engine/FlowEngine.ts && ! test -f frontend-hormonia/lib/types/flow.ts && ! test -f frontend-hormonia/firebase.json && echo "frontend dead surfaces removed"` — quick absence scan.
+- **Failure visibility**: If a future import references any deleted barrel/bridge, TypeScript compilation will fail at `npm run build`/`npm run typecheck` with a clear "module not found" error pointing at the missing path.
+
 ## Expected Output
 
 - 10 dead files deleted from `frontend-hormonia/`.
