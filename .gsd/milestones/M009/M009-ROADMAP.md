@@ -64,7 +64,7 @@ This milestone is complete only when all are true:
 - [x] **S02: Messaging tasks migradas** `risk:high` `depends:[S01]`
   > After this: send_scheduled_message.kiq() envia mensagem real via WuzAPI, process_scheduled_messages roda no scheduler, retry_failed_messages funciona com SmartRetryMiddleware, DLQ processing migrado. Celery e Taskiq coexistem — apenas messaging usa Taskiq.
 
-- [ ] **S03: Flow/saga tasks migradas** `risk:high` `depends:[S01,S02]`
+- [x] **S03: Flow/saga tasks migradas** `risk:high` `depends:[S01,S02]`
   > After this: process_daily_flows executa via Taskiq worker com async nativo (sem bridge), saga_retry funciona, stuck_detection roda periodicamente, flow_automation e monthly_tasks migrados.
 
 - [ ] **S04: Quiz/alert/follow-up/monitoring migradas + schedule completo** `risk:medium` `depends:[S01]`
