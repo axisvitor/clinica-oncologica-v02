@@ -71,6 +71,9 @@ from app.models.lgpd_audit import (
 # LGPD patient deletion audit (immutable append-only table, LGPD-01)
 from app.models.patient_deletion_audit import PatientDeletionAudit
 
+# Structured patient flow responses (M007-S04)
+from app.models.patient_flow_response import PatientFlowResponse
+
 __all__ = [
     # Base
     "BaseModel",
@@ -159,4 +162,6 @@ __all__ = [
     "LGPDDataCategory",
     # LGPD patient deletion audit (LGPD-01)
     "PatientDeletionAudit",
+    # Structured patient flow responses (M007-S04)
+    "PatientFlowResponse",
 ]

@@ -27,6 +27,9 @@
 # Diagnostic / failure-path check: verify grounding rejects hallucinated content and metrics record the reason
 cd backend-hormonia && python -m pytest tests/unit/services/flow/test_personalization_grounding.py -v -k "hallucin or empty or ai_skip" --tb=short
 
+# Diagnostic / failure-path check: verify dual-write model can be instantiated with NULL flow_state_id (no-flow-state path)
+cd backend-hormonia && python -c "from app.models.patient_flow_response import PatientFlowResponse; r = PatientFlowResponse(flow_state_id=None, patient_id='00000000-0000-0000-0000-000000000001', response_text='test', responded_at='2026-01-01T00:00:00+00:00'); assert r.flow_state_id is None; print('NULL flow_state_id OK')"
+
 # T01: Grounding calibration tests
 cd backend-hormonia && python -m pytest tests/unit/services/flow/test_personalization_grounding.py -v
 
@@ -66,7 +69,7 @@ cd backend-hormonia && python -m pytest tests/unit/services/flow/ -v --tb=short
   - Verify: `cd backend-hormonia && python -m pytest tests/unit/services/flow/test_personalization_grounding.py -v` — 10+ tests green
   - Done when: All grounding threshold boundary cases tested, variation determinism proven, AI skip for non-response messages proven, 0 regressions in existing tests.
 
-- [ ] **T02: Create patient_flow_responses table, model, and wire dual-write** `est:1h`
+- [x] **T02: Create patient_flow_responses table, model, and wire dual-write** `est:1h`
   - Why: R061 requires structured response storage. Currently responses live in `step_data` JSONB blobs — not queryable by day/period. This creates the dedicated table, model, and wires the write path into the existing `process_patient_response()` transaction.
   - Files: `backend-hormonia/alembic/versions/m007_s04_t02_patient_flow_responses.py` (new migration), `backend-hormonia/app/models/patient_flow_response.py` (new model), `backend-hormonia/app/services/enhanced_flow_engine_pkg/response_processing.py` (modify)
   - Do: (1) Create Alembic migration depending on `m006_s02_t03_drop_users_firebase_residue` for `patient_flow_responses` table with columns: `id` (UUID PK), `flow_state_id` (UUID FK nullable to `patient_flow_states.id`), `patient_id` (UUID FK not-null to `patients.id`), `day_number` (int nullable), `message_index` (int nullable), `response_text` (text not-null), `responded_at` (datetime with tz not-null), `prompt_message_id` (string nullable), `response_message_id` (string nullable), `created_at`, `updated_at`. (2) Create `PatientFlowResponse` SQLAlchemy model. (3) In `process_patient_response()`, add the new table write before the existing `await self.db.commit()`, using the same `flow_state`, `context`, and `response_text` data already available. Handle `flow_state is None` by writing with `flow_state_id=NULL`.

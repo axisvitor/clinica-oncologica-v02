@@ -12,6 +12,7 @@ from app.core.exceptions import FeatureNotAvailableError
 from app.exceptions import NotFoundError
 from app.models.flow import PatientFlowState
 from app.models.patient import Patient
+from app.models.patient_flow_response import PatientFlowResponse
 from app.services.ai.output_profiles import JSON_SENTIMENT
 from app.services.flow.context_parsing import parse_optional_int, parse_optional_str
 from app.utils.db_retry import with_db_retry
@@ -330,6 +331,21 @@ class FlowResponseMixin:
                 flow_state.state_data = state_data
                 flow_state.last_interaction_at = now_sao_paulo()
                 commit_needed = True
+
+            # Persist structured response to dedicated table (dual-write).
+            # Runs even when flow_state is None — flow_state_id is nullable.
+            flow_response = PatientFlowResponse(
+                flow_state_id=flow_state.id if flow_state else None,
+                patient_id=patient_id,
+                day_number=flow_day,
+                message_index=message_index,
+                response_text=response_text,
+                responded_at=now_sao_paulo(),
+                prompt_message_id=context.get("prompt_message_id"),
+                response_message_id=context.get("response_message_id"),
+            )
+            self.db.add(flow_response)
+            commit_needed = True
 
             reminder_result = None
             try:
