@@ -23,3 +23,4 @@ Agents read this before every unit. Add entries when you discover something wort
 | # | What Happened | Root Cause | Fix | Scope |
 |---|--------------|------------|-----|-------|
 | 1 | `from app.tasks.smoke_test import ...` fails without DATABASE_URL in env | `app/tasks/__init__.py` has `from .base import ...` which triggers full settings chain | Import taskiq task modules directly, not through the `app.tasks` package init | backend/M009 |
+| 2 | DLQHandler declares `async def` methods (get_pending_review, requeue_for_retry) but uses sync ORM internally (self.db.query(), self.db.commit()) | Original Celery code used `run_async()` bridge, masking that the handler is sync-internally | Always provide sync session (get_scoped_session()) to DLQHandler; `await` works but no async I/O benefit. Don't pass AsyncSession. | backend/M009 |

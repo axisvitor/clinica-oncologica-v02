@@ -68,7 +68,7 @@
   - Verify: `python3 -c "import ast; ast.parse(open('backend-hormonia/app/tasks/messaging_taskiq.py').read())"` and `grep -c "@broker.task" backend-hormonia/app/tasks/messaging_taskiq.py` returns at least `1`
   - Done when: `send_scheduled_message` Taskiq task defined in `messaging_taskiq.py`, no `run_async` or sync session, retry via SmartRetryMiddleware, DLQ via async session
 
-- [ ] **T03: Migrate remaining 8 messaging tasks with schedule labels** `est:1h`
+- [x] **T03: Migrate remaining 8 messaging tasks with schedule labels** `est:1h`
   - Why: Completes the full messaging task migration. All remaining tasks are LOW or MEDIUM complexity and follow the pattern proven in T02.
   - Files: `backend-hormonia/app/tasks/messaging_taskiq.py`
   - Do: Add 8 tasks: `process_scheduled_messages`, `retry_failed_messages`, `send_bulk_messages` (with `schedule_by_time()` for ETA), `cleanup_old_messages`, `generate_message_analytics` (convert sync ORM queries to async `select()`), `process_whatsapp_dlq` (direct `await` instead of `run_async()`), `process_dlq_messages` (sync DLQ service wrapped pragmatically), `retry_pending_welcome_messages`. Add all 7 schedule labels. Internal `.delay()` cross-calls become `await .kiq()`.

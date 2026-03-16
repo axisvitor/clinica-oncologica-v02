@@ -119,3 +119,13 @@ Internal cross-calls (e.g., `process_scheduled_messages` calling `send_scheduled
 ## Expected Output
 
 - `backend-hormonia/app/tasks/messaging_taskiq.py` — Updated with all 9 Taskiq tasks, 7 schedule labels, ~600-800 lines total
+
+## Observability Impact
+
+- **New structured log events**: Each of the 8 new tasks emits `log_task_start` / `log_task_success` / `log_task_error` with `task_name`, `event`, `duration_ms`, and task-specific context keys (e.g. `processed_count`, `retry_count`, `archived_count`).
+- **Schedule visibility**: 7 schedule labels appear in LabelScheduleSource — visible via `GET /api/v2/health/ready` → `checks.taskiq_broker.scheduler_sources`.
+- **Worker log search**: Filter by `task_name=process_scheduled_messages|retry_failed_messages|…` + `event=task_start|task_success|task_error`.
+- **SmartRetryMiddleware**: Logs "Retrying N/M in X.XX seconds" for any task with `retry_on_error=True`.
+- **DLQ routing**: `_route_to_dlq` entries include `error_message`, `error_type`, `payload.flow_context` for tracing failed messages.
+- **Failure state**: `process_whatsapp_dlq` logs per-message processing outcome (auto-requeued vs manual review). `process_dlq_messages` returns `processed` count.
+- **No new metrics endpoints** — observability is log-based. Future M010 may add Prometheus counters.
