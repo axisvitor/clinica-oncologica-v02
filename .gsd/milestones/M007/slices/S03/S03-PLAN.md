@@ -28,6 +28,7 @@
 - Round-trip test: GET days → PUT modified → GET days → changes reflected
 - Validation test: PUT with empty content → 400
 - Loader compatibility test: steps produced by PUT pass `validate_day_config()`
+- Failure-path test: PUT on published template returns 409 with message "Cannot edit days of a published template"; PUT with invalid `message_type` returns 422; GET on missing template returns 404
 
 ## Observability / Diagnostics
 
@@ -44,7 +45,7 @@
 
 ## Tasks
 
-- [ ] **T01: Backend — Pydantic schemas and GET/PUT day-config endpoints** `est:35m`
+- [x] **T01: Backend — Pydantic schemas and GET/PUT day-config endpoints** `est:35m`
   - Why: The core data layer — projects between internal `steps` JSONB and physician-friendly day-config list. Without this, the frontend has nothing to call.
   - Files: `backend-hormonia/app/schemas/v2/templates.py`, `backend-hormonia/app/api/v2/routers/flow_templates.py`, `backend-hormonia/app/api/v2/templates_shared.py`
   - Do: Add `DayConfigItem`, `DayConfigListResponse`, `DayConfigListUpdate` Pydantic schemas. Add `GET /flows/{template_id}/days` that reads `FlowTemplateVersion.steps` and projects each step to `{day_number, content, message_type, expects_response}`. Add `PUT /flows/{template_id}/days` that validates day-configs, hydrates each back to full step format (`{day, send_mode, messages: [{order:1, content, expects_response}], intent, message_type}`), writes to `steps` JSONB (draft only, 409 for published), and invalidates both template cache AND Redis `flow_template:{kind_key}:steps` key.

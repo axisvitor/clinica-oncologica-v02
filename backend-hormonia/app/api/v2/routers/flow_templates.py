@@ -19,6 +19,9 @@ from app.schemas.v2.templates import (
     FlowKindV2Response,
     FlowKindV2List,
     FlowKindV2Create,
+    DayConfigItem,
+    DayConfigListResponse,
+    DayConfigListUpdate,
 )
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.api.v2.dependencies import apply_field_selection
@@ -40,6 +43,7 @@ from app.api.v2.templates_shared import (
 )
 from app.monitoring.audit_logger import TemplateAuditLogger as AuditLogger, TemplateAuditAction as AuditAction
 from app.utils.timezone import now_sao_paulo
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -199,6 +203,226 @@ async def get_flow_template(
     except Exception as e:
         logger.error(f"Error getting flow template: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get flow template")
+
+
+# ==================== Day Config Editor Endpoints ====================
+
+
+def _project_steps_to_day_configs(steps) -> list[DayConfigItem]:
+    """Project internal steps JSONB to physician-friendly DayConfigItem list."""
+    day_configs: list[DayConfigItem] = []
+    if not isinstance(steps, list):
+        return day_configs
+
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        day_num = step.get("day")
+        if day_num is None:
+            continue
+        try:
+            day_num = int(day_num)
+        except (ValueError, TypeError):
+            continue
+
+        # Extract content: messages[0].content → step.content → step.base_content → step.message
+        content = ""
+        messages_list = step.get("messages", [])
+        if messages_list and isinstance(messages_list, list):
+            first_msg = messages_list[0] if messages_list else {}
+            if isinstance(first_msg, dict):
+                content = first_msg.get("content", "")
+        if not content:
+            content = step.get("content", "") or step.get("base_content", "") or step.get("message", "")
+
+        # Extract expects_response from first message
+        expects_response = False
+        if messages_list and isinstance(messages_list, list) and messages_list:
+            first_msg = messages_list[0]
+            if isinstance(first_msg, dict):
+                expects_response = bool(first_msg.get("expects_response", False))
+
+        message_type = step.get("message_type", "question")
+        if message_type not in {"question", "motivation", "reminder"}:
+            message_type = "question"
+
+        if not content:
+            content = f"[Day {day_num} message]"
+
+        day_configs.append(DayConfigItem(
+            day_number=day_num,
+            content=content,
+            message_type=message_type,
+            expects_response=expects_response,
+        ))
+
+    day_configs.sort(key=lambda d: d.day_number)
+    return day_configs
+
+
+def _hydrate_day_configs_to_steps(items: list[DayConfigItem]) -> list[dict]:
+    """Hydrate physician-friendly DayConfigItems back to internal step format."""
+    steps = []
+    for item in items:
+        steps.append({
+            "day": item.day_number,
+            "send_mode": "wait_each" if item.expects_response else "single",
+            "messages": [
+                {
+                    "order": 1,
+                    "content": item.content,
+                    "expects_response": item.expects_response,
+                }
+            ],
+            "intent": f"day_{item.day_number}_message",
+            "message_type": item.message_type,
+        })
+    return steps
+
+
+@router.get("/flows/{template_id}/days", response_model=DayConfigListResponse)
+@limiter.limit(RATE_LIMIT_READ)
+async def get_flow_template_days(
+    request: Request,
+    template_id: UUID,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: Dict = Depends(get_current_user_from_session),
+):
+    """Get physician-friendly day configurations projected from template steps."""
+    try:
+        stmt = (
+            select(FlowTemplateVersion)
+            .where(FlowTemplateVersion.id == template_id)
+        )
+        result = await db.execute(stmt)
+        template = result.scalar_one_or_none()
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
+
+        steps = template.steps or []
+        day_configs = _project_steps_to_day_configs(steps)
+
+        return DayConfigListResponse(
+            template_id=str(template.id),
+            template_name=template.template_name,
+            is_draft=bool(template.is_draft),
+            days=day_configs,
+            total_days=len(day_configs),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting flow template days: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get flow template days")
+
+
+@router.put("/flows/{template_id}/days", response_model=DayConfigListResponse)
+@limiter.limit(RATE_LIMIT_WRITE)
+async def update_flow_template_days(
+    request: Request,
+    template_id: UUID,
+    payload: DayConfigListUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: Dict = Depends(get_current_user_from_session),
+):
+    """Update day configurations for a draft flow template."""
+    try:
+        _check_write_permission(current_user)
+        role, user_uuid = _extract_user_context(current_user)
+
+        # Load template with kind relationship for cache invalidation
+        stmt = (
+            select(FlowTemplateVersion)
+            .options(selectinload(FlowTemplateVersion.kind))
+            .where(FlowTemplateVersion.id == template_id)
+        )
+        result = await db.execute(stmt)
+        template = result.unique().scalar_one_or_none()
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
+
+        # Draft-only guard
+        if not template.is_draft:
+            raise HTTPException(
+                status_code=409,
+                detail="Cannot edit days of a published template. Create a new draft version first.",
+            )
+
+        # Check for duplicate day_number values
+        day_numbers = [item.day_number for item in payload.days]
+        if len(day_numbers) != len(set(day_numbers)):
+            raise HTTPException(
+                status_code=400,
+                detail="Duplicate day_number values are not allowed",
+            )
+
+        # Hydrate day configs to internal step format
+        hydrated_steps = _hydrate_day_configs_to_steps(payload.days)
+
+        # Write steps (always a list, never a dict)
+        template.steps = hydrated_steps
+        template.updated_at = now_sao_paulo()
+
+        await db.commit()
+        await db.refresh(template)
+
+        # Dual cache invalidation
+        # 1. Template API cache
+        await _invalidate_template_cache("flow", template_id)
+
+        # 2. Redis runtime dispatch cache (flow_template:{kind_key}:steps)
+        try:
+            kind_key = template.kind.kind_key if template.kind else None
+            if kind_key:
+                redis_client = await get_async_redis()
+                if redis_client:
+                    runtime_cache_key = f"flow_template:{kind_key}:steps"
+                    await redis_client.delete(runtime_cache_key)
+                    logger.info(
+                        "Invalidated runtime cache key %s after day-config update",
+                        runtime_cache_key,
+                    )
+        except Exception as e:
+            logger.warning(f"Failed to invalidate runtime cache: {e}")
+
+        # Audit log
+        AuditLogger.log(
+            action=AuditAction.UPDATE,
+            resource_type="flow_template_days",
+            resource_id=str(template_id),
+            user_id=str(user_uuid),
+            user_role=role,
+            details={
+                "template_id": str(template_id),
+                "day_count": len(payload.days),
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+
+        logger.info(
+            "Day configs updated for template %s (%d days)",
+            template_id,
+            len(payload.days),
+        )
+
+        # Re-project from saved steps to return
+        day_configs = _project_steps_to_day_configs(template.steps)
+        return DayConfigListResponse(
+            template_id=str(template.id),
+            template_name=template.template_name,
+            is_draft=bool(template.is_draft),
+            days=day_configs,
+            total_days=len(day_configs),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error updating flow template days: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to update flow template days")
+
+
+# ==================== Flow Template CRUD Endpoints ====================
 
 
 @router.post("/flows", response_model=FlowTemplateV2Response, status_code=201)

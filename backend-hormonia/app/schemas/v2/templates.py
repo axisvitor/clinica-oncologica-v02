@@ -776,3 +776,50 @@ class TemplateImportResponse(BaseModel):
             }
         }
     )
+
+
+# ==================== Day Config Editor Schemas ====================
+
+
+class DayConfigItem(BaseModel):
+    """Physician-facing day configuration."""
+
+    day_number: int = Field(..., ge=1, description="Day number in the flow")
+    content: str = Field(
+        ..., min_length=1, description="Message content for this day"
+    )
+    message_type: str = Field(
+        "question",
+        description="Semantic type: question, motivation, or reminder",
+    )
+    expects_response: bool = Field(
+        False, description="Whether the system waits for patient response"
+    )
+
+    @field_validator("message_type")
+    @classmethod
+    def validate_message_type(cls, v: str) -> str:
+        allowed = {"question", "motivation", "reminder"}
+        if v not in allowed:
+            raise ValueError(
+                f"message_type must be one of {allowed}, got '{v}'"
+            )
+        return v
+
+
+class DayConfigListResponse(BaseModel):
+    """Response for GET day configs."""
+
+    template_id: str
+    template_name: str
+    is_draft: bool
+    days: List[DayConfigItem]
+    total_days: int
+
+
+class DayConfigListUpdate(BaseModel):
+    """Request body for PUT day configs."""
+
+    days: List[DayConfigItem] = Field(
+        ..., min_length=0, description="Complete list of day configurations"
+    )
