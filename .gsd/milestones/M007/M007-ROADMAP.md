@@ -64,7 +64,7 @@ This milestone is complete only when all are true:
 - [x] **S03: Editor de templates dia-a-dia para o médico** `risk:high` `depends:[S01,S02]`
   > After this: o médico abre uma UI de lista de dias no dashboard, edita conteúdo/tipo/espera-resposta por dia, salva — e o template publicado é carregado pelo `EnhancedTemplateLoader` para envio real.
 
-- [ ] **S04: Personalização IA e armazenamento de respostas** `risk:medium` `depends:[S01]`
+- [x] **S04: Personalização IA e armazenamento de respostas** `risk:medium` `depends:[S01]`
   > After this: a IA reformula mensagens com grounding calibrado (similarity check contra template base), e respostas livres do paciente são persistidas com contexto completo (dia, mensagem, timestamp) e consultáveis via API.
 
 - [ ] **S05: Alertas do quiz mensal acionáveis para o médico** `risk:medium` `depends:[S04]`

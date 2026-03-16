@@ -38,25 +38,25 @@ Guidelines:
 
 ### R060 — Personalização IA produz reformulações naturais e ancoradas
 - Class: differentiator
-- Status: active
+- Status: validated
 - Description: A IA reformula perguntas para parecerem naturais e não repetitivas ao longo dos 45+ dias, mantendo grounding no template base. O paciente não percebe que está recebendo variações do mesmo conteúdo.
 - Why it matters: Sem reformulação natural, o paciente para de responder depois de alguns dias de mensagens repetitivas.
 - Source: user
 - Primary owning slice: M007/S04
 - Supporting slices: M007/S01
-- Validation: mapped
-- Notes: O sistema já tem personalização via Gemini com validação de grounding. Precisa review de calibração e qualidade.
+- Validation: validated by S04 — 25 focused unit tests proving _personalization_is_grounded() boundary cases (similarity ≥ 0.6, keyword overlap ≥ 0.2, no-keyword ≥ 0.35), _select_template_variation() determinism, _lightly_rephrase_question() logic, and AI-skip for non-response messages. All tests use realistic Portuguese oncology content.
+- Notes: O sistema já tem personalização via Gemini com validação de grounding. Calibração provada por testes; avaliação subjetiva humana de qualidade a longo prazo requer interação real com pacientes.
 
 ### R061 — Respostas livres do paciente são armazenadas e estruturadas
 - Class: core-capability
-- Status: active
+- Status: validated
 - Description: As respostas em texto livre do paciente via WhatsApp são persistidas com contexto completo (qual dia do fluxo, qual mensagem respondida, timestamp) e estruturadas para consumo pelo resumo IA.
 - Why it matters: Sem armazenamento estruturado, o resumo mensal do médico fica sem dados.
 - Source: user
 - Primary owning slice: M007/S04
 - Supporting slices: M007/S01
-- Validation: mapped
-- Notes: O sistema não é chatbot — o paciente responde livremente, não por menu. As respostas precisam ser linkadas ao contexto do fluxo.
+- Validation: validated by S04 — PatientFlowResponse model + Alembic migration, dual-write in process_patient_response() persisting to patient_flow_responses alongside step_data JSONB in same transaction, GET /api/v2/patients/{id}/flow-responses with date-range filtering, 14 integration tests proving write-through and query paths, 0 regressions across 154 flow tests
+- Notes: O sistema não é chatbot — o paciente responde livremente, não por menu. As respostas são linkadas ao contexto do fluxo (day_number, message_index, flow_state_id nullable).
 
 ### R062 — Alertas do quiz mensal chegam ao médico de forma acionável
 - Class: failure-visibility
@@ -621,8 +621,8 @@ Guidelines:
 | R057 | core-capability | validated | M007/S01 | none | validated by 11 tests + 0 regressions |
 | R058 | primary-user-loop | validated | M007/S03 | M007/S01, M007/S02 | validated by S03 — 30 tests + green frontend |
 | R059 | operability | validated | M007/S02 | none | validated by S02 — FlowDesigner + phantom FlowTypes + tombstones removed |
-| R060 | differentiator | active | M007/S04 | M007/S01 | mapped |
-| R061 | core-capability | active | M007/S04 | M007/S01 | mapped |
+| R060 | differentiator | validated | M007/S04 | M007/S01 | validated by S04 — 25 tests |
+| R061 | core-capability | validated | M007/S04 | M007/S01 | validated by S04 — 14 integration tests |
 | R062 | failure-visibility | active | M007/S05 | M007/S04 | mapped |
 | R063 | differentiator | active | M007/S06 | M007/S04, M007/S05 | mapped |
 | R064 | admin/support | deferred | none | none | unmapped |
@@ -674,7 +674,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 4
-- Mapped to slices: 4
-- Validated: 29
+- Active requirements: 2
+- Mapped to slices: 2
+- Validated: 31
 - Unmapped active requirements: 0

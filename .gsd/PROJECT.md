@@ -16,7 +16,7 @@ Diminuir o tempo de consulta e melhorar a qualidade do atendimento oncológico: 
 - M004 concluído: runtime oficial sem Firebase, auth/sessão convergidos ao contrato canônico.
 - M005 concluído: schema/Alembic alinhados ao modelo final sem resíduo estrutural de Firebase.
 - M006 concluído: purga final — dead code removido, bridges/aliases/tombstones removidos, prova integrada com 10 fases verdes publicada em M006-VERIFY.json.
-- M007 em andamento: S01 concluído (bug de sequenciamento corrigido, expects_response por mensagem respeitado, R057 validado). S02 concluído (FlowDesigner ~4800 linhas deletado, 7 phantom FlowTypes removidos, tombstoned templates deletado, ~4600 linhas de testes mortos removidos, R059 validado). S03 concluído (GET/PUT /flows/{template_id}/days API + DayConfigEditor dialog no dashboard, 30 testes focados, R058 validado). S04-S06 pendentes.
+- M007 em andamento: S01 concluído (bug de sequenciamento corrigido, expects_response por mensagem respeitado, R057 validado). S02 concluído (FlowDesigner ~4800 linhas deletado, 7 phantom FlowTypes removidos, tombstoned templates deletado, ~4600 linhas de testes mortos removidos, R059 validado). S03 concluído (GET/PUT /flows/{template_id}/days API + DayConfigEditor dialog no dashboard, 30 testes focados, R058 validado). S04 concluído (grounding IA calibrado com 25 testes, patient_flow_responses tabela + modelo + dual-write + API GET com filtro de data, 14 testes de integração, R060 e R061 validados). S05-S06 pendentes.
 
 ## Architecture / Key Patterns
 
