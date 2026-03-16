@@ -40,7 +40,7 @@
 
 ## Tasks
 
-- [ ] **T01: Webhook de resposta do paciente** `est:30m`
+- [x] **T01: Webhook de resposta do paciente** `est:30m`
   - Why: sem webhook, respostas do paciente no WhatsApp nunca chegam ao sistema
   - Files: `backend-hormonia/app/services/webhook/handlers/message_handler.py`, `backend-hormonia/app/api/v2/routers/` (webhook endpoint)
   - Do: enviar mensagem de resposta pelo WhatsApp do número de teste. Verificar que webhook do WuzAPI entrega pro backend, MessageWebhookHandler.process_message() identifica o paciente, processa a resposta. Verificar que dual-write persiste em patient_flow_responses E step_data. Debugar e corrigir qualquer falha no caminho (phone matching, webhook routing, etc.).

@@ -27,7 +27,13 @@ def app() -> FastAPI:
     app.include_router(router, prefix="/webhooks")
 
     async def _override_db():
-        yield AsyncMock()
+        mock_db = AsyncMock()
+        # run_sync bridge: call the function with a mock sync session
+        mock_sync_session = MagicMock()
+        async def _run_sync(fn):
+            return fn(mock_sync_session)
+        mock_db.run_sync = _run_sync
+        yield mock_db
 
     app.dependency_overrides[get_async_db] = _override_db
     return app
@@ -373,3 +379,94 @@ async def test_unknown_event_from_fixture_returns_ignored(app: FastAPI, fake_red
     body = response.json()
     assert body["status"] == "ignored"
     assert body["type"] == "PresenceUpdate"
+
+
+@pytest.mark.asyncio
+async def test_message_routes_to_patient_flow_processing(app: FastAPI, fake_redis):
+    """Normal inbound message finds patient and creates inbound message + flow response."""
+    payload = message_payload(event_id="FLOW-1", text="Estou me sentindo bem")
+
+    mock_patient = MagicMock()
+    mock_patient.id = "patient-flow-1"
+
+    mock_flow_state = MagicMock()
+    mock_flow_state.id = "flow-state-1"
+    mock_flow_state.flow_type = "onboarding"
+    mock_flow_state.current_step = 3
+    mock_flow_state.step_data = {
+        "flow_kind": "onboarding",
+        "current_flow_day": 5,
+        "current_day_message_index": 2,
+        "awaiting_response": True,
+    }
+
+    mock_message = MagicMock()
+    mock_message.id = "msg-inbound-1"
+
+    with patch("app.integrations.wuzapi.webhook.get_async_redis_client", new=AsyncMock(return_value=fake_redis)), \
+         patch("app.integrations.wuzapi.webhook.PhoneNormalizer.find_patient_by_phone", return_value=mock_patient), \
+         patch("app.integrations.wuzapi.webhook.FlowStateRepository") as mock_flow_repo_cls, \
+         patch("app.integrations.wuzapi.webhook.PatientRepository"), \
+         patch("app.domain.messaging.core.MessageService.process_inbound_message", return_value=mock_message), \
+         patch("app.integrations.wuzapi.webhook.PatientFlowResponse") as mock_response_cls, \
+         patch("app.integrations.wuzapi.webhook.flag_modified"), \
+         patch("app.services.flow.sequential_message_handler.SequentialMessageHandler") as mock_handler_cls:
+
+        mock_flow_repo_cls.return_value.get_active_flow.return_value = mock_flow_state
+        mock_handler_instance = AsyncMock()
+        mock_handler_instance.handle_response_and_continue = AsyncMock(return_value={"status": "waiting"})
+        mock_handler_cls.return_value = mock_handler_instance
+
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            response = await post_payload(client, payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "processed"
+    assert body["patient_id"] == "patient-flow-1"
+    assert body["context"] == "flow"
+    assert body["internal_message_id"] == "msg-inbound-1"
+
+
+@pytest.mark.asyncio
+async def test_message_patient_not_found_returns_skipped(app: FastAPI, fake_redis):
+    """When patient is not found by phone, message is skipped."""
+    payload = message_payload(event_id="NF-1", text="hello")
+
+    with patch("app.integrations.wuzapi.webhook.get_async_redis_client", new=AsyncMock(return_value=fake_redis)), \
+         patch("app.integrations.wuzapi.webhook.PhoneNormalizer.find_patient_by_phone", return_value=None):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            response = await post_payload(client, payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "skipped"
+    assert body["reason"] == "patient_not_found"
+
+
+@pytest.mark.asyncio
+async def test_message_no_active_flow_stores_as_general_chat(app: FastAPI, fake_redis):
+    """Message for patient without active flow is stored as general_chat."""
+    payload = message_payload(event_id="GC-1", text="pergunta geral")
+
+    mock_patient = MagicMock()
+    mock_patient.id = "patient-gc-1"
+
+    mock_message = MagicMock()
+    mock_message.id = "msg-gc-1"
+
+    with patch("app.integrations.wuzapi.webhook.get_async_redis_client", new=AsyncMock(return_value=fake_redis)), \
+         patch("app.integrations.wuzapi.webhook.PhoneNormalizer.find_patient_by_phone", return_value=mock_patient), \
+         patch("app.integrations.wuzapi.webhook.FlowStateRepository") as mock_flow_repo_cls, \
+         patch("app.integrations.wuzapi.webhook.PatientRepository"), \
+         patch("app.domain.messaging.core.MessageService.process_inbound_message", return_value=mock_message):
+
+        mock_flow_repo_cls.return_value.get_active_flow.return_value = None
+
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            response = await post_payload(client, payload)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "processed"
+    assert body["context"] == "general_chat"
