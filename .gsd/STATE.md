@@ -1,7 +1,7 @@
 # GSD State
 
-**Active Milestone:** M006 — Purga Final de Código Morto e Resíduo Legado
-**Active Slice:** S03 — Purga final de bridges, tombstones, serviços mortos e narrativa operacional errada
+**Active Milestone:** M006: Purga Final de Código Morto e Resíduo Legado
+**Active Slice:** S04: Publicar o closeout final e provar o sistema montado pós-purga
 **Phase:** executing
 **Requirements Status:** 1 active · 25 validated · 7 deferred · 11 out of scope
 
@@ -14,11 +14,10 @@
 - 🔄 **M006:** Purga Final de Código Morto e Resíduo Legado
 
 ## Recent Decisions
-- D42: Rename `FIREBASE_SESSION_TTL_SECONDS` → `SESSION_TTL_SECONDS` in `auth_session_contract.py`
-- D43: Classify `backend-hormonia/docs/repo/**` as historical archive via `HISTORICAL-ARCHIVE.md` marker
+- None recorded
 
 ## Blockers
 - None
 
 ## Next Action
-Execute T01: Stabilize proof surfaces and delete dead backend auth/session cluster.
+Execute T01 of S04 (fix caplog blocker and confirm S02 verification).
