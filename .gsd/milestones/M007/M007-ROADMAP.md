@@ -70,7 +70,7 @@ This milestone is complete only when all are true:
 - [x] **S05: Alertas do quiz mensal acionáveis para o médico** `risk:medium` `depends:[S04]`
   > After this: quando o quiz mensal gera um alerta clínico, uma notificação é criada para o médico e o alerta aparece destacado no dashboard com ação recomendada.
 
-- [ ] **S06: Resumo mensal por IA integrado ao dashboard** `risk:high` `depends:[S04,S05]`
+- [x] **S06: Resumo mensal por IA integrado ao dashboard** `risk:high` `depends:[S04,S05]`
   > After this: o médico acessa no dashboard um resumo IA do mês de acompanhamento — síntese de respostas livres, padrões, alertas, pontos de atenção — gerado pelo `PatientSummaryService` e renderizado com dados reais.
 
 ## Boundary Map

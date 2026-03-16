@@ -71,14 +71,14 @@ Guidelines:
 
 ### R063 — IA gera resumo mensal detalhado para consulta do médico
 - Class: differentiator
-- Status: active
+- Status: validated
 - Description: O médico acessa um resumo do mês do paciente gerado por IA — síntese das respostas livres, padrões identificados, preocupações clínicas, e pontos de atenção — e economiza tempo de consulta.
 - Why it matters: Este é o core value clínico do sistema: diminuir tempo de consulta e melhorar qualidade do atendimento.
 - Source: user
 - Primary owning slice: M007/S06
 - Supporting slices: M007/S04, M007/S05
-- Validation: mapped
-- Notes: `PatientSummaryService` existe com Gemini 2.5 Flash. Precisa review de integração, qualidade do prompt, e integração com frontend do médico.
+- Validation: validated by S06 — SummaryDataAggregator wired to patient_flow_responses + enriched alerts (description + recommendation from JSONB), prompt template with {flow_responses} section, Brain icon quick-access in PhysicianDashboard navigating to ?tab=ai-summary, 13 focused tests proving aggregator integration + 0 regressions across 181 flow tests, frontend typecheck green
+- Notes: `PatientSummaryService` (Gemini 2.5 Flash) was not modified — only its data aggregator was enhanced. Subjective AI summary quality for clinical use requires ongoing human evaluation.
 
 ## Validated
 
@@ -624,7 +624,7 @@ Guidelines:
 | R060 | differentiator | validated | M007/S04 | M007/S01 | validated by S04 — 25 tests |
 | R061 | core-capability | validated | M007/S04 | M007/S01 | validated by S04 — 14 integration tests |
 | R062 | failure-visibility | validated | M007/S05 | M007/S04 | validated by S05 — 14 tests + 0 regressions |
-| R063 | differentiator | active | M007/S06 | M007/S04, M007/S05 | mapped |
+| R063 | differentiator | validated | M007/S06 | M007/S04, M007/S05 | validated by S06 — 13 tests + 0 regressions |
 | R064 | admin/support | deferred | none | none | unmapped |
 | R065 | anti-feature | out-of-scope | none | none | n/a |
 | R066 | anti-feature | out-of-scope | none | none | n/a |
@@ -674,7 +674,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 1
-- Mapped to slices: 1
-- Validated: 32
+- Active requirements: 0
+- Mapped to slices: 0
+- Validated: 33
 - Unmapped active requirements: 0
