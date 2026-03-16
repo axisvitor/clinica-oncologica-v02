@@ -16,17 +16,18 @@ Diminuir o tempo de consulta e melhorar a qualidade do atendimento oncológico: 
 - M004 concluído: runtime oficial sem Firebase, auth/sessão convergidos ao contrato canônico.
 - M005 concluído: schema/Alembic alinhados ao modelo final sem resíduo estrutural de Firebase.
 - M006 concluído: purga final — dead code removido, bridges/aliases/tombstones removidos, prova integrada com 10 fases verdes publicada em M006-VERIFY.json.
-- M007 em andamento: S01 concluído (bug de sequenciamento corrigido, expects_response por mensagem respeitado, R057 validado). S02 concluído (FlowDesigner ~4800 linhas deletado, 7 phantom FlowTypes removidos, tombstoned templates deletado, ~4600 linhas de testes mortos removidos, R059 validado). S03 concluído (GET/PUT /flows/{template_id}/days API + DayConfigEditor dialog no dashboard, 30 testes focados, R058 validado). S04 concluído (grounding IA calibrado com 25 testes, patient_flow_responses tabela + modelo + dual-write + API GET com filtro de data, 14 testes de integração, R060 e R061 validados). S05 concluído (QuizResponseEvaluator wired into quiz completion, Notification records for doctors on alerts, duplicate guard, serializer returns title/message/recommendation, dashboard renders recommendation, 14 testes + 0 regressions, R062 validado). S06 concluído (SummaryDataAggregator wired to patient_flow_responses + enriched alerts, prompt template with {flow_responses} section, Brain icon quick-access in PhysicianDashboard, 13 testes + 0 regressions, R063 validado). **M007 — all 6 slices done, all 7 requirements (R057–R063) validated.**
+- M007 concluído: sistema de acompanhamento refinado ponta a ponta — bug de sequenciamento corrigido (expects_response por mensagem), ~9400 linhas de abstrações mortas removidas (FlowDesigner, phantom FlowTypes, tombstones), editor de templates dia-a-dia para médico (API + UI), personalização IA calibrada com grounding proof (25 testes), respostas livres do paciente persistidas com contexto completo (dual-write + API), alertas do quiz mensal acionáveis com notificações para médico, resumo mensal por IA integrado ao dashboard. Todos os 7 requisitos (R057–R063) validados com 181 testes verdes.
 
 ## Architecture / Key Patterns
 
 - Backend FastAPI com AsyncSession nas rotas API e Session síncrona nos workers Celery.
 - Sessão autenticada baseada em Dragonfly + cookie HttpOnly, com identidade canônica por `user_id`.
 - Frontend dashboard em React/Vite com `AuthContext`, `apiClient` modular e bootstrap de WebSocket.
-- Fluxo de mensagens via WuzAPI com sequenciamento dia-a-dia (`SequentialMessageHandler`), personalização por IA (Gemini), e sistema de follow-up com escalonamento.
-- Templates de fluxo armazenados no banco (`FlowTemplateVersion`), carregados pelo `EnhancedTemplateLoader` com cache in-memory.
-- Quiz mensal como formulário web enviado por link WhatsApp, com regras de alerta clínico em `quiz_alert_rules.py`.
-- Resumo mensal por IA via `PatientSummaryService` com Gemini 2.5 Flash.
+- Fluxo de mensagens via WuzAPI com sequenciamento dia-a-dia (`SequentialMessageHandler`), personalização por IA (Gemini) com grounding calibrado, e sistema de follow-up com escalonamento.
+- Templates de fluxo armazenados no banco (`FlowTemplateVersion`), editáveis pelo médico via API de day-configs + DayConfigEditor no dashboard, carregados pelo `EnhancedTemplateLoader` com cache in-memory.
+- Quiz mensal como formulário web enviado por link WhatsApp, com regras de alerta clínico em `quiz_alert_rules.py` e notificações persistentes para o médico.
+- Respostas livres do paciente persistidas em `patient_flow_responses` com contexto de fluxo (dia, mensagem, timestamp), consultáveis via API com filtro de data.
+- Resumo mensal por IA via `PatientSummaryService` com Gemini 2.5 Flash, consumindo respostas estruturadas + alertas do quiz.
 
 ## Capability Contract
 
