@@ -43,3 +43,9 @@ Após o fix principal em T02, validar edge cases que poderiam causar regressões
 
 - `backend-hormonia/tests/unit/services/flow/test_sequencing_expects_response.py` — edge cases adicionados
 - Confirmação de que toda a suite de testes de fluxo está verde
+
+## Observability Impact
+
+- **Signals changed:** None — test-only task, no runtime code modified.
+- **Future inspection:** Run `pytest tests/unit/services/flow/test_sequencing_expects_response.py -vv` to verify all 11 expects_response edge cases. Test names encode the exact behavioral contract being verified.
+- **Failure visibility:** Test failures in this file indicate regression in the per-message `expects_response` check introduced in T02, or in the `load_flow_context` idempotency guard.

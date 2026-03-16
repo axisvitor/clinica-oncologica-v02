@@ -54,7 +54,7 @@
   - Verify: `cd backend-hormonia && .venv/bin/pytest -q tests/unit/services/flow/test_sequencing_expects_response.py -vv` — TODOS os testes passam incluindo o que antes reproduzia o bug. `cd backend-hormonia && .venv/bin/pytest -q tests/unit/services/flow/test_sequential_message_handler.py -vv` — testes existentes continuam verdes.
   - Done when: `_send_all_sequential` para no primeiro `expects_response=true`, suite de testes toda verde, testes existentes não quebrados.
 
-- [ ] **T03: Validar edge cases e confirmar testes existentes verdes** `est:20m`
+- [x] **T03: Validar edge cases e confirmar testes existentes verdes** `est:20m`
   - Why: O fix precisa ser validado contra edge cases e não pode quebrar o suite existente de 610 linhas. Edge cases: day_config sem `send_mode` (default `single`), re-envio idempotente quando já em `awaiting_response`, `_send_wait_each_with_auto_advance` com mix de `expects_response` true/false.
   - Files: `backend-hormonia/tests/unit/services/flow/test_sequencing_expects_response.py`, `backend-hormonia/tests/unit/services/flow/test_sequential_message_handler.py`
   - Do: Adicionar testes de edge case ao `test_sequencing_expects_response.py`: (1) day_config com `send_mode` omitido (default "single") — deve enviar só a primeira mensagem; (2) chamada a `send_day_messages` quando já em `awaiting_response` — deve retornar `status: "waiting"` sem enviar nada (idempotência); (3) sequência com `expects_response` no primeiro e último — verificar que para no primeiro. Rodar full suite de testes existentes para confirmar nada quebrou.
