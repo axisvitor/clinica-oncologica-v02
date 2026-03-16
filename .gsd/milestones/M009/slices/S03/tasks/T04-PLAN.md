@@ -107,3 +107,10 @@ Update external service files that dispatch flow tasks via Celery `.delay()`/`.a
 - `backend-hormonia/app/services/follow_up_system/execution/message.py` — Updated import + `schedule_task_at()` dispatch
 - `backend-hormonia/app/services/flow/recovery.py` — TODO comment added, `.delay()` stays
 - Verification script output confirming all slice acceptance criteria pass
+
+## Observability Impact
+
+- **Signals changed:** 3 call sites now dispatch via Taskiq (`await .kiq()` / `await schedule_task_at()`) — quiz report generation, flow send retry, followup send retry. These produce Taskiq task IDs instead of Celery task IDs in logs.
+- **How to inspect:** `grep "from app.tasks.flows_taskiq import" response_handler.py delivery.py message.py` confirms Taskiq wiring; `grep "\.delay\|\.apply_async" <same files>` = 0 confirms no Celery dispatch remains in migrated sites.
+- **Failure visibility:** `response_handler.py` logs `report_task.task_id` on quiz completion; `delivery.py` logs `enqueued retry` with message_id/patient_id; `message.py` logs `retry_enqueued: True` in execution_result. All retain original structured log fields.
+- **Coexistence marker:** `recovery.py` retains `retry_failed_flow_send.delay()` with `# TODO(S05)` comment — visible via `grep "TODO(S05)" backend-hormonia/app/services/flow/recovery.py`.

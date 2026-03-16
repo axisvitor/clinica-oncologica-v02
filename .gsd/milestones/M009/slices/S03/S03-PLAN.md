@@ -70,7 +70,7 @@
   - Verify: `python -c "import ast; ast.parse(open('backend-hormonia/app/tasks/saga_retry_taskiq.py').read())"` passes; `grep -c "@broker.task" saga_retry_taskiq.py` = 3; `grep -c "schedule=" saga_retry_taskiq.py` = 2; zero bridge code, zero Celery dispatch
   - Done when: 3 `@broker.task` tasks, 2 schedule labels, zero bridge code, AST-valid
 
-- [ ] **T04: Wire external call sites and run slice verification** `est:20m`
+- [x] **T04: Wire external call sites and run slice verification** `est:20m`
   - Why: External service files dispatch flow tasks via Celery `.delay()`/`.apply_async()`. Async callers must switch to Taskiq. Sync callers (`recovery.py`) stay on Celery during coexistence. Final verification proves slice-level acceptance.
   - Files: `backend-hormonia/app/domain/quizzes/integration/flow_integration/response_handler.py`, `backend-hormonia/app/services/flow/sequential_message_handler_pkg/delivery.py`, `backend-hormonia/app/services/follow_up_system/execution/message.py`, `backend-hormonia/app/services/flow/recovery.py`
   - Do: (1) `response_handler.py:470` — async method, switch `generate_quiz_report.delay()` to `await generate_quiz_report.kiq()` from `flows_taskiq`. (2) `delivery.py:92` — sync function using `.apply_async(countdown=)`, convert to async and use `await schedule_task_at(retry_failed_flow_send, ...)` from `flows_taskiq`. (3) `message.py:81` — sync method using `.apply_async(countdown=)`, convert to async and use `await schedule_task_at(retry_failed_followup_send, ...)` from `flows_taskiq`. (4) `recovery.py:211` — sync function deep inside `attempt_recovery()`, KEEP Celery `.delay()` during coexistence (defer to S05). Run comprehensive verification script for all slice acceptance checks.

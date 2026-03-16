@@ -71,21 +71,22 @@ class MessageExecutor(ActionExecutor):
         action.execution_result = {"message_scheduled": True}
         return True
 
-    def _enqueue_retry(self, action: FollowUpAction) -> None:
+    async def _enqueue_retry(self, action: FollowUpAction) -> None:
         """Queue retry task for message-like follow-up actions."""
-        from app.tasks.flows.followup_retry import (
-            FOLLOWUP_RETRY_BASE_DELAY,
-            retry_failed_followup_send,
-        )
+        from datetime import datetime, timedelta, timezone
+        from app.tasks.flows_taskiq import retry_failed_followup_send
+        from app.tasks.taskiq_base import schedule_task_at
 
-        retry_failed_followup_send.apply_async(
-            args=[str(action.action_id), str(action.patient_id)],
-            kwargs={
-                "parameters": action.parameters,
-                "follow_up_type": action.follow_up_type.value,
-                "priority": action.priority,
-            },
-            countdown=FOLLOWUP_RETRY_BASE_DELAY,
+        FOLLOWUP_RETRY_BASE_DELAY = 30  # seconds (same as Celery original)
+
+        await schedule_task_at(
+            retry_failed_followup_send,
+            datetime.now(timezone.utc) + timedelta(seconds=FOLLOWUP_RETRY_BASE_DELAY),
+            str(action.action_id),
+            str(action.patient_id),
+            parameters=action.parameters,
+            follow_up_type=action.follow_up_type.value,
+            priority=action.priority,
         )
 
     async def _execute_message_action(self, action: FollowUpAction) -> bool:
@@ -102,7 +103,7 @@ class MessageExecutor(ActionExecutor):
             return await self._schedule_message_action(action)
 
         except Exception as e:
-            self._enqueue_retry(action)
+            await self._enqueue_retry(action)
             action.execution_result = {
                 "message_scheduled": False,
                 "retry_enqueued": True,

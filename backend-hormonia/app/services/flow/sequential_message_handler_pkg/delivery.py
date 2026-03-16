@@ -74,7 +74,7 @@ def build_day_config_validation_error_response(
     }
 
 
-def enqueue_failed_flow_send_retry(
+async def enqueue_failed_flow_send_retry(
     *,
     message_id: UUID,
     patient_id: UUID,
@@ -84,15 +84,17 @@ def enqueue_failed_flow_send_retry(
     flow_context: dict[str, Any],
     resend: bool = False,
 ) -> None:
-    from app.tasks.flows.send_retry import (
-        SEND_RETRY_BASE_DELAY,
-        retry_failed_flow_send,
-    )
+    from datetime import timedelta, timezone
+    from app.tasks.flows_taskiq import retry_failed_flow_send
+    from app.tasks.taskiq_base import schedule_task_at
+    from app.config.settings.tasks import MESSAGE_RETRY_DELAY
+    from datetime import datetime
 
-    retry_failed_flow_send.apply_async(
-        args=[str(message_id)],
-        kwargs={"flow_context": flow_context},
-        countdown=SEND_RETRY_BASE_DELAY,
+    await schedule_task_at(
+        retry_failed_flow_send,
+        datetime.now(timezone.utc) + timedelta(seconds=MESSAGE_RETRY_DELAY),
+        str(message_id),
+        flow_context=flow_context,
     )
     logger.warning(
         "Flow message resend failed, enqueued retry"

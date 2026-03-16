@@ -208,6 +208,9 @@ def attempt_recovery(
 
         from app.tasks.flows.send_retry import retry_failed_flow_send
 
+        # TODO(S05): migrate to flows_taskiq.retry_failed_flow_send.kiq() after Celery removal
+        # Cannot convert to async here — attempt_recovery() is sync, called by detect_stuck_flows
+        # and other sync callers. Requires coexistence until S05 cleans up.
         retry_failed_flow_send.delay(
             prompt_message_id,
             flow_context=_build_flow_context(latest_flow, updated_step_data),

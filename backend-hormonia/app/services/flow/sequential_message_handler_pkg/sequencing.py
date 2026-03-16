@@ -74,7 +74,7 @@ class SequencingMixin:
                     flow_context=flow_context,
                 )
                 if not success:
-                    enqueue_failed_flow_send_retry(
+                    await enqueue_failed_flow_send_retry(
                         message_id=existing.id,
                         patient_id=patient.id,
                         flow_kind=flow_kind,
@@ -117,7 +117,7 @@ class SequencingMixin:
             flow_context=flow_context,
         )
         if not success:
-            enqueue_failed_flow_send_retry(
+            await enqueue_failed_flow_send_retry(
                 message_id=message.id,
                 patient_id=patient.id,
                 flow_kind=flow_kind,

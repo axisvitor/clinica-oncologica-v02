@@ -464,11 +464,11 @@ class ConversationalQuizService:
             # Complete the session
             self.quiz_session_service.complete_session(session.id)
 
-            # Schedule report generation
-            from app.tasks.flows import generate_quiz_report
+            # Schedule report generation (Taskiq async dispatch)
+            from app.tasks.flows_taskiq import generate_quiz_report
 
-            report_task = generate_quiz_report.delay(str(session.id))
-            logger.info(f"Scheduled quiz report generation: task {report_task.id}")
+            report_task = await generate_quiz_report.kiq(str(session.id))
+            logger.info(f"Scheduled quiz report generation: task {report_task.task_id}")
 
             # Update flow state and detect delivery method
             delivery_method = "whatsapp_conversational"  # default
