@@ -38,14 +38,14 @@ Guidelines:
 
 ### R069 — Templates de onboarding (15 dias) com conteúdo clínico real
 - Class: core-capability
-- Status: active
+- Status: validated
 - Description: Templates de onboarding com 15 dias de conteúdo clínico real existem no banco via FlowTemplateVersion, com send_mode e expects_response corretos por mensagem.
 - Why it matters: Sem templates reais, o paciente recebe placeholders ou nenhuma mensagem.
 - Source: inferred
 - Primary owning slice: M008/S03
 - Supporting slices: none
-- Validation: unmapped
-- Notes: Conteúdo já existe em snapshots markdown. Migration 9b4e2d1c7f66 lê e popula.
+- Validation: validated by S03 — migration 9b4e2d1c7f66 seeds 9 onboarding steps (days 1,2,3,5,7,9,11,13,15) with real clinical content from markdown snapshots. EnhancedTemplateLoader.get_message_for_day() returns content for all protocol days with correct send_mode (sequential_auto, wait_response) and expects_response values. Verified by SQL queries + verify_templates.py + verify_template_metadata.py scripts.
+- Notes: Not every calendar day has a step — 9 steps across 15 days, gaps intentional per clinical protocol.
 
 ### R070 — Criação de paciente → welcome message no WhatsApp
 - Class: primary-user-loop
@@ -93,14 +93,14 @@ Guidelines:
 
 ### R074 — Templates de daily follow-up (dia 16-45) com conteúdo
 - Class: core-capability
-- Status: active
+- Status: validated
 - Description: Templates de daily follow-up com conteúdo clínico para dias 16-45 existem no banco com send_mode e expects_response corretos.
 - Why it matters: Sem templates de daily follow-up, a transição de fase no dia 16 resulta em "no template for day".
 - Source: inferred
 - Primary owning slice: M008/S03
 - Supporting slices: none
-- Validation: unmapped
-- Notes: Conteúdo já existe em snapshot markdown. Migration 9b4e2d1c7f66 lê e popula.
+- Validation: validated by S03 — migration 9b4e2d1c7f66 seeds 16 daily_follow_up steps (days 16,18,20,...,44,45) with real clinical content from markdown snapshots. EnhancedTemplateLoader.get_message_for_day() returns content for all protocol days with correct send_mode (single) and expects_response values. Verified by SQL queries + verify_templates.py + verify_template_metadata.py scripts.
+- Notes: 16 steps across 30 calendar days; gap days return None from loader (intentional).
 
 ### R058 — Médico edita templates dia-a-dia por UI simples
 - Class: primary-user-loop
@@ -783,18 +783,18 @@ Guidelines:
 | R056 | anti-feature | out-of-scope | none | none | n/a |
 | R067 | operability | validated | M008/S01 | none | validated by S01 — health checks green, Celery pong, Alembic head, admin login |
 | R068 | integration | validated | M008/S02 | none | validated by S02 — WuzAPI on 8081, QR paired, send_text() delivered, user confirmed |
-| R069 | core-capability | active | M008/S03 | none | unmapped |
+| R069 | core-capability | validated | M008/S03 | none | validated by S03 — SQL + loader verification scripts |
 | R070 | primary-user-loop | active | M008/S04 | M008/S01, M008/S02, M008/S03 | unmapped |
 | R071 | core-capability | active | M008/S04 | M008/S01, M008/S02, M008/S03 | unmapped |
 | R072 | core-capability | active | M008/S05 | M008/S04 | unmapped |
 | R073 | continuity | active | M008/S05 | M008/S04 | unmapped |
-| R074 | core-capability | active | M008/S03 | none | unmapped |
+| R074 | core-capability | validated | M008/S03 | none | validated by S03 — SQL + loader verification scripts |
 | R075 | constraint | out-of-scope | none | none | n/a |
 | R076 | constraint | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 6
-- Mapped to slices: 6
-- Validated: 35
+- Active requirements: 4
+- Mapped to slices: 4
+- Validated: 37
 - Unmapped active requirements: 0

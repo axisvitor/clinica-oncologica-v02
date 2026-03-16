@@ -63,7 +63,7 @@ This milestone is complete only when all are true:
 - [x] **S02: WuzAPI conectado e enviando** `risk:high` `depends:[S01]`
   > After this: WuzAPI rodando via Docker com número de teste conectado, e uma mensagem de teste enviada via API chega no WhatsApp real. Provado por mensagem recebida no telefone.
 
-- [ ] **S03: Templates clínicos semeados** `risk:medium` `depends:[S01]`
+- [x] **S03: Templates clínicos semeados** `risk:medium` `depends:[S01]`
   > After this: flow_kinds `onboarding`, `daily_follow_up`, `quiz_mensal` existem no banco, templates de onboarding (15 dias) e daily follow-up (dia 16-45) têm conteúdo clínico real com send_mode e expects_response corretos. Provado por query SQL e EnhancedTemplateLoader.
 
 - [ ] **S04: Criação de paciente → welcome → ciclo diário** `risk:high` `depends:[S01,S02,S03]`
