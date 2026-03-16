@@ -53,7 +53,7 @@ This milestone is complete only when all are true:
   > After this: o backend autentica staff só pelo contrato cookie-first canônico ou rejeita explicitamente o legado, e o verificador de resíduo deixa de aprovar os hotspots backend de auth/session que ainda tratavam Firebase/header/bearer/query como compatibilidade “ativa”.
 - [x] **S02: Remover o resíduo de schema que ainda prende o runtime ao passado** `risk:high` `depends:[S01]`
   > After this: o head canônico de `users` e os leitores/runtime/testes alinhados deixam de depender das colunas Firebase restantes, com replay `fresh`/`existing` e backend montado ainda verdes.
-- [ ] **S03: Purga final de bridges, tombstones, serviços mortos e narrativa operacional errada** `risk:medium` `depends:[S01]`
+- [x] **S03: Purga final de bridges, tombstones, serviços mortos e narrativa operacional errada** `risk:medium` `depends:[S01]`
   > After this: imports oficiais, barrels de compatibilidade, serviços mortos, env/workflows/docs em escopo e tombstones sem valor operacional deixam de poluir o repositório, com build/typecheck/scans mostrando apenas o que é canônico ou explicitamente histórico.
 - [ ] **S04: Publicar o closeout final e provar o sistema montado pós-purga** `risk:medium` `depends:[S02,S03]`
   > After this: existe um pack replayable de fechamento M006 que comprova ausência em escopo, schema final `fresh`/`existing` e stack montado pós-purga sem Firebase/legado funcional remanescente.
