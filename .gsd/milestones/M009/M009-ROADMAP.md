@@ -58,7 +58,7 @@ This milestone is complete only when all are true:
 
 ## Slices
 
-- [ ] **S01: Taskiq broker + base task + FastAPI integration** `risk:high` `depends:[]`
+- [x] **S01: Taskiq broker + base task + FastAPI integration** `risk:high` `depends:[]`
   > After this: worker Taskiq processa task de teste via Dragonfly, SmartRetryMiddleware funciona, scheduler roda com LabelScheduleSource, FastAPI lifespan integra broker startup/shutdown, health check reporta worker status.
 
 - [ ] **S02: Messaging tasks migradas** `risk:high` `depends:[S01]`

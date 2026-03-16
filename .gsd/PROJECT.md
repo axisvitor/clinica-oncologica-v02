@@ -45,4 +45,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M006: Purga Final de Código Morto e Resíduo Legado — bridges, aliases, tombstones e código morto removidos com prova final.
 - [x] M007: Refinamento dos Fluxos de Acompanhamento — sequenciamento correto, editor de templates para médico, personalização IA, armazenamento de respostas, quiz review, resumo mensal para consulta.
 - [x] M008: Onboarding Real de Pacientes — stack local rodando, WuzAPI real conectado, templates semeados, fluxo ponta-a-ponta de criação → welcome → ciclo diário → resposta → transição de fase.
-- [ ] M009: Substituição do Celery por Taskiq — migração do task queue para async-native, eliminando ~900 linhas de bridge code sync/async, com paridade funcional total.
+- [ ] M009: Substituição do Celery por Taskiq — migração do task queue para async-native, eliminando ~900 linhas de bridge code sync/async, com paridade funcional total. **S01 complete**: Taskiq broker + base task + FastAPI integration operacional contra Dragonfly.

@@ -27,6 +27,11 @@ patterns_established:
   - "Retry via SmartRetryMiddleware labels: retry_on_error=True, max_retries=N, delay=N"
   - "Schedule via task decorator label: schedule=[{cron: '...'}]"
   - "Worker command: taskiq worker app.taskiq_broker:broker app.tasks.<module>"
+observability_surfaces:
+  - "get_broker_status() → broker config summary (type, URL, queue, middleware, scheduler)"
+  - "check_broker_health() → async Redis ping returning {taskiq_broker: healthy/unhealthy, dragonfly_reachable: bool}"
+  - "Worker startup logs: 'taskiq worker' outputs worker process count + listening confirmation"
+  - "SmartRetryMiddleware logs: 'Retrying N/M in X.XX seconds' and 'Maximum retries count is reached'"
 drill_down_paths:
   - .gsd/milestones/M009/slices/S01/tasks/T01-PLAN.md
 duration: 20m
@@ -54,6 +59,14 @@ redis package was bumped from `<7.0.0` to `<8.0.0` because taskiq-redis requires
 
 - Scheduler test (smoke_test_scheduled firing via cron) deferred to T02 — scheduler verification aligns better with the FastAPI integration task where the scheduler lifecycle is managed.
 - In-memory fail counter in smoke_test_retry doesn't work across multi-worker processes (each worker has its own counter). Not a problem for real tasks — it's just the test design.
+
+## Diagnostics
+
+- **Broker config**: Call `get_broker_status()` from `app.taskiq_broker` — returns broker type, URL (masked), queue name, middleware, scheduler
+- **Broker health**: Call `check_broker_health()` from `app.taskiq_broker` — async Redis ping returning `{taskiq_broker: healthy/unhealthy, dragonfly_reachable: bool}`
+- **Worker processes**: `taskiq worker app.taskiq_broker:broker app.tasks.smoke_test` — logs show number of worker processes and task execution
+- **Retry verification**: SmartRetryMiddleware logs at INFO level: `"Retrying 1/3 in X.XX seconds"`, `"Maximum retries count is reached"` — search for these in worker logs
+- **Dispatch verification**: `smoke_test_echo.kiq('test')` dispatches to Dragonfly queue `hormonia` — result returned via `RedisAsyncResultBackend`
 
 ## Files Created/Modified
 
