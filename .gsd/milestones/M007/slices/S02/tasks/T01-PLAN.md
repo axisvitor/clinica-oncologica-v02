@@ -49,6 +49,13 @@ Remove the tombstoned `flow/templates/` package (4 files that all raise ImportEr
 - Research confirmed zero live callers for deleted enum members via `rg "FlowType\.(APPOINTMENT_PREP|...)"` — only references were in the tombstoned tests being deleted
 - `normalize_flow_type()` in the same file already falls back to `FlowType.CUSTOM` for unknown values, so stale DB rows won't crash
 
+## Observability Impact
+
+- **Signals removed**: The 7 deleted FlowType enum members (`TREATMENT_ADHERENCE`, `SYMPTOM_TRACKING`, etc.) are no longer valid enum values. Any code path that constructed these members will now hit `normalize_flow_type()`'s fallback → `FlowType.CUSTOM`.
+- **Inspection surface**: `python -c "from app.services.flow.types import FlowType; print([m.value for m in FlowType])"` — shows exactly 4 members post-edit.
+- **Failure state**: If a missed caller references a deleted member (e.g. `FlowType.TREATMENT_ADHERENCE`), Python raises `AttributeError` at import/call time — immediately visible in test collection or application startup.
+- **No new runtime signals**: This task is pure deletion. No new logs, metrics, or endpoints.
+
 ## Expected Output
 
 - `backend-hormonia/app/services/flow/templates/` — gone

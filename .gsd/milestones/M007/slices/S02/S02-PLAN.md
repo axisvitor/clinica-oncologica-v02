@@ -43,6 +43,8 @@ cd frontend-hormonia && npm run build
 - Backend pytest exits 0 with no failures
 - `tsc --noEmit` exits 0 with no broken imports from deleted files
 - `vite build` succeeds with no missing modules
+- Diagnostic: `cd backend-hormonia && python -c "from app.services.flow.types import FlowType; members = [m.value for m in FlowType]; assert members == ['onboarding','daily_follow_up','quiz_mensal','custom'], f'Unexpected: {members}'"` exits 0
+- Failure-path: `cd backend-hormonia && python -c "from app.services.flow.types import normalize_flow_type; r = normalize_flow_type('treatment_adherence'); assert r.value == 'custom', f'Fallback broken: {r}'"` exits 0 (stale DB values handled)
 
 ## Integration Closure
 
@@ -52,7 +54,7 @@ cd frontend-hormonia && npm run build
 
 ## Tasks
 
-- [ ] **T01: Delete backend tombstones and phantom FlowType members** `est:30m`
+- [x] **T01: Delete backend tombstones and phantom FlowType members** `est:30m`
   - Why: Remove the tombstoned `flow/templates/` package (4 files raising ImportError), its ~4600 lines of dead tests across 2 directories, and 7 phantom FlowType enum members that have zero live callers — clearing backend dead code for S03.
   - Files: `backend-hormonia/app/services/flow/templates/` (delete dir), `backend-hormonia/tests/services/flow/templates/` (delete dir), `backend-hormonia/tests/unit/services/flow/templates/` (delete dir), `backend-hormonia/app/services/flow/types.py` (edit enum)
   - Do:
@@ -88,6 +90,15 @@ cd frontend-hormonia && npm run build
 - `backend-hormonia/tests/services/flow/templates/` (delete dir)
 - `backend-hormonia/tests/unit/services/flow/templates/` (delete dir)
 - `backend-hormonia/app/services/flow/types.py`
+- `frontend-hormonia/src/features/flow-designer/` (delete dir)
+- `frontend-hormonia/src/types/flow-designer.ts` (delete)
+- `frontend-hormonia/src/features/templates/flows/FlowDesignerDialog.tsx` (delete)
+- `frontend-hormonia/src/features/templates/utils/templateConverters.ts` (delete)
+- `frontend-hormonia/src/types/index.ts`
+- `frontend-hormonia/src/features/templates/index.ts`
+- `frontend-hormonia/src/features/templates/TemplateManagementPage.tsx`
+- `frontend-hormonia/src/features/templates/flows/FlowTemplateCard.tsx`
+.py`
 - `frontend-hormonia/src/features/flow-designer/` (delete dir)
 - `frontend-hormonia/src/types/flow-designer.ts` (delete)
 - `frontend-hormonia/src/features/templates/flows/FlowDesignerDialog.tsx` (delete)

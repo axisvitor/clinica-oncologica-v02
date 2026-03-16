@@ -48,27 +48,6 @@ class FlowType(str, Enum):
     CUSTOM = "custom"
     """Custom flow (user-defined)"""
 
-    TREATMENT_ADHERENCE = "treatment_adherence"
-    """Treatment adherence monitoring flow"""
-
-    SYMPTOM_TRACKING = "symptom_tracking"
-    """Symptom tracking and reporting flow"""
-
-    MEDICATION_REMINDER = "medication_reminder"
-    """Medication reminder flow"""
-
-    APPOINTMENT_PREP = "appointment_prep"
-    """Appointment preparation flow"""
-
-    POST_APPOINTMENT = "post_appointment"
-    """Post-appointment follow-up flow"""
-
-    EMERGENCY_PROTOCOL = "emergency_protocol"
-    """Emergency situation protocol flow"""
-
-    MONITORING = "monitoring"
-    """General monitoring flow (backward compatibility)"""
-
 
 
 def normalize_flow_type(value: str | FlowType | None) -> FlowType:
