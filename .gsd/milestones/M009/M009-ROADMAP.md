@@ -61,7 +61,7 @@ This milestone is complete only when all are true:
 - [x] **S01: Taskiq broker + base task + FastAPI integration** `risk:high` `depends:[]`
   > After this: worker Taskiq processa task de teste via Dragonfly, SmartRetryMiddleware funciona, scheduler roda com LabelScheduleSource, FastAPI lifespan integra broker startup/shutdown, health check reporta worker status.
 
-- [ ] **S02: Messaging tasks migradas** `risk:high` `depends:[S01]`
+- [x] **S02: Messaging tasks migradas** `risk:high` `depends:[S01]`
   > After this: send_scheduled_message.kiq() envia mensagem real via WuzAPI, process_scheduled_messages roda no scheduler, retry_failed_messages funciona com SmartRetryMiddleware, DLQ processing migrado. Celery e Taskiq coexistem — apenas messaging usa Taskiq.
 
 - [ ] **S03: Flow/saga tasks migradas** `risk:high` `depends:[S01,S02]`

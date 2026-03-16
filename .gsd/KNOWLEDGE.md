@@ -17,6 +17,9 @@ Agents read this before every unit. Add entries when you discover something wort
 | 1 | `taskiq_fastapi.init(broker, "app.main:app")` must be called AFTER broker creation but BEFORE task definitions using TaskiqDepends | `app/taskiq_broker.py` | Order matters — move this if you reorganize broker module |
 | 2 | DB session in Taskiq tasks: `db: AsyncSession = DbSession` where `DbSession = TaskiqDepends(get_db_session)` | `app/tasks/taskiq_base.py` | Replaces Celery's sync `get_scoped_session()` pattern |
 | 3 | Health checks during Celery→Taskiq coexistence: try Taskiq first (Redis ping), then Celery (control.inspect), report both | `health/core.py`, `health/service_health.py` | Workers check passes if either is healthy |
+| 4 | Celery `.delay()` → `await task.kiq()` for immediate dispatch; `.apply_async(eta=)` → `await schedule_task_at(task, datetime, *args)` for delayed dispatch | `app/tasks/messaging_taskiq.py`, call sites | Core translation pattern for all task migrations |
+| 5 | Retry count in Taskiq: `context.message.labels.get('_retries', 0)` replaces Celery `self.request.retries` | `app/tasks/messaging_taskiq.py` | SmartRetryMiddleware stores retry count in message labels |
+| 6 | Import coexistence: `from app.tasks.messaging_taskiq import X` for Taskiq, `from app.tasks.messaging import X` for Celery — same task names, different modules | `app/tasks/messaging_taskiq.py`, `app/tasks/messaging.py` | Wrong import = task dispatched to wrong queue. Active during S02-S04 coexistence. |
 
 ## Lessons Learned
 
