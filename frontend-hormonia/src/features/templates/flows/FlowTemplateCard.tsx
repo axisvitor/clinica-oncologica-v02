@@ -1,14 +1,13 @@
 /**
  * Flow Template Card Component
  *
- * Displays individual flow template with actions (edit, version, delete).
+ * Displays individual flow template with actions (version, deactivate).
  */
 
 import React, { memo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { FlowDesignerDialog } from './FlowDesignerDialog'
 import { FlowTemplateVersionsDialog } from './FlowTemplateVersionsDialog'
 import type { FlowTemplate } from '@/hooks/useTemplates'
 import { useTemplates } from '@/hooks/useTemplates'
@@ -22,19 +21,7 @@ interface FlowTemplateCardProps {
 export const FlowTemplateCard = memo<FlowTemplateCardProps>(({ template }) => {
   const { toast } = useToast()
   const { deleteFlowTemplate } = useTemplates()
-  const [showEditor, setShowEditor] = useState(false)
   const [showVersions, setShowVersions] = useState(false)
-  const [editMode, setEditMode] = useState<'edit' | 'version' | null>(null)
-
-  const handleEdit = () => {
-    setEditMode('edit')
-    setShowEditor(true)
-  }
-
-  const handleNewVersion = () => {
-    setEditMode('version')
-    setShowEditor(true)
-  }
 
   const handleDelete = async () => {
     try {
@@ -81,12 +68,6 @@ export const FlowTemplateCard = memo<FlowTemplateCardProps>(({ template }) => {
               <div>Steps: {stepsCount}</div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleEdit}>
-                Editar
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleNewVersion}>
-                Nova Versão
-              </Button>
               <Button variant="outline" size="sm" onClick={() => setShowVersions(true)}>
                 Versões
               </Button>
@@ -97,17 +78,6 @@ export const FlowTemplateCard = memo<FlowTemplateCardProps>(({ template }) => {
           </div>
         </CardContent>
       </Card>
-
-      <FlowDesignerDialog
-        open={showEditor}
-        onOpenChange={setShowEditor}
-        template={editMode === 'edit' ? template : undefined}
-        createNewVersion={editMode === 'version' ? template : undefined}
-        onSuccess={() => {
-          setShowEditor(false)
-          setEditMode(null)
-        }}
-      />
 
       <FlowTemplateVersionsDialog
         open={showVersions}

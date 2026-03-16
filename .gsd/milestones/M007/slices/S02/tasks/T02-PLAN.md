@@ -52,6 +52,15 @@ Delete the entire FlowDesigner visual canvas feature from the frontend (~4800 li
 - [ ] `npm run build` exits 0
 - [ ] `frontend-hormonia/src/lib/flow-engine/` is NOT touched (out of scope per research)
 
+## Observability Impact
+
+This task removes dead frontend code. No runtime signals change — the FlowDesigner was never rendered in production (no route pointed to it standalone). Diagnostic changes:
+
+- **Build gate**: `npm run build` no longer bundles ~4800 lines of flow-designer code — bundle size decreases
+- **Type gate**: `npx tsc --noEmit` no longer resolves flow-designer types
+- **Dead import check**: `grep -r "FlowDesignerDialog\|flow-designer" --include='*.ts' --include='*.tsx' frontend-hormonia/src/` returns no hits after this task
+- **Failure shape**: Any accidental re-import of deleted modules produces `TS2307: Cannot find module` at typecheck time
+
 ## Verification
 
 - `cd frontend-hormonia && npx tsc --noEmit` exits 0

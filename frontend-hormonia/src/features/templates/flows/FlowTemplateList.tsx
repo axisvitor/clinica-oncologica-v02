@@ -18,7 +18,7 @@ interface FlowTemplateListProps {
   totalPages: number
   onPageChange: (page: number) => void
   onRefresh: () => void
-  onCreateNew: () => void
+  onCreateNew?: () => void
 }
 
 export const FlowTemplateList = memo<FlowTemplateListProps>(

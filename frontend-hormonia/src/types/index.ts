@@ -57,9 +57,6 @@ export type {
 } from './api'
 export { FlowType, FlowStatus, ResponseType } from './api'
 
-// Flow designer types from flow-designer.ts
-export * from './flow-designer'
-
 // WebSocket types from websocket.ts
 export type { WebSocketMessage as WSMessage } from './websocket'
 export * from './websocket'

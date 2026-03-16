@@ -27,6 +27,19 @@
 - Real runtime required: no (build + typecheck + test gates are sufficient)
 - Human/UAT required: no
 
+## Observability / Diagnostics
+
+This slice is deletion-only (dead code removal). The primary diagnostic surfaces are build/typecheck gates:
+
+- **Frontend typecheck**: `cd frontend-hormonia && npx tsc --noEmit` — detects broken imports from deleted modules
+- **Frontend build**: `cd frontend-hormonia && npm run build` — detects missing modules at bundle time
+- **Backend tests**: `cd backend-hormonia && python -m pytest tests/ -x -q` — catches import errors from removed packages
+- **FlowType enum inspection**: `cd backend-hormonia && python -c "from app.services.flow.types import FlowType; print([m.value for m in FlowType])"` — shows canonical members
+- **Stale DB value fallback**: `cd backend-hormonia && python -c "from app.services.flow.types import normalize_flow_type; print(normalize_flow_type('treatment_adherence'))"` — confirms graceful degradation to CUSTOM
+- **Dead import detection**: `grep -r "flow-designer\|FlowDesignerDialog\|templateConverters" --include='*.ts' --include='*.tsx' frontend-hormonia/src/` — must return no hits
+
+Failure signals: `ModuleNotFoundError` in backend imports, `TS2307` (cannot find module) in frontend typecheck, `vite build` errors for missing modules.
+
 ## Verification
 
 ```bash
@@ -67,7 +80,7 @@ cd frontend-hormonia && npm run build
   - Verify: `cd backend-hormonia && python -m pytest tests/ -x -q` exits 0
   - Done when: Backend tests pass with tombstoned package deleted and FlowType containing only 4 canonical members
 
-- [ ] **T02: Delete FlowDesigner frontend and clean consumer imports** `est:1h`
+- [x] **T02: Delete FlowDesigner frontend and clean consumer imports** `est:1h`
   - Why: Remove the entire visual flow designer feature (~4800 lines including tests) from the frontend, clean imports in consumer files (TemplateManagementPage, FlowTemplateCard), and verify the frontend still builds and typechecks cleanly.
   - Files: `frontend-hormonia/src/features/flow-designer/` (delete dir), `frontend-hormonia/src/types/flow-designer.ts` (delete), `frontend-hormonia/src/features/templates/flows/FlowDesignerDialog.tsx` (delete), `frontend-hormonia/src/features/templates/utils/templateConverters.ts` (delete), `frontend-hormonia/src/types/index.ts` (edit), `frontend-hormonia/src/features/templates/index.ts` (edit), `frontend-hormonia/src/features/templates/TemplateManagementPage.tsx` (edit), `frontend-hormonia/src/features/templates/flows/FlowTemplateCard.tsx` (edit)
   - Do:

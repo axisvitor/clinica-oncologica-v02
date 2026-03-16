@@ -6,8 +6,7 @@
  */
 
 import React, { memo, useState } from 'react'
-import { Plus, FileText, Workflow, Search, Filter } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { FileText, Workflow, Search, Filter } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
@@ -22,7 +21,6 @@ import { withErrorBoundary } from '@/components/error/ErrorBoundary'
 
 import { FlowTemplateList } from './flows/FlowTemplateList'
 import { QuizTemplateList } from './quiz/QuizTemplateList'
-import { FlowDesignerDialog } from './flows/FlowDesignerDialog'
 import { useFlowTemplates } from './flows/hooks/useFlowTemplates'
 import { useQuizTemplates } from './quiz/hooks/useQuizTemplates'
 
@@ -32,7 +30,6 @@ const TemplateManagementPage = memo(function TemplateManagementPage() {
   // Shared state
   const [searchTerm, setSearchTerm] = useState('')
   const [activeFilter, setActiveFilter] = useState<TemplateFilter>('all')
-  const [showFlowDesigner, setShowFlowDesigner] = useState(false)
 
   // Flow templates
   const {
@@ -77,10 +74,6 @@ const TemplateManagementPage = memo(function TemplateManagementPage() {
           <h1 className="text-3xl font-bold">Gerenciamento de Templates</h1>
           <p className="text-muted-foreground mt-1">Crie e gerencie templates de flows e quizzes</p>
         </div>
-        <Button onClick={() => setShowFlowDesigner(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Template
-        </Button>
       </div>
 
       {/* Search and Filters */}
@@ -134,7 +127,6 @@ const TemplateManagementPage = memo(function TemplateManagementPage() {
             totalPages={flowTotalPages}
             onPageChange={setFlowPage}
             onRefresh={refetchFlows}
-            onCreateNew={() => setShowFlowDesigner(true)}
           />
         </TabsContent>
 
@@ -151,13 +143,6 @@ const TemplateManagementPage = memo(function TemplateManagementPage() {
           />
         </TabsContent>
       </Tabs>
-
-      {/* Flow Designer Dialog */}
-      <FlowDesignerDialog
-        open={showFlowDesigner}
-        onOpenChange={setShowFlowDesigner}
-        onSuccess={refetchFlows}
-      />
     </div>
   )
 })
