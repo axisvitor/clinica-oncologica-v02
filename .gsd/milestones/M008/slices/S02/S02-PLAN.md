@@ -39,7 +39,7 @@
   - Verify: `curl localhost:<wuzapi_port>/api/sessions/status` retorna connected
   - Done when: WuzAPI rodando, número conectado, webhook configurado
 
-- [ ] **T02: Envio de mensagem de teste real** `est:20m`
+- [x] **T02: Envio de mensagem de teste real** `est:20m`
   - Why: provar que o caminho WuzAPIClient → WuzAPI → WhatsApp funciona antes de wiring mais complexo
   - Files: `backend-hormonia/app/integrations/wuzapi/client.py`, `backend-hormonia/.env`
   - Do: WHATSAPP_WUZAPI_BASE_URL e WHATSAPP_WUZAPI_TOKEN configurados no .env. Criar script de teste que instancia WuzAPIClient e chama send_text() com o número de teste. Executar e confirmar que resposta é sucesso.
