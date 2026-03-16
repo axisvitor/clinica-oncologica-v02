@@ -16,7 +16,7 @@ Diminuir o tempo de consulta e melhorar a qualidade do atendimento oncológico: 
 - M004 concluído: runtime oficial sem Firebase, auth/sessão convergidos ao contrato canônico.
 - M005 concluído: schema/Alembic alinhados ao modelo final sem resíduo estrutural de Firebase.
 - M006 concluído: purga final — dead code removido, bridges/aliases/tombstones removidos, prova integrada com 10 fases verdes publicada em M006-VERIFY.json.
-- M007 em planejamento: refinamento dos fluxos de acompanhamento do paciente.
+- M007 em andamento: S01 concluído (bug de sequenciamento corrigido, expects_response por mensagem respeitado, R057 validado). S02-S06 pendentes.
 
 ## Architecture / Key Patterns
 

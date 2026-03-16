@@ -14,17 +14,6 @@ Guidelines:
 
 ## Active
 
-### R057 — Sequenciamento de mensagens respeita espera de resposta
-- Class: core-capability
-- Status: active
-- Description: O sistema envia as mensagens do dia na ordem correta, respeitando `expects_response`: quando uma mensagem espera resposta, a próxima só é enviada depois que o paciente responde. Sem disparo em bulk.
-- Why it matters: O bug de disparar tudo de uma vez destrói a experiência do paciente e invalida a lógica de acompanhamento gradual.
-- Source: user
-- Primary owning slice: M007/S01
-- Supporting slices: none
-- Validation: mapped
-- Notes: A mecânica de `send_mode` + `awaiting_response` + `current_day_message_index` existe mas é complexa e distribuída entre mixins + flow functions + response gate, com potencial de race condition.
-
 ### R058 — Médico edita templates dia-a-dia por UI simples
 - Class: primary-user-loop
 - Status: active
@@ -92,6 +81,17 @@ Guidelines:
 - Notes: `PatientSummaryService` existe com Gemini 2.5 Flash. Precisa review de integração, qualidade do prompt, e integração com frontend do médico.
 
 ## Validated
+
+### R057 — Sequenciamento de mensagens respeita espera de resposta
+- Class: core-capability
+- Status: validated
+- Description: O sistema envia as mensagens do dia na ordem correta, respeitando `expects_response`: quando uma mensagem espera resposta, a próxima só é enviada depois que o paciente responde. Sem disparo em bulk.
+- Why it matters: O bug de disparar tudo de uma vez destrói a experiência do paciente e invalida a lógica de acompanhamento gradual.
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: validated by 11 focused tests in test_sequencing_expects_response.py proving per-message expects_response across all send modes (sequential_auto, wait_each, remaining_after_response) plus edge cases (idempotency, first-message stop, default single mode), with 0 regressions across 36 total flow tests
+- Notes: Bug root cause was _send_all_sequential checking expects_response only on the last message. Fixed to check per-iteration inside the loop. All three send functions now use the same per-message pattern.
 
 ### R052 — Código morto e compatibilidades restantes são removidos com prova
 - Class: operability
@@ -618,7 +618,7 @@ Guidelines:
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
 |---|---|---|---|---|---|
-| R057 | core-capability | active | M007/S01 | none | mapped |
+| R057 | core-capability | validated | M007/S01 | none | validated by 11 tests + 0 regressions |
 | R058 | primary-user-loop | active | M007/S03 | M007/S01, M007/S02 | mapped |
 | R059 | operability | active | M007/S02 | none | mapped |
 | R060 | differentiator | active | M007/S04 | M007/S01 | mapped |
@@ -674,7 +674,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 7
-- Mapped to slices: 7
-- Validated: 26
+- Active requirements: 6
+- Mapped to slices: 6
+- Validated: 27
 - Unmapped active requirements: 0

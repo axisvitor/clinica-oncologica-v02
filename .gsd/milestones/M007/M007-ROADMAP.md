@@ -55,7 +55,7 @@ This milestone is complete only when all are true:
 
 ## Slices
 
-- [ ] **S01: Corrigir sequenciamento e espera de resposta** `risk:high` `depends:[]`
+- [x] **S01: Corrigir sequenciamento e espera de resposta** `risk:high` `depends:[]`
   > After this: mensagens do dia são enviadas uma por vez; quando `expects_response=true`, a próxima só sai depois que o paciente responde. Provado por testes focados de sequenciamento contra o código real.
 
 - [ ] **S02: Remover abstrações mortas do subsistema de fluxo** `risk:medium` `depends:[]`
