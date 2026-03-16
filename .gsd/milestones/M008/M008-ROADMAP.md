@@ -57,7 +57,7 @@ This milestone is complete only when all are true:
 
 ## Slices
 
-- [ ] **S01: Stack local rodando** `risk:high` `depends:[]`
+- [x] **S01: Stack local rodando** `risk:high` `depends:[]`
   > After this: backend responde health check, Celery worker conecta ao Dragonfly, Postgres tem schema atualizado via Alembic, .env configurado. Provado por curl ao health endpoint e logs do worker.
 
 - [ ] **S02: WuzAPI conectado e enviando** `risk:high` `depends:[S01]`

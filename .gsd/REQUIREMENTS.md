@@ -16,14 +16,14 @@ Guidelines:
 
 ### R067 — Stack local roda ponta-a-ponta
 - Class: operability
-- Status: active
+- Status: validated
 - Description: O stack completo (Postgres + Dragonfly + backend + Celery worker + WuzAPI) sobe localmente e se comunica. Health checks verdes, worker conectado ao broker, schema atualizado.
 - Why it matters: Sem stack funcional, nenhuma prova de integração é possível.
 - Source: user
 - Primary owning slice: M008/S01
 - Supporting slices: none
-- Validation: unmapped
-- Notes: Inclui configuração de .env, docker-compose, e Alembic migrations.
+- Validation: validated by S01 — backend health checks green (both /health and /api/v2/health), Celery worker connected to Dragonfly broker (inspect ping → pong), PostgreSQL hormonia_dev at Alembic head (m008_s01_t03_sessions_align), admin user seeded with functional login and session persistence in Dragonfly, .env configured with all required secrets and infra URLs. WuzAPI in mock mode for S01 — real connection validated by S02.
+- Notes: Non-standard ports: Dragonfly on 6380, Postgres on 5434. Sessions table required alignment migration.
 
 ### R068 — WuzAPI conectado e enviando mensagens reais
 - Class: integration
@@ -781,7 +781,7 @@ Guidelines:
 | R054 | anti-feature | out-of-scope | none | none | n/a |
 | R055 | anti-feature | out-of-scope | none | none | n/a |
 | R056 | anti-feature | out-of-scope | none | none | n/a |
-| R067 | operability | active | M008/S01 | none | unmapped |
+| R067 | operability | validated | M008/S01 | none | validated by S01 — health checks green, Celery pong, Alembic head, admin login |
 | R068 | integration | active | M008/S02 | none | unmapped |
 | R069 | core-capability | active | M008/S03 | none | unmapped |
 | R070 | primary-user-loop | active | M008/S04 | M008/S01, M008/S02, M008/S03 | unmapped |
@@ -794,7 +794,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 8
-- Mapped to slices: 8
-- Validated: 33
+- Active requirements: 7
+- Mapped to slices: 7
+- Validated: 34
 - Unmapped active requirements: 0

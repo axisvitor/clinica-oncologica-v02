@@ -17,6 +17,7 @@ Diminuir o tempo de consulta e melhorar a qualidade do atendimento oncológico: 
 - M005 concluído: schema/Alembic alinhados ao modelo final sem resíduo estrutural de Firebase.
 - M006 concluído: purga final — dead code removido, bridges/aliases/tombstones removidos, prova integrada com 10 fases verdes publicada em M006-VERIFY.json.
 - M007 concluído: sistema de acompanhamento refinado ponta a ponta — bug de sequenciamento corrigido (expects_response por mensagem), ~9400 linhas de abstrações mortas removidas (FlowDesigner, phantom FlowTypes, tombstones), editor de templates dia-a-dia para médico (API + UI), personalização IA calibrada com grounding proof (25 testes), respostas livres do paciente persistidas com contexto completo (dual-write + API), alertas do quiz mensal acionáveis com notificações para médico, resumo mensal por IA integrado ao dashboard. Todos os 7 requisitos (R057–R063) validados com 181 testes verdes.
+- M008 em andamento: S01 completo — stack local operacional com backend (health green), Celery worker (conectado ao Dragonfly em 6380), PostgreSQL (hormonia_dev com schema no Alembic head), admin seedado com login funcional. S02 (WuzAPI real) e S03 (templates clínicos) são os próximos.
 
 ## Architecture / Key Patterns
 
