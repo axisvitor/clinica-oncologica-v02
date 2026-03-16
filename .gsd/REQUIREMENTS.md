@@ -27,14 +27,14 @@ Guidelines:
 
 ### R068 — WuzAPI conectado e enviando mensagens reais
 - Class: integration
-- Status: active
+- Status: validated
 - Description: WuzAPI rodando via Docker com número de teste conectado. Mensagem enviada via API chega no WhatsApp real.
 - Why it matters: O valor do sistema depende de mensagens reais chegarem no WhatsApp do paciente.
 - Source: user
 - Primary owning slice: M008/S02
 - Supporting slices: none
-- Validation: unmapped
-- Notes: Processo de QR code é manual e depende do usuário parear o número.
+- Validation: validated by S02 — WuzAPI container running on port 8081 (healthy), WhatsApp number connected via QR code (JID confirmed), WuzAPIClient.send_text() delivered messages to real WhatsApp (multiple message IDs confirmed), user visual confirmation of receipt on phone, webhook URL and HMAC security configured. Critical auth fix: Token header instead of Authorization.
+- Notes: Processo de QR code é manual e depende do usuário parear o número. WuzAPI on port 8081 (8080 taken by evolution_api).
 
 ### R069 — Templates de onboarding (15 dias) com conteúdo clínico real
 - Class: core-capability
@@ -782,7 +782,7 @@ Guidelines:
 | R055 | anti-feature | out-of-scope | none | none | n/a |
 | R056 | anti-feature | out-of-scope | none | none | n/a |
 | R067 | operability | validated | M008/S01 | none | validated by S01 — health checks green, Celery pong, Alembic head, admin login |
-| R068 | integration | active | M008/S02 | none | unmapped |
+| R068 | integration | validated | M008/S02 | none | validated by S02 — WuzAPI on 8081, QR paired, send_text() delivered, user confirmed |
 | R069 | core-capability | active | M008/S03 | none | unmapped |
 | R070 | primary-user-loop | active | M008/S04 | M008/S01, M008/S02, M008/S03 | unmapped |
 | R071 | core-capability | active | M008/S04 | M008/S01, M008/S02, M008/S03 | unmapped |
@@ -794,7 +794,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 7
-- Mapped to slices: 7
-- Validated: 34
+- Active requirements: 6
+- Mapped to slices: 6
+- Validated: 35
 - Unmapped active requirements: 0

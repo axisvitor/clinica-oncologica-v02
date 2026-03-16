@@ -60,7 +60,7 @@ This milestone is complete only when all are true:
 - [x] **S01: Stack local rodando** `risk:high` `depends:[]`
   > After this: backend responde health check, Celery worker conecta ao Dragonfly, Postgres tem schema atualizado via Alembic, .env configurado. Provado por curl ao health endpoint e logs do worker.
 
-- [ ] **S02: WuzAPI conectado e enviando** `risk:high` `depends:[S01]`
+- [x] **S02: WuzAPI conectado e enviando** `risk:high` `depends:[S01]`
   > After this: WuzAPI rodando via Docker com número de teste conectado, e uma mensagem de teste enviada via API chega no WhatsApp real. Provado por mensagem recebida no telefone.
 
 - [ ] **S03: Templates clínicos semeados** `risk:medium` `depends:[S01]`
