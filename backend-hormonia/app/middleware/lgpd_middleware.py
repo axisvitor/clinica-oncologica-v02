@@ -144,7 +144,7 @@ def _pseudonymize_patient_identifier(raw_identifier: Optional[str]) -> Optional[
     return f"pid:{digest}"
 
 
-def _enqueue_lgpd_audit(
+async def _enqueue_lgpd_audit(
     action: str,
     resource_type: str,
     user_id: Optional[str] = None,
@@ -161,13 +161,13 @@ def _enqueue_lgpd_audit(
     """
     Enqueue LGPD audit log for async persistence.
     
-    Uses Celery to avoid adding latency to HTTP requests.
-    Falls back to logger-only if Celery is unavailable.
+    Uses Taskiq to avoid adding latency to HTTP requests.
+    Falls back to logger-only if Taskiq is unavailable.
     """
     try:
-        from app.tasks.lgpd_tasks import persist_lgpd_audit_log
+        from app.tasks.lgpd_taskiq import persist_lgpd_audit_log
         
-        persist_lgpd_audit_log.delay(
+        await persist_lgpd_audit_log.kiq(
             action=action,
             resource_type=resource_type,
             data_category="health",  # Patient data is health category
@@ -183,9 +183,9 @@ def _enqueue_lgpd_audit(
             additional_data=additional_data,
         )
     except Exception as exc:
-        # Log but don't fail the request if Celery is unavailable
+        # Log but don't fail the request if Taskiq is unavailable
         logger.warning(
-            f"LGPD: Failed to enqueue audit log (Celery unavailable?): {exc}",
+            f"LGPD: Failed to enqueue audit log (Taskiq unavailable?): {exc}",
             extra={"action": action, "resource_type": resource_type},
         )
 
@@ -292,7 +292,7 @@ class LGPDMiddleware:
             # Persist to database via async task (if enabled)
             if self.enable_db_logging:
                 action = HTTP_METHOD_TO_ACTION.get(request.method, "view")
-                _enqueue_lgpd_audit(
+                await _enqueue_lgpd_audit(
                     action=action,
                     resource_type="patients",
                     user_id=str(user_id) if user_id else None,

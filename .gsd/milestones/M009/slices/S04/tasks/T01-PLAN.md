@@ -89,3 +89,11 @@ All 4 modules follow the exact S02/S03 coexistence pattern (D007): create `*_tas
 - `backend-hormonia/app/tasks/reports_taskiq.py` — 2 Taskiq tasks, `.kiq()` cross-dispatch for report generation
 - `backend-hormonia/app/tasks/saga_monitoring_taskiq.py` — 3 Taskiq tasks, pure sync ORM
 - `backend-hormonia/app/middleware/lgpd_middleware.py` — modified to import from `lgpd_taskiq` and use `await .kiq()`
+
+## Observability Impact
+
+- **New signals:** 11 tasks emit `log_task_start`/`log_task_success`/`log_task_error` structured logs with `task_name`, `event`, `duration_ms`, `error_type`, `error_message` fields
+- **Schedule labels:** 9 schedule labels (3 cron, 6 interval) readable by `taskiq scheduler` at startup
+- **Failure visibility:** Each task re-raises exceptions → `SmartRetryMiddleware` logs retry attempts with count/delay. `log_task_error` captures `error_type` and `error_message` for all 11 tasks
+- **LGPD middleware fallback:** `_enqueue_lgpd_audit` catches Taskiq dispatch errors and logs a warning (same resilience pattern as Celery version) — requests are never blocked by audit failures
+- **Inspection:** `grep "event.*task_error" <log>` finds all task failures; schedule labels are inspectable via `taskiq scheduler --dump`

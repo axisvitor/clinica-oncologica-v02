@@ -27,6 +27,7 @@
 - `bash scripts/verify_schedule_parity.sh` — script comparing all 47 beat_schedule entries against Taskiq schedule labels, outputting matched/missing/extra
 - `rg "\.delay\(|\.apply_async\(" --glob "*.py" --glob "!app/tasks/*.py" --glob "!app/celery_app.py" --glob "!**/test*" backend-hormonia/` — zero matches in non-task code (middleware, services, domain)
 - `grep -rc "@broker.task" app/tasks/*_taskiq.py | awk -F: '{s+=$2}END{print s}'` — total ≥ 46 tasks across all taskiq modules
+- `grep -c "log_task_error" app/tasks/*_taskiq.py | awk -F: '$2>0{c++}END{print c}'` — all taskiq modules have error logging (failure-path diagnostics)
 
 ## Observability / Diagnostics
 
@@ -43,7 +44,7 @@
 
 ## Tasks
 
-- [ ] **T01: Migrate simple sync-ORM modules (audit, lgpd, reports, saga_monitoring) + LGPD middleware call site** `est:1.5h`
+- [x] **T01: Migrate simple sync-ORM modules (audit, lgpd, reports, saga_monitoring) + LGPD middleware call site** `est:1.5h`
   - Why: Covers 4 simplest modules (11 tasks, 9 periodic entries) using pure `get_scoped_session()` sync ORM. Establishes velocity with lowest-risk work. Includes LGPD middleware `.delay()` → `.kiq()` migration.
   - Files: `backend-hormonia/app/tasks/audit_taskiq.py` (new), `backend-hormonia/app/tasks/lgpd_taskiq.py` (new), `backend-hormonia/app/tasks/reports_taskiq.py` (new), `backend-hormonia/app/tasks/saga_monitoring_taskiq.py` (new), `backend-hormonia/app/middleware/lgpd_middleware.py`
   - Do: Create 4 parallel `*_taskiq.py` modules. Import pure helpers from Celery modules. Use `get_scoped_session()` for sync ORM services (D009). Convert BRT cron → UTC (+3h). Migrate `_enqueue_lgpd_audit` from `.delay()` to `await .kiq()` (middleware is async). For reports, `generate_scheduled_reports` dispatches `generate_patient_report` — both must be Taskiq tasks with `.kiq()` cross-dispatch.
