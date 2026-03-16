@@ -47,3 +47,10 @@ The path from PhysicianDashboard to "Resumo IA" already works: click patient →
 
 - `frontend-hormonia/src/pages/PhysicianDashboard.tsx` — modified: added "Resumo IA" icon button per patient in the risk table/list
 - All verification commands green
+
+## Observability Impact
+
+- **New navigation path:** PhysicianDashboard → Brain icon button → `/physician/patients/${patientId}?tab=ai-summary` pre-selects the AI summary tab in PatientDetailPage.
+- **Inspection surface:** In the browser, the PhysicianRiskTable "Ações" column now shows a Brain icon button with `aria-label="Ver Resumo IA"` per patient row. Clicking it navigates to `?tab=ai-summary`.
+- **Failure visibility:** If the button is missing, the `onAISummaryClick` prop was not wired; inspect PhysicianDashboard.tsx for `handleAISummaryClick` and `onAISummaryClick` on the `<PhysicianRiskTable>` call.
+- **No backend observability changes** — this task is frontend-only.

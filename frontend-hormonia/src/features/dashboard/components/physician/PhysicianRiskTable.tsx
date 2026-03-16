@@ -1,4 +1,5 @@
 import React from 'react'
+import { Brain } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
@@ -11,6 +12,12 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { RiskBadge } from '@/features/patients/components/RiskBadge'
 
 import type { PatientRiskAssessment } from '@/types/api-wave2'
@@ -24,6 +31,7 @@ interface PhysicianRiskTableProps {
   size: number
   onPageChange: (page: number) => void
   onPatientClick: (patientId: string) => void
+  onAISummaryClick?: (patientId: string) => void
 }
 
 export function PhysicianRiskTable({
@@ -33,6 +41,7 @@ export function PhysicianRiskTable({
   size,
   onPageChange,
   onPatientClick,
+  onAISummaryClick,
 }: PhysicianRiskTableProps) {
   return (
     <>
@@ -73,13 +82,38 @@ export function PhysicianRiskTable({
                     {new Date(patient.assessment_date).toLocaleDateString('pt-BR')}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onPatientClick(patient.patient_id)}
-                    >
-                      Detalhes
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      {onAISummaryClick && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onAISummaryClick(patient.patient_id)
+                                }}
+                                aria-label="Ver Resumo IA"
+                              >
+                                <Brain className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Ver Resumo IA</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onPatientClick(patient.patient_id)}
+                      >
+                        Detalhes
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

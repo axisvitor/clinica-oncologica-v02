@@ -342,6 +342,13 @@ export default function PhysicianDashboard() {
     [navigate]
   )
 
+  const handleAISummaryClick = useCallback(
+    (patientId: string) => {
+      navigate(`/physician/patients/${patientId}?tab=ai-summary`)
+    },
+    [navigate]
+  )
+
   const handleSendChat = useCallback(() => {
     if (!chatInput.trim()) return
 
@@ -596,6 +603,7 @@ export default function PhysicianDashboard() {
                 }))
               }
               onPatientClick={handlePatientClick}
+              onAISummaryClick={handleAISummaryClick}
             />
           )}
         </TabsContent>

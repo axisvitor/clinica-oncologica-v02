@@ -56,7 +56,7 @@
   - Verify: `cd backend-hormonia && python3 -m pytest tests/unit/services/flow/test_summary_integration.py -v`
   - Done when: All tests pass, aggregator produces `flow_responses` in prompt context with day-level formatting, alert bug is fixed
 
-- [ ] **T02: Add dashboard AI summary access and run full verification** `est:25m`
+- [x] **T02: Add dashboard AI summary access and run full verification** `est:25m`
   - Why: The path from PhysicianDashboard to "Resumo IA" exists (click patient → PatientDetailPage → tab) but R063 says "médico acessa resumo no dashboard" — a direct access hint improves discoverability. Plus full regression verification across backend and frontend.
   - Files: `frontend-hormonia/src/pages/PhysicianDashboard.tsx`
   - Do: (1) In the patient risk table/list where `handlePatientClick` is used, add a small "Resumo IA" icon-button per patient that navigates to `/physician/patients/${patientId}?tab=ai-summary` (same as clicking patient but pre-selecting the AI summary tab), (2) In `PatientDetailPage.tsx`, check if URL has `tab=ai-summary` search param and pre-select that tab on mount (only if not already handled), (3) Run full backend test suite for regressions, (4) Run frontend typecheck and build
