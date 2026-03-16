@@ -49,7 +49,7 @@
   - Verify: `curl http://localhost:8000/api/v2/health` retorna JSON, worker logs mostram "ready"
   - Done when: health check verde, worker conectado ao broker
 
-- [ ] **T03: Usuário admin/médico seed e login funcional** `est:20m`
+- [x] **T03: Usuário admin/médico seed e login funcional** `est:20m`
   - Why: S04 precisa de um médico autenticado para criar pacientes; sem seed, nenhum login funciona
   - Files: `backend-hormonia/app/api/v2/routers/auth.py`
   - Do: criar um usuário admin/médico no banco via script ou endpoint, testar login via API, confirmar que sessão é criada no Dragonfly
