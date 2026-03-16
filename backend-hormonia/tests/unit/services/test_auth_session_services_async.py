@@ -6,7 +6,6 @@ import pytest
 
 from app.models.user import UserRole
 from app.services.firebase_user_sync_service import FirebaseUserSyncService
-from app.services.session_service import SessionService
 
 
 class _FakeExecuteResult:
@@ -153,51 +152,4 @@ async def test_validate_firebase_user_uses_async_execute(firebase_sync_service):
     db.query.assert_not_called()
 
 
-@pytest.mark.asyncio
-async def test_session_service_get_or_create_user_uses_async_execute_and_create():
-    db = _QueueAsyncSession([_FakeExecuteResult(None)])
-    service = SessionService(db=db)
 
-    user = await service._get_or_create_user(
-        "uid-session",
-        {"email": "session@hospital.org", "name": "Session User", "role": "doctor"},
-    )
-
-    assert user.firebase_uid == "uid-session"
-    db.execute.assert_awaited_once()
-    db.commit.assert_awaited_once()
-    db.refresh.assert_awaited_once()
-    db.query.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_session_service_create_session_preserves_payload_shape_with_async_cache():
-    db = _QueueAsyncSession()
-    firebase_service = SimpleNamespace(
-        verify_token=AsyncMock(return_value={"uid": "uid-session", "email": "s@hospital.org"})
-    )
-    cache = SimpleNamespace(
-        user_ttl=7200,
-        create_session=AsyncMock(return_value=True),
-        cache_user_data=AsyncMock(return_value=None),
-    )
-    service = SessionService(db=db, redis_client=SimpleNamespace(), firebase_service=firebase_service)
-    service._get_or_create_user = AsyncMock(
-        return_value=SimpleNamespace(
-            id=uuid4(),
-            firebase_uid="uid-session",
-            email="s@hospital.org",
-            full_name="Session User",
-            role=UserRole.DOCTOR,
-            is_active=True,
-        )
-    )
-    service._get_firebase_cache = Mock(return_value=cache)
-
-    payload = await service.create_session_from_firebase_token("token")
-
-    assert set(payload.keys()) == {"session_id", "user", "expires_at", "ttl", "status"}
-    assert payload["status"] == "authenticated"
-    cache.create_session.assert_awaited_once()
-    cache.cache_user_data.assert_awaited_once()
-    db.query.assert_not_called()

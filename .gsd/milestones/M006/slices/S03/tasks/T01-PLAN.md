@@ -43,6 +43,13 @@ Merge-marker files in active pytest/vitest collection paths poison broad verific
 - `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check backend` passes.
 - `! test -f backend-hormonia/app/services/session_service.py && ! test -f backend-hormonia/app/dependencies/auth_legacy_firebase.py && echo "dead cluster removed"` succeeds.
 
+## Observability Impact
+
+- **Merge-marker cleanup** restores trustworthy broad `pytest`/`vitest` collection — previously, conflict text caused parse failures that masked real test results.
+- **Dead cluster removal** eliminates `ImportError` traps from `session_service.py` and `auth_legacy_firebase.py` that could surface in import-time diagnostics.
+- **Inspection surface:** `verify-runtime-residue.sh --report backend` shows updated proof-only anchor state. Absence scans confirm deleted files stay deleted.
+- **Failure visibility:** If a future agent re-introduces a dependency on deleted modules, the `ServiceProvider` import check and S01 residue guard will fail explicitly.
+
 ## Inputs
 
 - S01 summary: honest live-vs-retired auth/session boundary established; `auth_legacy_firebase.py` is retired/broken, `SessionService` is not on canonical runtime path.

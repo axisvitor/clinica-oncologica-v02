@@ -96,7 +96,6 @@
             "backend-hormonia/app/api/v2/routers/patients/base.py",
             "backend-hormonia/app/api/v2/templates_shared.py",
             "backend-hormonia/app/api/v2/routers/docs/**",
-            "backend-hormonia/app/dependencies/auth_legacy_firebase.py",
             "backend-hormonia/app/api/v2/user_cache_shared.py",
             "backend-hormonia/app/api/v2/routers/users.py"
           ],

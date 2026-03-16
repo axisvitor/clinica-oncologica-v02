@@ -1,6 +1,4 @@
 /**
-<<<<<<< HEAD
-<<<<<<< HEAD
  * Type validation tests for core application types.
  * Ensures the canonical type ownership surfaces stay stable after the S04
  * compatibility cleanup removed the legacy compat barrel.
@@ -16,32 +14,6 @@ import type {
   ApiResponse as SharedApiResponse,
   ApiErrorResponse as SharedApiErrorResponse,
 } from '../../src/types/shared'
-=======
- * Type validation tests for core application types
- * Ensures the canonical type ownership surfaces stay stable while the
- * legacy compat barrel remains isolated for S04 cleanup.
-=======
- * Type validation tests for core application types.
- * Ensures the canonical type ownership surfaces stay stable after the S04
- * compatibility cleanup removed the legacy compat barrel.
->>>>>>> gsd/M003/S04
- */
-
-import type { User, Patient } from '../../src/types/api'
-import type {
-  PaginatedResponse,
-  ApiResponse as TransportApiResponse,
-  ApiErrorResponse as TransportApiErrorResponse,
-} from '../../src/lib/api-client/types'
-<<<<<<< HEAD
-import type { SuccessResponse, ErrorResponse, ApiSuccessResponse } from '../../src/lib/types/api'
->>>>>>> gsd/M003/S03
-=======
-import type {
-  ApiResponse as SharedApiResponse,
-  ApiErrorResponse as SharedApiErrorResponse,
-} from '../../src/types/shared'
->>>>>>> gsd/M003/S04
 import type {
   WebSocketMessage,
   WebSocketEventType,
@@ -52,29 +24,6 @@ import type {
 } from '../../src/types/websocket'
 
 import type { User as AppUser, Patient as AppPatient } from '../../src/types/index'
-<<<<<<< HEAD
-
-// Test type compatibility and completeness
-describe('Type Definitions Validation', () => {
-  it('uses canonical shared and transport type owners after compat cleanup', () => {
-    const sharedResponse: SharedApiResponse<{ id: string }> = {
-      success: true,
-      data: { id: 'shared' },
-      message: 'Shared response',
-      timestamp: '2024-01-01T00:00:00-03:00',
-    }
-
-    const transportResponse: TransportApiResponse<{ id: string }> = {
-      success: true,
-      data: { id: 'transport' },
-      message: 'Transport response',
-      timestamp: '2024-01-01T00:00:00-03:00',
-    }
-
-    expect(sharedResponse.data?.id).toBe('shared')
-    expect(transportResponse.data.id).toBe('transport')
-  })
-=======
 
 // Test type compatibility and completeness
 describe('Type Definitions Validation', () => {
@@ -97,11 +46,6 @@ describe('Type Definitions Validation', () => {
     expect(transportResponse.data.id).toBe('transport')
   })
 
-<<<<<<< HEAD
->>>>>>> gsd/M003/S03
-
-=======
->>>>>>> gsd/M003/S04
   it('should have complete User interface with token property', () => {
     const user: User = {
       id: '1',
@@ -111,15 +55,7 @@ describe('Type Definitions Validation', () => {
       role: 'doctor',
       permissions: [],
       is_active: true,
-<<<<<<< HEAD
-<<<<<<< HEAD
       token: 'jwt-token-123',
-=======
-      token: 'jwt-token-123', // Should exist
->>>>>>> gsd/M003/S03
-=======
-      token: 'jwt-token-123',
->>>>>>> gsd/M003/S04
       created_at: '2024-01-01T00:00:00-03:00',
       updated_at: '2024-01-01T00:00:00-03:00',
     }
@@ -137,15 +73,7 @@ describe('Type Definitions Validation', () => {
       treatment_start_date: '2024-01-01T00:00:00-03:00',
       status: 'active',
       flow_state: 'active',
-<<<<<<< HEAD
-<<<<<<< HEAD
       current_day: 15,
-=======
-      current_day: 15, // Should exist
->>>>>>> gsd/M003/S03
-=======
-      current_day: 15,
->>>>>>> gsd/M003/S04
       created_at: '2024-01-01T00:00:00-03:00',
       updated_at: '2024-01-01T00:00:00-03:00',
     }
@@ -169,36 +97,10 @@ describe('Type Definitions Validation', () => {
   })
 
   it('should have consistent ApiResponse interface on the transport barrel', () => {
-<<<<<<< HEAD
-<<<<<<< HEAD
     const response: TransportApiResponse<{ id: string }> = {
-=======
-    const response: ApiResponse<{ id: string }> = {
-=======
-    const response: TransportApiResponse<{ id: string }> = {
->>>>>>> gsd/M003/S04
       success: true,
       data: { id: '1' },
       message: 'Operation successful',
-      timestamp: '2024-01-01T00:00:00-03:00',
-    }
-
-    expect(response.success).toBe(true)
-    expect(response.data.id).toBe('1')
-  })
-
-<<<<<<< HEAD
-  it('should have consistent SuccessResponse interface', () => {
-    const response: SuccessResponse = {
->>>>>>> gsd/M003/S03
-=======
-  it('should have consistent shared ApiResponse interface', () => {
-    const response: SharedApiResponse<{ id: string }> = {
->>>>>>> gsd/M003/S04
-      success: true,
-      data: { id: '1' },
-      message: 'Operation successful',
-<<<<<<< HEAD
       timestamp: '2024-01-01T00:00:00-03:00',
     }
 
@@ -217,15 +119,6 @@ describe('Type Definitions Validation', () => {
     expect(response.data?.id).toBe('1')
   })
 
-=======
-      data: { id: '1' },
-    }
-
-    expect(response.success).toBe(true)
-    expect(response.data?.id).toBe('1')
-  })
-
->>>>>>> gsd/M003/S04
   it('should have consistent shared ApiErrorResponse interface', () => {
     const response: SharedApiErrorResponse = {
       error: 'VALIDATION_ERROR',
@@ -250,15 +143,7 @@ describe('Type Definitions Validation', () => {
   })
 
   it('should have ApiErrorResponse on the transport barrel', () => {
-<<<<<<< HEAD
-<<<<<<< HEAD
     const response: TransportApiErrorResponse = {
-=======
-    const response: ApiErrorResponse = {
->>>>>>> gsd/M003/S03
-=======
-    const response: TransportApiErrorResponse = {
->>>>>>> gsd/M003/S04
       error: {
         code: 'API_ERROR',
         message: 'API error occurred',

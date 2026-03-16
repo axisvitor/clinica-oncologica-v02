@@ -32,6 +32,8 @@
 - `grep -r 'FIREBASE_SESSION_TTL_SECONDS' backend-hormonia/app/ | grep -v __pycache__ | wc -l` returns 0 — old TTL env name gone from app code.
 - `grep -r 'WHATSAPP_EVOLUTION_' backend-hormonia/config/cloud-run/ | wc -l` returns 0 — dead WhatsApp env names gone from deployment manifests.
 - `test -f backend-hormonia/docs/repo/HISTORICAL-ARCHIVE.md && echo "archive marker exists"` — historical boundary is explicit.
+- `cd backend-hormonia && python3 -c "from app.service_provider import ServiceProvider; sp = ServiceProvider(); print(type(sp.session_service).__name__)"` — confirms `SimpleSessionService` is the wired session implementation (diagnostic: if this prints anything other than `SimpleSessionService`, the dead-cluster removal broke wiring).
+- `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report backend 2>&1 | head -20` — inspectable proof-only boundary state after cleanup (diagnostic: shows which anchors remain and whether any are stale).
 
 ## Observability / Diagnostics
 
@@ -48,7 +50,7 @@
 
 ## Tasks
 
-- [ ] **T01: Stabilize proof surfaces and delete dead backend auth/session cluster** `est:45m`
+- [x] **T01: Stabilize proof surfaces and delete dead backend auth/session cluster** `est:45m`
   - Why: Merge-marker files in active test collection paths make broad pytest/vitest noisy and untrustworthy. The dead `SessionService` and broken `auth_legacy_firebase.py` cluster are confirmed non-runtime by `ServiceProvider` wiring and S01 hard cut — remove them and their dead test consumers to unblock honest verification.
   - Files: `backend-hormonia/app/services/session_service.py`, `backend-hormonia/app/dependencies/auth_legacy_firebase.py`, `backend-hormonia/tests/unit/test_auth_dependency_module_split.py`, `backend-hormonia/tests/api/v2/test_auth_dependency_override_contract.py`, `frontend-hormonia/tests/unit/types-validation.test.ts`, `frontend-hormonia/tests/integration/admin-auth-flow.test.tsx`, `frontend-hormonia/src/hooks/__tests__/usePatients.test.ts`
   - Do: (1) Delete or fix merge-marker files in both backend and frontend test paths — delete files whose only remaining content is broken conflict text, fix files that contain useful test logic buried under markers. (2) Delete `session_service.py` and its dead test consumers (`test_auth_session_services_async.py`, the integration greenlet test's `SessionService` import site). (3) Delete `auth_legacy_firebase.py` and `test_auth_dependency_module_split.py`. (4) Update the S01 residue verifier proof-only anchors if any deleted file was an anchor. (5) Verify backend import chain and S01 guard.

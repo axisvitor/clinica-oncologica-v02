@@ -19,7 +19,6 @@ from app.services.flow_monitoring_pkg.service import FlowMonitoringService
 from app.services.lgpd.consent_service import ConsentService
 from app.services.patient.validation_service import PatientValidationService
 from app.services.quiz.quiz_service import QuizSessionService
-from app.services.session_service import SessionService
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 
 
@@ -170,9 +169,6 @@ async def test_phase23_service_groups_async_load_emit_zero_missinggreenlet_logs(
     auth_db = _QueueAsyncSession([_FakeExecuteResult(scalar_rows=[firebase_user]) for _ in range(3)])
     auth_service = FirebaseUserSyncService(db=auth_db, firebase_service=SimpleNamespace())
 
-    session_db = _QueueAsyncSession([_FakeExecuteResult(scalar_rows=[]) for _ in range(3)])
-    session_service = SessionService(db=session_db)
-
     consents = [
         SimpleNamespace(
             id=uuid4(),
@@ -262,17 +258,6 @@ async def test_phase23_service_groups_async_load_emit_zero_missinggreenlet_logs(
                 for _ in range(3)
             ],
             *[
-                session_service._get_or_create_user(
-                    f"uid-session-{idx}",
-                    {
-                        "email": f"session{idx}@hospital.org",
-                        "name": "Session User",
-                        "role": "doctor",
-                    },
-                )
-                for idx in range(3)
-            ],
-            *[
                 consent_service.grant_consent(item.id, user_id=uuid4())
                 for item in consents
             ],
@@ -302,6 +287,5 @@ async def test_phase23_service_groups_async_load_emit_zero_missinggreenlet_logs(
     assert len(analytics_db.execute_calls) == 3
     assert len(communication_db.execute_calls) == 3
     assert len(auth_db.execute_calls) == 3
-    assert len(session_db.execute_calls) == 3
     assert len(infrastructure_db.execute_calls) == 3
     assert len(monitoring_db.execute_calls) == 21
