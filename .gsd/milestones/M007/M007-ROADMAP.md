@@ -58,7 +58,7 @@ This milestone is complete only when all are true:
 - [x] **S01: Corrigir sequenciamento e espera de resposta** `risk:high` `depends:[]`
   > After this: mensagens do dia são enviadas uma por vez; quando `expects_response=true`, a próxima só sai depois que o paciente responde. Provado por testes focados de sequenciamento contra o código real.
 
-- [ ] **S02: Remover abstrações mortas do subsistema de fluxo** `risk:medium` `depends:[]`
+- [x] **S02: Remover abstrações mortas do subsistema de fluxo** `risk:medium` `depends:[]`
   > After this: FlowDesigner visual (~4800 linhas com testes) deletado, FlowTypes fantasma (TREATMENT_ADHERENCE, SYMPTOM_TRACKING, MEDICATION_REMINDER) removidos do enum, tombstone `templates/manager.py` removido, referências mortas limpas. Build frontend, typecheck e testes backend verdes.
 
 - [ ] **S03: Editor de templates dia-a-dia para o médico** `risk:high` `depends:[S01,S02]`

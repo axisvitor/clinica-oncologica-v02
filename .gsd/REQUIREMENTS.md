@@ -27,14 +27,14 @@ Guidelines:
 
 ### R059 — Abstrações mortas de fluxo são removidas com prova
 - Class: operability
-- Status: active
+- Status: validated
 - Description: FlowDesigner visual, FlowTypes fantasma no enum, knowledge graph morto, tombstones residuais e mixin soup são removidos ou simplificados com prova.
 - Why it matters: Abstrações mortas dificultam manutenção e escondem bugs no subsistema que mais precisa de clareza.
 - Source: inferred
 - Primary owning slice: M007/S02
 - Supporting slices: none
-- Validation: mapped
-- Notes: FlowDesigner (~3300 linhas), FlowTypes fantasma (TREATMENT_ADHERENCE, SYMPTOM_TRACKING, etc.), knowledge graph com silent ImportError, flow/templates/manager.py tombstoned.
+- Validation: validated by S02 — FlowDesigner visual (~4800 lines) deleted, 7 phantom FlowType members removed from enum (only ONBOARDING, DAILY_FOLLOW_UP, QUIZ_MENSAL, CUSTOM remain), tombstoned flow/templates package deleted (4 files), ~4600 lines of dead tests deleted (8 files), normalize_flow_type stale fallback proven, frontend build + typecheck green, backend flow tests green (84 passed, 0 failed), separate enums (AlertRuleType, MetricType, AnalyticsEventType) untouched
+- Notes: FlowDesigner (~3300 linhas), FlowTypes fantasma (TREATMENT_ADHERENCE, SYMPTOM_TRACKING, etc.), knowledge graph com silent ImportError, flow/templates/manager.py tombstoned. Knowledge graph cleanup and mixin soup simplification were not in S02 scope.
 
 ### R060 — Personalização IA produz reformulações naturais e ancoradas
 - Class: differentiator
@@ -620,7 +620,7 @@ Guidelines:
 |---|---|---|---|---|---|
 | R057 | core-capability | validated | M007/S01 | none | validated by 11 tests + 0 regressions |
 | R058 | primary-user-loop | active | M007/S03 | M007/S01, M007/S02 | mapped |
-| R059 | operability | active | M007/S02 | none | mapped |
+| R059 | operability | validated | M007/S02 | none | validated by S02 — FlowDesigner + phantom FlowTypes + tombstones removed |
 | R060 | differentiator | active | M007/S04 | M007/S01 | mapped |
 | R061 | core-capability | active | M007/S04 | M007/S01 | mapped |
 | R062 | failure-visibility | active | M007/S05 | M007/S04 | mapped |
@@ -674,7 +674,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 6
-- Mapped to slices: 6
-- Validated: 27
+- Active requirements: 5
+- Mapped to slices: 5
+- Validated: 28
 - Unmapped active requirements: 0
