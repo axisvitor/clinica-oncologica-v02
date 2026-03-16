@@ -73,3 +73,9 @@ The grounding thresholds are:
 ## Expected Output
 
 - `backend-hormonia/tests/unit/services/flow/test_personalization_grounding.py` — New test file with 10+ focused tests covering grounding thresholds, variation selection, light rephrasing, and AI skip behavior. Proves R060 contract.
+
+## Observability Impact
+
+- **Signals tested:** `record_ai_fallback(reason="non_response_message")` Prometheus counter increment is verified by the AI-skip test, proving the metric fires when `expects_response=False`.
+- **Inspection:** Run `python -m pytest tests/unit/services/flow/test_personalization_grounding.py -v -k "hallucin or empty"` to re-check failure-path coverage anytime.
+- **Failure state visible:** Grounding rejection tests prove that `_personalization_is_grounded()` returns `False` for hallucinated content — in production this triggers the `not_grounded` fallback counter and logger warning.

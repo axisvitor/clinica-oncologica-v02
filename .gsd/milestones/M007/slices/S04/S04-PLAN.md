@@ -24,6 +24,9 @@
 ## Verification
 
 ```bash
+# Diagnostic / failure-path check: verify grounding rejects hallucinated content and metrics record the reason
+cd backend-hormonia && python -m pytest tests/unit/services/flow/test_personalization_grounding.py -v -k "hallucin or empty or ai_skip" --tb=short
+
 # T01: Grounding calibration tests
 cd backend-hormonia && python -m pytest tests/unit/services/flow/test_personalization_grounding.py -v
 
@@ -56,7 +59,7 @@ cd backend-hormonia && python -m pytest tests/unit/services/flow/ -v --tb=short
 
 ## Tasks
 
-- [ ] **T01: Prove grounding calibration with focused unit tests** `est:45m`
+- [x] **T01: Prove grounding calibration with focused unit tests** `est:45m`
   - Why: R060 requires proving the existing IA personalization pipeline produces anchored reformulations. The grounding logic exists but has no dedicated tests. This task proves the thresholds work correctly without changing any production code.
   - Files: `backend-hormonia/tests/unit/services/flow/test_personalization_grounding.py` (new)
   - Do: Write focused unit tests for `_personalization_is_grounded()` (boundary cases at thresholds), `_select_template_variation()` (determinism, empty variations), `_lightly_rephrase_question()` (question vs non-question, existing prefix skip), and `_personalize_message_ai` (skips AI when `expects_response=False`). Use realistic Portuguese oncology content. Follow the existing shim pattern from `test_sequential_message_handler.py` for module isolation.
