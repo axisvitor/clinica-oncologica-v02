@@ -32,7 +32,7 @@
 
 ## Tasks
 
-- [ ] **T01: WuzAPI via Docker + conexão de número** `est:30m`
+- [x] **T01: WuzAPI via Docker + conexão de número** `est:30m`
   - Why: sem WuzAPI rodando, nenhuma mensagem WhatsApp pode ser enviada
   - Files: `backend-hormonia/docker-compose.yml`, `backend-hormonia/.env`
   - Do: adicionar serviço WuzAPI ao docker-compose (ou rodar separado), configurar porta (evitar conflito com backend), configurar token. Subir container e apresentar QR code pro usuário parear o número de teste. Configurar webhook URL apontando pro backend.

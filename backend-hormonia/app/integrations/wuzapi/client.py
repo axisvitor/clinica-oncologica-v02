@@ -74,7 +74,7 @@ class WuzAPIClient:
         self.session: ClientSession | None = None
         self.headers = {
             "Content-Type": "application/json",
-            "Authorization": token,
+            "Token": token,
         }
 
     async def __aenter__(self) -> "WuzAPIClient":
