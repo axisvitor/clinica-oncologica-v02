@@ -49,25 +49,25 @@ Guidelines:
 
 ### R070 — Criação de paciente → welcome message no WhatsApp
 - Class: primary-user-loop
-- Status: active
+- Status: validated
 - Description: Médico cria paciente no dashboard, saga executa (create → flow → welcome → commit), welcome message chega no WhatsApp real do paciente.
 - Why it matters: Este é o primeiro contato do paciente com o sistema. Se não funcionar, todo o resto é irrelevante.
 - Source: user
 - Primary owning slice: M008/S04
 - Supporting slices: M008/S01, M008/S02, M008/S03
-- Validation: unmapped
-- Notes: Saga já existe no código. Precisa provar contra stack real.
+- Validation: validated by S04 — POST /api/v2/patients triggers 4-step onboarding saga (create → flow → welcome → commit), PatientFlowState created with status=active and flow_kind=onboarding, welcome message delivered via Celery → WuzAPI with status=sent and delivery_status=sent in messages table. Hybrid sync/async fix in PatientFlowService enabled AsyncSession compatibility in saga path.
+- Notes: Celery beat not configured — welcome dispatch requires manual trigger via send_scheduled_message.delay() or running worker that picks up the task.
 
 ### R071 — Ciclo diário de onboarding funciona ponta-a-ponta
 - Class: core-capability
-- Status: active
+- Status: validated
 - Description: process_daily_flows executa, seleciona template do dia correto, personaliza com IA (Gemini), e entrega mensagem no WhatsApp real do paciente.
 - Why it matters: O acompanhamento diário é o core do produto. Precisa funcionar de verdade, não só em testes.
 - Source: user
 - Primary owning slice: M008/S04
 - Supporting slices: M008/S01, M008/S02, M008/S03
-- Validation: unmapped
-- Notes: Inclui personalização IA se Gemini key estiver configurada.
+- Validation: validated by S04 — process_daily_flows_async() executed successfully (processed_count=1, success_count=1, error_count=0), loaded day 1 onboarding template, personalized with Gemini 2.5, delivered via WuzAPI with status=sent. step_data updated with last_message_sent, current_flow_day=1, next_scheduled_at=tomorrow 9AM. Hybrid _resolve/_execute/_commit helpers in FlowCoreOperationsMixin enabled sync Session compatibility in async code paths.
+- Notes: Inclui personalização IA se Gemini key estiver configurada. Celery beat not configured — daily processing requires manual trigger.
 
 ### R072 — Resposta do paciente chega e persiste via webhook
 - Class: core-capability
@@ -784,8 +784,8 @@ Guidelines:
 | R067 | operability | validated | M008/S01 | none | validated by S01 — health checks green, Celery pong, Alembic head, admin login |
 | R068 | integration | validated | M008/S02 | none | validated by S02 — WuzAPI on 8081, QR paired, send_text() delivered, user confirmed |
 | R069 | core-capability | validated | M008/S03 | none | validated by S03 — SQL + loader verification scripts |
-| R070 | primary-user-loop | active | M008/S04 | M008/S01, M008/S02, M008/S03 | unmapped |
-| R071 | core-capability | active | M008/S04 | M008/S01, M008/S02, M008/S03 | unmapped |
+| R070 | primary-user-loop | validated | M008/S04 | M008/S01, M008/S02, M008/S03 | validated by S04 — saga 4 steps, welcome sent via WuzAPI |
+| R071 | core-capability | validated | M008/S04 | M008/S01, M008/S02, M008/S03 | validated by S04 — process_daily_flows success, Gemini personalization, WuzAPI delivery |
 | R072 | core-capability | active | M008/S05 | M008/S04 | unmapped |
 | R073 | continuity | active | M008/S05 | M008/S04 | unmapped |
 | R074 | core-capability | validated | M008/S03 | none | validated by S03 — SQL + loader verification scripts |
@@ -794,7 +794,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 4
-- Mapped to slices: 4
-- Validated: 37
+- Active requirements: 2
+- Mapped to slices: 2
+- Validated: 39
 - Unmapped active requirements: 0

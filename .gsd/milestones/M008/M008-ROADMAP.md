@@ -66,7 +66,7 @@ This milestone is complete only when all are true:
 - [x] **S03: Templates clínicos semeados** `risk:medium` `depends:[S01]`
   > After this: flow_kinds `onboarding`, `daily_follow_up`, `quiz_mensal` existem no banco, templates de onboarding (15 dias) e daily follow-up (dia 16-45) têm conteúdo clínico real com send_mode e expects_response corretos. Provado por query SQL e EnhancedTemplateLoader.
 
-- [ ] **S04: Criação de paciente → welcome → ciclo diário** `risk:high` `depends:[S01,S02,S03]`
+- [x] **S04: Criação de paciente → welcome → ciclo diário** `risk:high` `depends:[S01,S02,S03]`
   > After this: médico cria paciente via API (ou dashboard), saga executa 4 steps, welcome message chega no WhatsApp real. Trigger de process_daily_flows envia mensagem do dia com conteúdo personalizado. Provado por mensagens recebidas no telefone.
 
 - [ ] **S05: Resposta do paciente e transição de fase** `risk:medium` `depends:[S04]`

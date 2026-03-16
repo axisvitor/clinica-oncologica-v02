@@ -172,6 +172,7 @@ class FlowCoreOperationsMixin:
             patient_id=patient_id,
             flow_template_version_id=active_version.id,
             current_step=1,
+            status="active",
             started_at=start_dt,
             step_data={
                 "enrollment_date": start_dt.isoformat(),
