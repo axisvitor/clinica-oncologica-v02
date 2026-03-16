@@ -42,3 +42,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M005: Fechamento Definitivo de Schema e Migrações — schema/Alembic alinhados ao modelo final.
 - [x] M006: Purga Final de Código Morto e Resíduo Legado — bridges, aliases, tombstones e código morto removidos com prova final.
 - [x] M007: Refinamento dos Fluxos de Acompanhamento — sequenciamento correto, editor de templates para médico, personalização IA, armazenamento de respostas, quiz review, resumo mensal para consulta.
+- [ ] M008: Onboarding Real de Pacientes — stack local rodando, WuzAPI real conectado, templates semeados, fluxo ponta-a-ponta de criação → welcome → ciclo diário → resposta → transição de fase.

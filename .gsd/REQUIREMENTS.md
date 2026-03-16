@@ -14,6 +14,94 @@ Guidelines:
 
 ## Active
 
+### R067 — Stack local roda ponta-a-ponta
+- Class: operability
+- Status: active
+- Description: O stack completo (Postgres + Dragonfly + backend + Celery worker + WuzAPI) sobe localmente e se comunica. Health checks verdes, worker conectado ao broker, schema atualizado.
+- Why it matters: Sem stack funcional, nenhuma prova de integração é possível.
+- Source: user
+- Primary owning slice: M008/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Inclui configuração de .env, docker-compose, e Alembic migrations.
+
+### R068 — WuzAPI conectado e enviando mensagens reais
+- Class: integration
+- Status: active
+- Description: WuzAPI rodando via Docker com número de teste conectado. Mensagem enviada via API chega no WhatsApp real.
+- Why it matters: O valor do sistema depende de mensagens reais chegarem no WhatsApp do paciente.
+- Source: user
+- Primary owning slice: M008/S02
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Processo de QR code é manual e depende do usuário parear o número.
+
+### R069 — Templates de onboarding (15 dias) com conteúdo clínico real
+- Class: core-capability
+- Status: active
+- Description: Templates de onboarding com 15 dias de conteúdo clínico real existem no banco via FlowTemplateVersion, com send_mode e expects_response corretos por mensagem.
+- Why it matters: Sem templates reais, o paciente recebe placeholders ou nenhuma mensagem.
+- Source: inferred
+- Primary owning slice: M008/S03
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Conteúdo já existe em snapshots markdown. Migration 9b4e2d1c7f66 lê e popula.
+
+### R070 — Criação de paciente → welcome message no WhatsApp
+- Class: primary-user-loop
+- Status: active
+- Description: Médico cria paciente no dashboard, saga executa (create → flow → welcome → commit), welcome message chega no WhatsApp real do paciente.
+- Why it matters: Este é o primeiro contato do paciente com o sistema. Se não funcionar, todo o resto é irrelevante.
+- Source: user
+- Primary owning slice: M008/S04
+- Supporting slices: M008/S01, M008/S02, M008/S03
+- Validation: unmapped
+- Notes: Saga já existe no código. Precisa provar contra stack real.
+
+### R071 — Ciclo diário de onboarding funciona ponta-a-ponta
+- Class: core-capability
+- Status: active
+- Description: process_daily_flows executa, seleciona template do dia correto, personaliza com IA (Gemini), e entrega mensagem no WhatsApp real do paciente.
+- Why it matters: O acompanhamento diário é o core do produto. Precisa funcionar de verdade, não só em testes.
+- Source: user
+- Primary owning slice: M008/S04
+- Supporting slices: M008/S01, M008/S02, M008/S03
+- Validation: unmapped
+- Notes: Inclui personalização IA se Gemini key estiver configurada.
+
+### R072 — Resposta do paciente chega e persiste via webhook
+- Class: core-capability
+- Status: active
+- Description: Paciente responde livremente no WhatsApp, webhook do WuzAPI envia pro backend, MessageWebhookHandler processa, resposta persiste em patient_flow_responses com day_number e message_index.
+- Why it matters: Sem captura de resposta, o resumo mensal do médico fica vazio.
+- Source: user
+- Primary owning slice: M008/S05
+- Supporting slices: M008/S04
+- Validation: unmapped
+- Notes: Dual-write (step_data + patient_flow_responses) provado em M007/S04 por testes. Falta prova real.
+
+### R073 — Transição automática onboarding → daily follow-up verificada
+- Class: continuity
+- Status: active
+- Description: Quando current_day atinge 16, determine_flow_type() retorna DAILY_FOLLOW_UP e _transition_flow_type() muda o flow_type no PatientFlowState. Transição registrada em step_data.transitions.
+- Why it matters: Se a transição não funcionar, paciente fica preso no onboarding ou pula direto pro quiz mensal.
+- Source: inferred
+- Primary owning slice: M008/S05
+- Supporting slices: M008/S04
+- Validation: unmapped
+- Notes: Lógica existe em transitions.py. Nunca exercitada contra stack real.
+
+### R074 — Templates de daily follow-up (dia 16-45) com conteúdo
+- Class: core-capability
+- Status: active
+- Description: Templates de daily follow-up com conteúdo clínico para dias 16-45 existem no banco com send_mode e expects_response corretos.
+- Why it matters: Sem templates de daily follow-up, a transição de fase no dia 16 resulta em "no template for day".
+- Source: inferred
+- Primary owning slice: M008/S03
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Conteúdo já existe em snapshot markdown. Migration 9b4e2d1c7f66 lê e popula.
+
 ### R058 — Médico edita templates dia-a-dia por UI simples
 - Class: primary-user-loop
 - Status: validated
@@ -614,6 +702,28 @@ Guidelines:
 - Validation: n/a
 - Notes: Mudanças amplas só entram se uma pesquisa futura provar necessidade real e escopo separado.
 
+### R075 — Quiz mensal ponta-a-ponta neste milestone
+- Class: constraint
+- Status: out-of-scope
+- Description: Prova ponta-a-ponta do ciclo de quiz mensal (dia 30+) não está no escopo de M008.
+- Why it matters: O ciclo de 30+ dias é impraticável de provar no mesmo milestone que setup do stack. Lógica de quiz já provada em M007/S05.
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Quiz mensal pode ser milestone futuro se necessário.
+
+### R076 — Deploy em produção/staging
+- Class: constraint
+- Status: out-of-scope
+- Description: Deploy automatizado em ambiente de produção ou staging não está no escopo de M008.
+- Why it matters: Separar setup local de deploy evita misturar riscos.
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Deploy seria milestone separado.
+
 ## Traceability
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
@@ -671,10 +781,20 @@ Guidelines:
 | R054 | anti-feature | out-of-scope | none | none | n/a |
 | R055 | anti-feature | out-of-scope | none | none | n/a |
 | R056 | anti-feature | out-of-scope | none | none | n/a |
+| R067 | operability | active | M008/S01 | none | unmapped |
+| R068 | integration | active | M008/S02 | none | unmapped |
+| R069 | core-capability | active | M008/S03 | none | unmapped |
+| R070 | primary-user-loop | active | M008/S04 | M008/S01, M008/S02, M008/S03 | unmapped |
+| R071 | core-capability | active | M008/S04 | M008/S01, M008/S02, M008/S03 | unmapped |
+| R072 | core-capability | active | M008/S05 | M008/S04 | unmapped |
+| R073 | continuity | active | M008/S05 | M008/S04 | unmapped |
+| R074 | core-capability | active | M008/S03 | none | unmapped |
+| R075 | constraint | out-of-scope | none | none | n/a |
+| R076 | constraint | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 0
-- Mapped to slices: 0
+- Active requirements: 8
+- Mapped to slices: 8
 - Validated: 33
 - Unmapped active requirements: 0
