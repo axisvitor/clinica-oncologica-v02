@@ -1,9 +1,10 @@
 # GSD State
 
 **Active Milestone:** M007: Refinamento dos Fluxos de Acompanhamento
-**Active Slice:** S02: Remover abstrações mortas do subsistema de fluxo
-**Phase:** executing
-**Requirements Status:** 6 active · 27 validated · 8 deferred · 13 out of scope
+**Active Slice:** S03: Editor de templates dia-a-dia para o médico
+**Phase:** execution
+**Current Task:** T01
+**Requirements Status:** 5 active · 28 validated · 8 deferred · 13 out of scope
 
 ## Milestone Registry
 - ✅ **M001:** Bulletproof Flow Pipeline
@@ -21,4 +22,4 @@
 - None
 
 ## Next Action
-Execute T01 of S02 (Delete backend tombstones and phantom FlowType members).
+Execute T01: Backend — Pydantic schemas and GET/PUT day-config endpoints.
