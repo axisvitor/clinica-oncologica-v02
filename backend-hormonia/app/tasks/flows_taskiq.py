@@ -1,7 +1,7 @@
 """
 Taskiq flow tasks — async-native replacements for Celery flow/automation/monthly tasks (M009-S03).
 
-First 8 of 14 flow-domain tasks migrated from Celery to Taskiq:
+All 14 flow-domain tasks migrated from Celery to Taskiq:
   1. process_daily_flows          — cron 08:00 BRT (11:00 UTC), batch flow processing
   2. check_and_start_pending_flows — 900s interval, enroll patients missing flows
   3. send_daily_reminders         — cron 09:00 BRT (12:00 UTC), quiz pending reminders
@@ -10,6 +10,12 @@ First 8 of 14 flow-domain tasks migrated from Celery to Taskiq:
   6. send_flow_day_for_patient    — on-demand with retry, send specific day messages
   7. process_monthly_quizzes      — 3600s interval, trigger monthly quizzes
   8. generate_quiz_report         — on-demand with retry, generate quiz report
+  9. detect_stuck_flows           — 900s interval, find & recover stuck flows
+  10. monitor_flow_task_health    — 300s interval, health checks (DB/Redis/Gemini)
+  11. evaluate_flow_alerts        — 900s interval, evaluate flow analytics alerts
+  12. cleanup_old_flow_data       — 86400s interval, archive & delete old flows/messages
+  13. retry_failed_flow_send      — on-demand with retry, retry failed outbound messages
+  14. retry_failed_followup_send  — on-demand with retry, retry failed follow-up sends
 
 Key translation patterns from Celery → Taskiq:
   - async_to_sync() / run_async() bridges removed: task body is directly async
@@ -19,13 +25,17 @@ Key translation patterns from Celery → Taskiq:
   - send_scheduled_message.delay() → await send_scheduled_message.kiq()
   - Structured logging via log_task_start/success/error from taskiq_base
 
-Schedule labels (6 of 8 tasks are periodic):
+Schedule labels (10 of 14 tasks are periodic):
   - process_daily_flows:          cron 0 11 * * * (08:00 BRT)
   - check_and_start_pending_flows: interval 900s
   - send_daily_reminders:         cron 0 12 * * * (09:00 BRT)
   - resume_paused_flows:          interval 3600s
   - cleanup_expired_quiz_links:   interval 86400s
   - process_monthly_quizzes:      interval 3600s
+  - detect_stuck_flows:           interval 900s
+  - monitor_flow_task_health:     interval 300s
+  - evaluate_flow_alerts:         interval 900s
+  - cleanup_old_flow_data:        interval 86400s
 """
 
 import asyncio
@@ -1034,3 +1044,741 @@ async def generate_quiz_report(
     except Exception as exc:
         log_task_error("generate_quiz_report", exc, start_time, session_id=session_id)
         raise
+
+
+# ===========================================================================
+# 9. detect_stuck_flows — periodic (900s)
+# ===========================================================================
+
+_SKIPPED_RECOVERY_STATUSES = {
+    "already_recovering",
+    "max_attempts_exceeded",
+    "no_longer_stuck",
+}
+
+
+@broker.task(
+    schedule=[{"interval": {"seconds": 900}}],
+    retry_on_error=True,
+    max_retries=1,
+    delay=60,
+)
+async def detect_stuck_flows() -> dict[str, Any]:
+    """Detect stuck flows and attempt bounded recovery for each one.
+
+    Async-native Taskiq replacement for the Celery detect_stuck_flows task.
+    Runs every 15 minutes (900s).
+
+    Uses ``get_scoped_session()`` (sync) because ``find_stuck_flows`` and
+    ``attempt_recovery`` are sync-only services operating on sync ORM.
+
+    IMPORTANT: ``attempt_recovery()`` internally calls
+    ``retry_failed_flow_send.delay()`` (Celery dispatch). This is intentional
+    during coexistence — S05 handles the cleanup.
+
+    Returns:
+        Dict with detected_count, recovered_count, skipped_count, failed_count.
+    """
+    start_time = log_task_start("detect_stuck_flows")
+
+    try:
+        from app.core.redis_manager import get_redis_manager
+        from app.database import get_scoped_session
+        from app.services.flow.recovery import find_stuck_flows, attempt_recovery
+
+        summary: dict[str, Any] = {
+            "detected_count": 0,
+            "recovered_count": 0,
+            "skipped_count": 0,
+            "failed_count": 0,
+            "timestamp": now_sao_paulo().isoformat(),
+        }
+
+        with get_scoped_session() as db:
+            redis_client = get_redis_manager().get_sync_client()
+            stuck_flows = find_stuck_flows(db)
+            summary["detected_count"] = len(stuck_flows)
+
+            if not stuck_flows:
+                logger.info("No stuck flows detected", extra=summary)
+                log_task_success("detect_stuck_flows", start_time, **summary)
+                return summary
+
+            for flow_state in stuck_flows:
+                try:
+                    result = attempt_recovery(db, flow_state, redis_client)
+                except Exception:
+                    summary["failed_count"] += 1
+                    logger.exception(
+                        "Failed to recover stuck flow",
+                        extra={
+                            "flow_state_id": str(flow_state.id),
+                            "patient_id": str(flow_state.patient_id),
+                        },
+                    )
+                    continue
+
+                status = result.get("status")
+                if status == "recovered":
+                    summary["recovered_count"] += 1
+                elif status in _SKIPPED_RECOVERY_STATUSES:
+                    summary["skipped_count"] += 1
+                else:
+                    summary["failed_count"] += 1
+                    logger.warning(
+                        "Stuck flow recovery returned unexpected status",
+                        extra={
+                            "flow_state_id": str(flow_state.id),
+                            "patient_id": str(flow_state.patient_id),
+                            "status": status,
+                        },
+                    )
+
+        logger.info("Completed stuck flow detection run", extra=summary)
+        log_task_success("detect_stuck_flows", start_time, **summary)
+        return summary
+
+    except Exception as exc:
+        log_task_error("detect_stuck_flows", exc, start_time)
+        raise
+
+
+# ===========================================================================
+# 10. monitor_flow_task_health — periodic (300s)
+# ===========================================================================
+
+@broker.task(
+    schedule=[{"interval": {"seconds": 300}}],
+    retry_on_error=True,
+    max_retries=2,
+    delay=30,
+)
+async def monitor_flow_task_health(
+    db: AsyncSession = DbSession,
+) -> dict[str, Any]:
+    """Monitor flow task health and system connectivity.
+
+    Async-native Taskiq replacement for the Celery monitor_flow_task_health task.
+    Runs every 5 minutes (300s).
+
+    The original Celery task used ``run_async_in_sync()`` / ``run_async_in_thread()``
+    bridges for the Gemini health check. Here we call ``await`` directly.
+
+    DB queries converted from sync ORM ``db.query()`` to async ``select()``.
+    Redis operations remain sync (sync client from RedisManager).
+
+    Returns:
+        Dict with health check results (database, redis, gemini, counts, overall).
+    """
+    start_time = log_task_start("monitor_flow_task_health")
+
+    try:
+        from app.models.flow import PatientFlowState
+        from app.models.message import Message, MessageStatus
+        from app.models.patient import Patient
+        from app.ai.client import get_gemini_client
+
+        health_results: dict[str, Any] = {
+            "database_connection": False,
+            "redis_connection": False,
+            "gemini_client": False,
+            "active_flows_count": 0,
+            "pending_messages_count": 0,
+            "failed_tasks_count": 0,
+            "timestamp": now_sao_paulo().isoformat(),
+        }
+
+        # Test database connection
+        try:
+            await db.execute(text("SELECT 1"))
+            health_results["database_connection"] = True
+        except Exception as e:
+            logger.error("Database health check failed: %s", e)
+
+        # Test Redis connection using centralized RedisManager
+        try:
+            from app.core.redis_manager import get_redis_manager
+
+            manager = get_redis_manager()
+            redis_client = manager.get_sync_client()
+            redis_client.ping()
+            health_results["redis_connection"] = True
+        except Exception as e:
+            logger.error("Redis health check failed: %s", e)
+
+        # Test Gemini client — direct await, no run_async_in_sync bridge
+        try:
+            gemini_client = get_gemini_client()
+            from app.config.settings.tasks import HEALTH_CHECK_TIMEOUT
+
+            health_results["gemini_client"] = await asyncio.wait_for(
+                gemini_client.health_check(),
+                timeout=HEALTH_CHECK_TIMEOUT,
+            )
+        except Exception as e:
+            logger.error("Gemini client health check failed: %s", e)
+
+        # Count active flows (async select — replaces sync db.query())
+        try:
+            from app.config.settings.tasks import HEALTH_ACTIVE_FLOWS_LIMIT
+
+            active_result = await db.execute(
+                select(PatientFlowState.id)
+                .join(Patient)
+                .where(
+                    PatientFlowState.completed_at.is_(None),
+                    Patient.deleted_at.is_(None),
+                )
+                .limit(HEALTH_ACTIVE_FLOWS_LIMIT)
+            )
+            health_results["active_flows_count"] = len(active_result.all())
+        except Exception as e:
+            logger.error("Failed to count active flows: %s", e)
+
+        # Count pending messages (async select — replaces sync db.query())
+        try:
+            from app.config.settings.tasks import HEALTH_ACTIVE_FLOWS_LIMIT as msg_limit
+
+            pending_result = await db.execute(
+                select(Message.id)
+                .where(Message.status == MessageStatus.PENDING)
+                .limit(msg_limit)
+            )
+            health_results["pending_messages_count"] = len(pending_result.all())
+        except Exception as e:
+            logger.error("Failed to count pending messages: %s", e)
+
+        # Check for failed tasks in Redis using centralized RedisManager
+        try:
+            from app.core.redis_manager import get_redis_manager as _get_rm
+
+            _manager = _get_rm()
+            _redis = _manager.get_sync_client()
+
+            failed_count = 0
+            scanned_count = 0
+            max_scan = 500
+
+            for task_key in _redis.scan_iter(match="task_result:*", count=100):
+                scanned_count += 1
+                if scanned_count > max_scan:
+                    break
+                task_data = _redis.get(task_key)
+                if task_data and "failure" in str(task_data):
+                    failed_count += 1
+
+            health_results["failed_tasks_count"] = failed_count
+            health_results["failed_tasks_scanned"] = min(scanned_count, max_scan)
+        except Exception as e:
+            logger.error("Failed to check task failures: %s", e)
+
+        # Overall health status
+        health_results["overall_healthy"] = all([
+            health_results["database_connection"],
+            health_results["redis_connection"],
+            health_results["gemini_client"],
+        ])
+
+        log_task_success("monitor_flow_task_health", start_time, **health_results)
+        return health_results
+
+    except Exception as exc:
+        log_task_error("monitor_flow_task_health", exc, start_time)
+        return {
+            "error": str(exc),
+            "timestamp": now_sao_paulo().isoformat(),
+            "overall_healthy": False,
+        }
+
+
+# ===========================================================================
+# 11. evaluate_flow_alerts — periodic (900s)
+# ===========================================================================
+
+@broker.task(
+    schedule=[{"interval": {"seconds": 900}}],
+    retry_on_error=True,
+    max_retries=3,
+    delay=60,
+)
+async def evaluate_flow_alerts(
+    db: AsyncSession = DbSession,
+) -> dict[str, Any]:
+    """Evaluate flow analytics alerts and dispatch notifications.
+
+    Async-native Taskiq replacement for the Celery evaluate_flow_alerts task.
+    Runs every 15 minutes (900s).
+
+    The original Celery task used ``run_async_in_sync(service.evaluate_alerts())``
+    as a bridge. Here we call ``await service.evaluate_alerts()`` directly.
+    ``FlowAlertsService`` accepts ``Any`` session — DbSession (AsyncSession) works.
+
+    Returns:
+        Dict with alerts_created count and timestamp.
+    """
+    start_time = log_task_start("evaluate_flow_alerts")
+
+    try:
+        from app.services.flow_alerts import FlowAlertsService
+
+        service = FlowAlertsService(db)
+        alerts = await service.evaluate_alerts()
+
+        result = {
+            "alerts_created": len(alerts),
+            "timestamp": now_sao_paulo().isoformat(),
+        }
+
+        log_task_success("evaluate_flow_alerts", start_time, **result)
+        return result
+
+    except Exception as exc:
+        log_task_error("evaluate_flow_alerts", exc, start_time)
+        raise
+
+
+# ===========================================================================
+# 12. cleanup_old_flow_data — periodic (86400s)
+# ===========================================================================
+
+@broker.task(
+    schedule=[{"interval": {"seconds": 86400}, "kwargs": {"days_old": 90}}],
+    retry_on_error=True,
+    max_retries=2,
+    delay=120,
+)
+async def cleanup_old_flow_data(
+    days_old: int = 90,
+    db: AsyncSession = DbSession,
+) -> dict[str, Any]:
+    """Clean up old flow data for maintenance.
+
+    Async-native Taskiq replacement for the Celery cleanup_old_flow_data task.
+    Runs daily (86400s). Translates sync ORM queries to async ``select()`` with
+    DbSession (AsyncSession).
+
+    Archives completed flows to Redis before deletion, then cleans up old
+    messages in terminal states.
+
+    Args:
+        days_old: Age threshold for cleanup in days (default 90).
+        db: Async database session (injected by TaskiqDepends).
+
+    Returns:
+        Dict with completed_flows_cleaned, old_messages_cleaned counts.
+    """
+    start_time = log_task_start("cleanup_old_flow_data", days_old=days_old)
+
+    try:
+        import json
+        from datetime import timedelta
+
+        from app.models.flow import PatientFlowState
+        from app.models.message import Message, MessageStatus
+
+        cutoff_date = now_sao_paulo() - timedelta(days=days_old)
+
+        results: dict[str, Any] = {
+            "completed_flows_cleaned": 0,
+            "old_messages_cleaned": 0,
+            "analytics_cleaned": 0,
+            "cutoff_date": cutoff_date.isoformat(),
+            "start_time": now_sao_paulo().isoformat(),
+        }
+
+        # Clean up completed flows older than threshold (async select)
+        flow_result = await db.execute(
+            select(PatientFlowState).where(
+                PatientFlowState.completed_at < cutoff_date,
+                PatientFlowState.completed_at.isnot(None),
+            )
+        )
+        completed_flows = flow_result.scalars().all()
+
+        for flow in completed_flows:
+            # Archive important data before deletion
+            archive_data = {
+                "patient_id": str(flow.patient_id),
+                "flow_type": flow.flow_type,
+                "completed_at": (
+                    flow.completed_at.isoformat() if flow.completed_at else None
+                ),
+                "final_state": flow.state_data,
+            }
+
+            # Store in Redis for historical reference
+            try:
+                from app.core.redis_manager import get_cache_redis_manager
+                from app.config.settings.tasks import ARCHIVE_RETENTION_DAYS
+
+                manager = get_cache_redis_manager()
+                redis_client = manager.get_sync_client()
+                redis_client.setex(
+                    f"archived_flow:{flow.id}",
+                    86400 * ARCHIVE_RETENTION_DAYS,
+                    json.dumps(archive_data, default=str),
+                )
+            except Exception as redis_error:
+                logger.warning("Failed to archive flow data to Redis: %s", redis_error)
+
+            await db.delete(flow)
+            results["completed_flows_cleaned"] += 1
+
+        # Clean up old messages in terminal states (async select)
+        msg_result = await db.execute(
+            select(Message).where(
+                Message.created_at < cutoff_date,
+                Message.status.in_([
+                    MessageStatus.DELIVERED,
+                    MessageStatus.READ,
+                    MessageStatus.FAILED,
+                ]),
+            )
+        )
+        old_messages = msg_result.scalars().all()
+
+        for message in old_messages:
+            await db.delete(message)
+            results["old_messages_cleaned"] += 1
+
+        await db.commit()
+        results["end_time"] = now_sao_paulo().isoformat()
+
+        logger.info("Flow data cleanup completed: %s", results)
+        log_task_success("cleanup_old_flow_data", start_time, **results)
+        return results
+
+    except Exception as exc:
+        await db.rollback()
+        log_task_error("cleanup_old_flow_data", exc, start_time, days_old=days_old)
+        raise
+
+
+# ===========================================================================
+# 13. retry_failed_flow_send — on-demand with retry (SmartRetryMiddleware)
+# ===========================================================================
+
+@broker.task(
+    retry_on_error=True,
+    max_retries=5,
+    delay=60,
+)
+async def retry_failed_flow_send(
+    message_id: str,
+    flow_context: dict[str, Any] | None = None,
+    context: Context = TaskiqDepends(),
+) -> dict[str, Any]:
+    """Retry a failed outbound flow message send with exponential backoff.
+
+    Async-native Taskiq replacement for the Celery retry_failed_flow_send task.
+    On-demand (no schedule). SmartRetryMiddleware replaces ``self.retry(countdown=)``.
+
+    Translation:
+      - ``self.request.retries`` → ``context.message.labels.get('_retries', 0)``
+      - ``self.retry(countdown=)`` → raise exception, middleware applies backoff + jitter
+      - ``MaxRetriesExceededError`` → check ``retries >= max_retries`` in task body
+      - ``async_to_sync(whatsapp_service.send_message)`` → ``await ...`` directly
+      - DLQ routing on permanent failure via structured return + log signal
+
+    Uses ``get_scoped_session()`` for sync ORM operations (message queries,
+    FlowStateRepository). WhatsApp send is awaited directly.
+
+    Args:
+        message_id: Message UUID string to retry.
+        flow_context: Optional flow context dict for the send.
+        context: Taskiq context (injected, provides retry count).
+
+    Returns:
+        Dict with status, message_id, attempt count, and DLQ info on failure.
+    """
+    retries = int(context.message.labels.get("_retries", 0))
+    _max_retries = 5
+
+    start_time = log_task_start(
+        "retry_failed_flow_send",
+        message_id=message_id,
+        attempt=retries + 1,
+    )
+
+    try:
+        message_uuid = UUID(str(message_id))
+    except (TypeError, ValueError):
+        return {"status": "invalid_message_id", "message_id": str(message_id)}
+
+    from app.database import get_scoped_session
+    from app.exceptions import ExternalServiceError
+    from app.models.message import Message, MessageStatus
+    from app.services.unified_whatsapp_service import UnifiedWhatsAppService
+    from app.tasks.flows.send_retry import (
+        _TERMINAL_MESSAGE_STATUSES,
+        _record_permanent_delivery_failure,
+        _resolve_flow_context,
+    )
+
+    with get_scoped_session() as db:
+        message = db.query(Message).filter(Message.id == message_uuid).first()
+        if not message:
+            return {"status": "message_not_found", "message_id": str(message_id)}
+
+        if message.status in _TERMINAL_MESSAGE_STATUSES:
+            return {
+                "status": "already_finalized",
+                "message_id": str(message.id),
+                "message_status": message.status.value,
+            }
+
+        resolved_flow_context = _resolve_flow_context(message, flow_context)
+        attempt = retries + 1
+
+        if message.status == MessageStatus.FAILED:
+            message.status = MessageStatus.PENDING
+
+        message.retry_count = attempt
+        message.last_retry_at = now_sao_paulo()
+        message.next_retry_at = None
+        message.failure_reason = None
+        db.add(message)
+        db.commit()
+
+        whatsapp_service = UnifiedWhatsAppService(db)
+
+        try:
+            # Direct await — no async_to_sync bridge
+            success = await whatsapp_service.send_message(
+                message,
+                flow_context=resolved_flow_context,
+            )
+            if not success:
+                raise ExternalServiceError(
+                    f"Flow message retry returned False for message {message.id}"
+                )
+
+            log_task_success(
+                "retry_failed_flow_send",
+                start_time,
+                message_id=str(message.id),
+                attempt=attempt,
+            )
+            return {
+                "status": "ok",
+                "message_id": str(message.id),
+                "attempt": attempt,
+            }
+
+        except ExternalServiceError as exc:
+            message.failure_reason = str(exc)
+            db.add(message)
+            db.commit()
+
+            # Max retries reached → permanent failure + DLQ routing
+            if retries >= _max_retries:
+                message.status = MessageStatus.FAILED
+                message.next_retry_at = None
+                message.retry_count = attempt
+                metadata = dict(message.message_metadata or {})
+                metadata["permanently_failed_at"] = now_sao_paulo().isoformat()
+                if resolved_flow_context is not None:
+                    metadata["flow_context"] = resolved_flow_context
+                message.message_metadata = metadata
+
+                db.add(message)
+                _record_permanent_delivery_failure(message, db)
+                db.commit()
+
+                logger.error(
+                    "Flow message send permanently failed after retry exhaustion",
+                    extra={
+                        "message_id": str(message.id),
+                        "patient_id": str(message.patient_id),
+                        "attempts": _max_retries,
+                        "dlq_routed": True,
+                    },
+                )
+                log_task_error(
+                    "retry_failed_flow_send",
+                    exc,
+                    start_time,
+                    message_id=str(message.id),
+                    permanently_failed=True,
+                )
+                return {
+                    "status": "permanently_failed",
+                    "message_id": str(message.id),
+                    "attempts": _max_retries,
+                    "permanently_failed": True,
+                    "dlq_routed": True,
+                }
+
+            logger.warning(
+                "Retrying failed flow message send",
+                extra={
+                    "message_id": str(message.id),
+                    "patient_id": str(message.patient_id),
+                    "attempt": attempt,
+                },
+            )
+
+            # Raise to let SmartRetryMiddleware handle retry scheduling
+            raise
+
+
+# ===========================================================================
+# 14. retry_failed_followup_send — on-demand with retry (SmartRetryMiddleware)
+# ===========================================================================
+
+@broker.task(
+    retry_on_error=True,
+    max_retries=3,
+    delay=30,
+)
+async def retry_failed_followup_send(
+    action_id: str,
+    patient_id: str,
+    parameters: dict | None = None,
+    follow_up_type: str = "conversation_continuation",
+    priority: str = "normal",
+    context: Context = TaskiqDepends(),
+) -> dict[str, Any]:
+    """Retry a failed deferred follow-up send with exponential backoff.
+
+    Async-native Taskiq replacement for the Celery retry_failed_followup_send task.
+    On-demand (no schedule). SmartRetryMiddleware replaces ``self.retry(countdown=)``.
+
+    Translation:
+      - ``self.request.retries`` → ``context.message.labels.get('_retries', 0)``
+      - ``self.retry(countdown=)`` → raise exception, middleware applies backoff + jitter
+      - ``MaxRetriesExceededError`` → check ``retries >= max_retries`` in task body
+      - ``async_to_sync(service.method)`` → ``await service.method()`` directly
+      - DLQ routing on permanent failure via structured return + log signal
+
+    Uses ``get_scoped_session()`` for ``FollowUpSystemService`` (sync ORM).
+    Async service methods are awaited directly.
+
+    Args:
+        action_id: Follow-up action UUID string.
+        patient_id: Patient UUID string.
+        parameters: Optional action parameters.
+        follow_up_type: Follow-up type (default: conversation_continuation).
+        priority: Priority level (default: normal).
+        context: Taskiq context (injected, provides retry count).
+
+    Returns:
+        Dict with status, action_id, attempt count, and DLQ info on failure.
+    """
+    retries = int(context.message.labels.get("_retries", 0))
+    _max_retries = 3
+
+    start_time = log_task_start(
+        "retry_failed_followup_send",
+        action_id=action_id,
+        patient_id=patient_id,
+        attempt=retries + 1,
+    )
+
+    from app.tasks.flows.followup_retry import _build_retry_action
+
+    try:
+        retry_action = _build_retry_action(
+            action_id=action_id,
+            patient_id=patient_id,
+            parameters=parameters,
+            follow_up_type=follow_up_type,
+            priority=priority,
+        )
+    except (TypeError, ValueError) as exc:
+        return {
+            "status": "invalid_action",
+            "action_id": str(action_id),
+            "error": str(exc),
+        }
+
+    if retry_action is None:
+        return {"status": "action_not_found", "action_id": str(action_id)}
+
+    from app.database import get_scoped_session
+
+    with get_scoped_session() as db:
+        from app.services.follow_up_system.service import FollowUpSystemService
+
+        follow_up_service = FollowUpSystemService(db, auto_rehydrate=False)
+
+        try:
+            # Direct await — no async_to_sync bridge
+            success = await follow_up_service.action_executor._schedule_message_action(
+                retry_action,
+            )
+            if not success:
+                raise RuntimeError(
+                    f"Follow-up retry returned False for action {retry_action.action_id}"
+                )
+
+            executed_at = now_sao_paulo()
+            await follow_up_service.redis_store.update_action_status(
+                action_id=retry_action.action_id,
+                status="executed",
+                executed_at=executed_at,
+                execution_result=retry_action.execution_result,
+            )
+
+            log_task_success(
+                "retry_failed_followup_send",
+                start_time,
+                action_id=str(retry_action.action_id),
+                attempt=retries + 1,
+            )
+            return {
+                "status": "ok",
+                "action_id": str(retry_action.action_id),
+                "attempt": retries + 1,
+            }
+
+        except Exception as exc:
+            # Max retries reached → permanent failure + DLQ routing
+            if retries >= _max_retries:
+                executed_at = now_sao_paulo()
+                execution_result = {
+                    "error": str(exc),
+                    "retry_exhausted": True,
+                    "attempts": _max_retries,
+                }
+                await follow_up_service.redis_store.update_action_status(
+                    action_id=retry_action.action_id,
+                    status="failed",
+                    executed_at=executed_at,
+                    execution_result=execution_result,
+                )
+
+                logger.error(
+                    "Follow-up send permanently failed after retry exhaustion",
+                    extra={
+                        "action_id": str(retry_action.action_id),
+                        "patient_id": str(retry_action.patient_id),
+                        "attempts": _max_retries,
+                        "dlq_routed": True,
+                    },
+                )
+                log_task_error(
+                    "retry_failed_followup_send",
+                    exc,
+                    start_time,
+                    action_id=str(retry_action.action_id),
+                    permanently_failed=True,
+                )
+                return {
+                    "status": "permanently_failed",
+                    "action_id": str(retry_action.action_id),
+                    "attempts": _max_retries,
+                    "dlq_routed": True,
+                }
+
+            logger.warning(
+                "Retrying failed follow-up send",
+                extra={
+                    "action_id": str(retry_action.action_id),
+                    "patient_id": str(retry_action.patient_id),
+                    "attempt": retries + 1,
+                },
+            )
+
+            # Raise to let SmartRetryMiddleware handle retry scheduling
+            raise
