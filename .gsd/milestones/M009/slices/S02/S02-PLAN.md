@@ -61,7 +61,7 @@
   - Verify: `python3 -c "import ast; ast.parse(open('backend-hormonia/app/taskiq_broker.py').read())"` and `python3 -c "import ast; ast.parse(open('backend-hormonia/app/tasks/taskiq_base.py').read())"`
   - Done when: `dynamic_schedule_source` is importable from `app.taskiq_broker`, `schedule_by_time` helper available in `taskiq_base.py`, both files parse clean
 
-- [ ] **T02: Create messaging_taskiq.py with send_scheduled_message task** `est:1h`
+- [x] **T02: Create messaging_taskiq.py with send_scheduled_message task** `est:1h`
   - Why: `send_scheduled_message` is the hardest task (367 lines, complex retry/DLQ logic, `run_async()` bridge, `self.retry()` manual control). It proves the pattern that all other messaging tasks follow. The inner `_send_message_async()` becomes the direct task body in Taskiq — no bridge needed.
   - Files: `backend-hormonia/app/tasks/messaging_taskiq.py` (NEW)
   - Do: Create new module. Import pure helpers from `messaging.py` (`_build_idempotency_key`, `_parse_time_str`, `_add_months`, `_compute_next_reminder_time`, `_schedule_next_reminder`). Implement `send_scheduled_message` as `@broker.task(retry_on_error=True, max_retries=3, delay=2)` with async body. Replace sync `get_db_session()` DLQ routing with async DLQ operations using task's `DbSession`. Replace `self.request.retries` with `Context.message.labels.get('_retries', 0)`. Add schedule label for `process_scheduled_messages` interval (60s) as the first beat entry.
