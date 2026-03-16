@@ -49,7 +49,7 @@
 
 ## Tasks
 
-- [ ] **T01: Wire flow responses and fix alerts in aggregator + prompt** `est:45m`
+- [x] **T01: Wire flow responses and fix alerts in aggregator + prompt** `est:45m`
   - Why: The core data gap — `SummaryDataAggregator` doesn't consume `patient_flow_responses` and has a latent `alert.message` bug. Without this, the AI summary ignores the patient's free-text replies (the primary value of the monthly summary) and produces broken alert formatting.
   - Files: `backend-hormonia/app/services/ai/summary_data_aggregator.py`, `backend-hormonia/app/services/ai/prompts/patient_summary.py`, `backend-hormonia/tests/unit/services/flow/test_summary_integration.py`
   - Do: (1) Add `flow_responses` field to `AggregatedPatientData` dataclass + `flow_response_count` int field, (2) Add `_aggregate_flow_responses()` method to `SummaryDataAggregator` querying `PatientFlowResponse` by patient_id + responded_at range using the composite index, (3) Add `_format_flow_responses()` to format flow responses for prompt (day number, response text, date), (4) Fix `_aggregate_alerts()` to use `alert.description` instead of `alert.message`, extract `recommendation` from `(alert.data or {}).get("recommendation", "")`, (5) Update `to_prompt_context()` to include `flow_responses` and `flow_response_count`, (6) Add `{flow_responses}` section to `PATIENT_SUMMARY_PROMPT` between messages and alerts sections, (7) Write focused tests proving: aggregator queries PatientFlowResponse correctly, alert description/recommendation are formatted, flow responses appear in prompt context, empty flow responses produce correct fallback text

@@ -45,6 +45,9 @@ PATIENT_SUMMARY_PROMPT = """
 ### Mensagens Relevantes ({message_count} mensagens)
 {messages_summary}
 
+### Respostas de Acompanhamento Diário ({flow_response_count} respostas)
+{flow_responses}
+
 ### Alertas de Saúde ({alert_count} alertas)
 {alerts}
 

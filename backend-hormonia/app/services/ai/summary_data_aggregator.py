@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 
 from app.models import Patient, QuizResponse, Message, Alert
+from app.models.patient_flow_response import PatientFlowResponse
 from app.models.message import MessageDirection
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,10 @@ class AggregatedPatientData:
     alert_count: int
     alerts: List[Dict[str, Any]]
 
+    # Flow responses (patient free-text replies from daily check-ins)
+    flow_response_count: int
+    flow_responses: List[Dict[str, Any]]
+
     # Engagement metrics
     response_rate: float
     avg_response_time_minutes: float
@@ -72,6 +77,8 @@ class AggregatedPatientData:
             "messages_summary": self._format_messages(),
             "alert_count": self.alert_count,
             "alerts": self._format_alerts(),
+            "flow_response_count": self.flow_response_count,
+            "flow_responses": self._format_flow_responses(),
             "response_rate": round(self.response_rate * 100, 1),
             "avg_response_time": self._format_response_time(),
             "total_messages_sent": self.total_messages_sent,
@@ -120,9 +127,39 @@ class AggregatedPatientData:
         for alert in self.alerts:
             date_str = alert.get("date", "")
             severity = alert.get("severity", "unknown").upper()
-            message = alert.get("message", "")
-            lines.append(f"- [{date_str}] [{severity}] {message}")
+            title = alert.get("title", "Alerta")
+            description = alert.get("description", "")
+            recommendation = alert.get("recommendation", "")
+            line = f"- [{date_str}] [{severity}] {title}: {description}"
+            if recommendation:
+                line += f" (Recomendação: {recommendation})"
+            lines.append(line)
 
+        return "\n".join(lines)
+
+    def _format_flow_responses(self) -> str:
+        """Format flow responses for the prompt.
+
+        Each entry: "- [DD/MM/YYYY] Dia {day_number}: {response_text}"
+        Limited to 20 most recent. If empty, returns fallback text.
+        """
+        if not self.flow_responses:
+            return "Nenhuma resposta de acompanhamento no período."
+
+        # Take 20 most recent (list is already sorted by responded_at ASC)
+        recent = self.flow_responses[-20:] if len(self.flow_responses) > 20 else self.flow_responses
+
+        lines = []
+        for resp in recent:
+            date_str = resp.get("date", "")
+            day_number = resp.get("day_number", "?")
+            response_text = resp.get("response_text", "")
+            lines.append(f"- [{date_str}] Dia {day_number}: {response_text}")
+
+        if len(self.flow_responses) > 20:
+            lines.append(f"... e mais {len(self.flow_responses) - 20} respostas anteriores")
+
+        logger.info(f"Formatted {len(recent)} flow responses for prompt (total: {len(self.flow_responses)})")
         return "\n".join(lines)
 
     def _format_response_time(self) -> str:
@@ -181,11 +218,12 @@ class SummaryDataAggregator:
         # Run aggregations in parallel using asyncio.gather for better performance
         import asyncio
 
-        quiz_data, message_data, alert_data, engagement = await asyncio.gather(
+        quiz_data, message_data, alert_data, engagement, flow_data = await asyncio.gather(
             self._aggregate_quiz_responses(patient_id, start_date, end_date),
             self._aggregate_messages(patient_id, start_date, end_date),
             self._aggregate_alerts(patient_id, start_date, end_date),
             self._calculate_engagement_metrics(patient_id, start_date, end_date),
+            self._aggregate_flow_responses(patient_id, start_date, end_date),
         )
 
         return AggregatedPatientData(
@@ -202,6 +240,8 @@ class SummaryDataAggregator:
             messages_summary=message_data["messages"],
             alert_count=alert_data["count"],
             alerts=alert_data["alerts"],
+            flow_response_count=flow_data["count"],
+            flow_responses=flow_data["responses"],
             response_rate=engagement["response_rate"],
             avg_response_time_minutes=engagement["avg_response_time"],
             total_messages_sent=engagement["sent"],
@@ -306,17 +346,56 @@ class SummaryDataAggregator:
 
         formatted = []
         for alert in alerts:
+            alert_data = alert.data or {}
             formatted.append(
                 {
                     "date": alert.created_at.strftime("%d/%m/%Y"),
                     "severity": alert.severity.value if alert.severity else "unknown",
-                    "message": alert.message
-                    if hasattr(alert, "message")
-                    else str(alert),
+                    "description": alert.description,
+                    "title": alert_data.get("rule_name", alert.alert_type if hasattr(alert, "alert_type") else "Alerta"),
+                    "recommendation": alert_data.get("recommendation", ""),
                 }
             )
 
         return {"count": len(alerts), "alerts": formatted}
+
+    async def _aggregate_flow_responses(
+        self, patient_id: UUID, start_date: date, end_date: date
+    ) -> Dict[str, Any]:
+        """Aggregate patient flow responses (free-text daily check-in replies) for the period.
+
+        Uses the composite index ix_pfr_patient_responded on (patient_id, responded_at).
+        """
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date, datetime.max.time())
+
+        result = await self.db.execute(
+            select(PatientFlowResponse)
+            .where(
+                and_(
+                    PatientFlowResponse.patient_id == patient_id,
+                    PatientFlowResponse.responded_at >= start_dt,
+                    PatientFlowResponse.responded_at <= end_dt,
+                )
+            )
+            .order_by(PatientFlowResponse.responded_at.asc())
+        )
+        responses = result.scalars().all()
+
+        logger.info(f"Aggregated {len(responses)} flow responses for patient {patient_id}")
+
+        formatted = []
+        for resp in responses:
+            formatted.append(
+                {
+                    "day_number": resp.day_number,
+                    "response_text": resp.response_text,
+                    "date": resp.responded_at.strftime("%d/%m/%Y"),
+                    "message_index": resp.message_index,
+                }
+            )
+
+        return {"count": len(responses), "responses": formatted}
 
     async def _calculate_engagement_metrics(
         self, patient_id: UUID, start_date: date, end_date: date
