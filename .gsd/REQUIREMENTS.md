@@ -14,7 +14,82 @@ Guidelines:
 
 ## Active
 
-(No active requirements remaining.)
+### R057 — Sequenciamento de mensagens respeita espera de resposta
+- Class: core-capability
+- Status: active
+- Description: O sistema envia as mensagens do dia na ordem correta, respeitando `expects_response`: quando uma mensagem espera resposta, a próxima só é enviada depois que o paciente responde. Sem disparo em bulk.
+- Why it matters: O bug de disparar tudo de uma vez destrói a experiência do paciente e invalida a lógica de acompanhamento gradual.
+- Source: user
+- Primary owning slice: M007/S01
+- Supporting slices: none
+- Validation: mapped
+- Notes: A mecânica de `send_mode` + `awaiting_response` + `current_day_message_index` existe mas é complexa e distribuída entre mixins + flow functions + response gate, com potencial de race condition.
+
+### R058 — Médico edita templates dia-a-dia por UI simples
+- Class: primary-user-loop
+- Status: active
+- Description: O médico tem uma interface de lista de dias para editar conteúdo, adicionar/remover dias, definir tipo (pergunta, motivação, lembrete), e marcar se espera resposta. Template global por médico.
+- Why it matters: Os templates atuais são rascunhos de teste. O médico precisa configurar o fluxo do seu consultório sem complexidade visual estilo N8N.
+- Source: user
+- Primary owning slice: M007/S03
+- Supporting slices: M007/S01, M007/S02
+- Validation: mapped
+- Notes: O FlowDesigner visual existente (~3300 linhas) é overengineered para o caso real e será removido.
+
+### R059 — Abstrações mortas de fluxo são removidas com prova
+- Class: operability
+- Status: active
+- Description: FlowDesigner visual, FlowTypes fantasma no enum, knowledge graph morto, tombstones residuais e mixin soup são removidos ou simplificados com prova.
+- Why it matters: Abstrações mortas dificultam manutenção e escondem bugs no subsistema que mais precisa de clareza.
+- Source: inferred
+- Primary owning slice: M007/S02
+- Supporting slices: none
+- Validation: mapped
+- Notes: FlowDesigner (~3300 linhas), FlowTypes fantasma (TREATMENT_ADHERENCE, SYMPTOM_TRACKING, etc.), knowledge graph com silent ImportError, flow/templates/manager.py tombstoned.
+
+### R060 — Personalização IA produz reformulações naturais e ancoradas
+- Class: differentiator
+- Status: active
+- Description: A IA reformula perguntas para parecerem naturais e não repetitivas ao longo dos 45+ dias, mantendo grounding no template base. O paciente não percebe que está recebendo variações do mesmo conteúdo.
+- Why it matters: Sem reformulação natural, o paciente para de responder depois de alguns dias de mensagens repetitivas.
+- Source: user
+- Primary owning slice: M007/S04
+- Supporting slices: M007/S01
+- Validation: mapped
+- Notes: O sistema já tem personalização via Gemini com validação de grounding. Precisa review de calibração e qualidade.
+
+### R061 — Respostas livres do paciente são armazenadas e estruturadas
+- Class: core-capability
+- Status: active
+- Description: As respostas em texto livre do paciente via WhatsApp são persistidas com contexto completo (qual dia do fluxo, qual mensagem respondida, timestamp) e estruturadas para consumo pelo resumo IA.
+- Why it matters: Sem armazenamento estruturado, o resumo mensal do médico fica sem dados.
+- Source: user
+- Primary owning slice: M007/S04
+- Supporting slices: M007/S01
+- Validation: mapped
+- Notes: O sistema não é chatbot — o paciente responde livremente, não por menu. As respostas precisam ser linkadas ao contexto do fluxo.
+
+### R062 — Alertas do quiz mensal chegam ao médico de forma acionável
+- Class: failure-visibility
+- Status: active
+- Description: Quando o quiz mensal gera um alerta clínico (dor crítica, febre com calafrios, etc.), o alerta chega ao médico com ação clara — notificação e destaque no dashboard — não fica passivo em Redis.
+- Why it matters: Alerta que não chega ao médico é pior que não ter alerta — gera falsa sensação de segurança.
+- Source: inferred
+- Primary owning slice: M007/S05
+- Supporting slices: M007/S04
+- Validation: mapped
+- Notes: As regras de alerta em `quiz_alert_rules.py` são boas clinicamente. A questão é o caminho até o médico.
+
+### R063 — IA gera resumo mensal detalhado para consulta do médico
+- Class: differentiator
+- Status: active
+- Description: O médico acessa um resumo do mês do paciente gerado por IA — síntese das respostas livres, padrões identificados, preocupações clínicas, e pontos de atenção — e economiza tempo de consulta.
+- Why it matters: Este é o core value clínico do sistema: diminuir tempo de consulta e melhorar qualidade do atendimento.
+- Source: user
+- Primary owning slice: M007/S06
+- Supporting slices: M007/S04, M007/S05
+- Validation: mapped
+- Notes: `PatientSummaryService` existe com Gemini 2.5 Flash. Precisa review de integração, qualidade do prompt, e integração com frontend do médico.
 
 ## Validated
 
@@ -306,6 +381,17 @@ Guidelines:
 
 ## Deferred
 
+### R064 — Override de template por paciente individual
+- Class: admin/support
+- Status: deferred
+- Description: Possibilidade de ajustar dias específicos do fluxo para um paciente individual, em cima do template global do médico.
+- Why it matters: Pode ser útil para personalizar acompanhamento de pacientes com necessidades especiais.
+- Source: user
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Deferred — o template global por médico cobre o caso principal. Override por paciente adiciona complexidade significativa.
+
 ### R020 — Multi-factor authentication for staff access
 - Class: compliance/security
 - Status: deferred
@@ -384,6 +470,28 @@ Guidelines:
 - Notes: Deferred to avoid turning the current milestone into a repo-wide churn event.
 
 ## Out of Scope
+
+### R065 — Interação chatbot com menu/opções para paciente
+- Class: anti-feature
+- Status: out-of-scope
+- Description: O paciente não navega por menus ou opções pré-definidas. Responde livremente com texto.
+- Why it matters: A liberdade de resposta é o diferencial — paciente conversa, não opera um menu.
+- Source: user
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Decisão explícita do usuário. O sistema processa texto livre, não limita opções.
+
+### R066 — Designer visual de fluxo estilo N8N para médicos
+- Class: anti-feature
+- Status: out-of-scope
+- Description: Interface visual com canvas, nós e conexões para o médico montar fluxos. Substituído por editor simples de lista de dias.
+- Why it matters: Médico não tem tempo nem interesse em montar workflows visuais. Quer editar texto e tipo de dia.
+- Source: user
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: O FlowDesigner existente (~3300 linhas) será removido em M007/S02.
 
 ### R030 — Public self-signup for staff users
 - Class: anti-feature
@@ -510,6 +618,16 @@ Guidelines:
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
 |---|---|---|---|---|---|
+| R057 | core-capability | active | M007/S01 | none | mapped |
+| R058 | primary-user-loop | active | M007/S03 | M007/S01, M007/S02 | mapped |
+| R059 | operability | active | M007/S02 | none | mapped |
+| R060 | differentiator | active | M007/S04 | M007/S01 | mapped |
+| R061 | core-capability | active | M007/S04 | M007/S01 | mapped |
+| R062 | failure-visibility | active | M007/S05 | M007/S04 | mapped |
+| R063 | differentiator | active | M007/S06 | M007/S04, M007/S05 | mapped |
+| R064 | admin/support | deferred | none | none | unmapped |
+| R065 | anti-feature | out-of-scope | none | none | n/a |
+| R066 | anti-feature | out-of-scope | none | none | n/a |
 | R047 | constraint | validated | M004/S05 | M004/S01, M004/S02, M004/S03, M004/S04, M004/S06 | validated |
 | R048 | continuity | validated | M004/S02 | M004/S01, M004/S03, M004/S04 | validated |
 | R049 | integration | validated | M004/S02 | M004/S01, M004/S04, M004/S05 | validated |
@@ -556,7 +674,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 0
-- Mapped to slices: 0
+- Active requirements: 7
+- Mapped to slices: 7
 - Validated: 26
 - Unmapped active requirements: 0
