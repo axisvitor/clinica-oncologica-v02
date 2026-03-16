@@ -35,7 +35,7 @@
 
 ## Tasks
 
-- [ ] **T01: Dragonfly + Postgres + .env configurados** `est:30m`
+- [x] **T01: Dragonfly + Postgres + .env configurados** `est:30m`
   - Why: sem infra base nada mais funciona
   - Files: `backend-hormonia/docker-compose.yml`, `backend-hormonia/.env`
   - Do: subir Dragonfly via docker-compose, configurar .env a partir de .env.example com DATABASE_URL (Postgres local), REDIS_URL (localhost:6379), gerar SECURITY_SECRET_KEY, PHI_ENCRYPTION_KEY, ENCRYPTION_KEY_CURRENT locais, configurar AI_GEMINI_API_KEY (via secure_env_collect). Rodar `alembic upgrade head` para aplicar schema.

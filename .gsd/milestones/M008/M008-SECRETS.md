@@ -8,7 +8,7 @@
 **Service:** Google AI Studio (Gemini)
 **Dashboard:** https://aistudio.google.com/apikey
 **Format hint:** `AIza...` (39 characters)
-**Status:** pending
+**Status:** collected
 **Destination:** dotenv
 
 1. Go to https://aistudio.google.com/apikey
@@ -21,7 +21,7 @@
 **Service:** WuzAPI (local Docker instance)
 **Dashboard:** N/A — generated at WuzAPI container startup
 **Format hint:** Any string token set in WuzAPI config
-**Status:** pending
+**Status:** skipped
 **Destination:** dotenv
 
 1. When starting WuzAPI Docker container, set the `WUZAPI_ADMIN_TOKEN` env var
@@ -33,7 +33,7 @@
 **Service:** Local (cryptography.fernet)
 **Dashboard:** N/A — generated locally
 **Format hint:** Base64-encoded Fernet key (44 characters ending in `=`)
-**Status:** pending
+**Status:** skipped
 **Destination:** dotenv
 
 1. Run: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
@@ -45,7 +45,7 @@
 **Service:** Local (random)
 **Dashboard:** N/A — generated locally
 **Format hint:** Random string, 32+ characters
-**Status:** pending
+**Status:** skipped
 **Destination:** dotenv
 
 1. Run: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
