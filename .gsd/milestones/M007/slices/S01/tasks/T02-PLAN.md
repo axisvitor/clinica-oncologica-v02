@@ -32,6 +32,13 @@ Corrigir o root cause do bug de disparo em bulk: `_send_all_sequential` verifica
 - `cd backend-hormonia && .venv/bin/pytest -q tests/unit/services/flow/test_sequencing_expects_response.py -vv` — TODOS passam (incluindo o que antes falhava)
 - `cd backend-hormonia && .venv/bin/pytest -q tests/unit/services/flow/test_sequential_message_handler.py -vv` — existentes verdes
 
+## Observability Impact
+
+- **New structured log**: `logger.info("Sequential send stopped at expects_response message", ...)` in `_send_all_sequential` emits `patient_id`, `flow_kind`, `day_number`, `stopped_at_index`, `sent_count` whenever the loop halts mid-sequence.
+- **State persistence**: `PatientFlowState.step_data` now correctly records `awaiting_response=True` and `current_day_message_index` at the exact index where sending stopped (not just at the end).
+- **Inspection**: `SELECT step_data->'awaiting_response', step_data->'current_day_message_index' FROM patient_flow_states WHERE status='active'` shows per-patient wait state. Before this fix, mid-sequence waits were invisible.
+- **Failure shape**: If a message with `expects_response=True` fails to send, the method returns `{"status": "error"}` before persisting any wait state — no orphaned awaiting flags.
+
 ## Inputs
 
 - T01: suite de testes com reprodução confirmada do bug (testes que falhavam)

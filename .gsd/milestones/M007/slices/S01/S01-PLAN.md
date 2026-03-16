@@ -47,7 +47,7 @@
   - Verify: `cd backend-hormonia && .venv/bin/pytest -q tests/unit/services/flow/test_sequencing_expects_response.py -vv` — os testes que reproduzem o bug devem FALHAR (reprodução confirmada)
   - Done when: Suite criada com pelo menos 4 testes, testes de reprodução do bug de bulk falham demonstrando o comportamento incorreto, testes de comportamento correto em `wait_each` passam.
 
-- [ ] **T02: Corrigir `_send_all_sequential` para respeitar `expects_response` por mensagem** `est:30m`
+- [x] **T02: Corrigir `_send_all_sequential` para respeitar `expects_response` por mensagem** `est:30m`
   - Why: O método `_send_all_sequential` itera todas as mensagens e só verifica `expects_response` na última (`messages[-1].get("expects_response", False)`). Uma mensagem no meio com `expects_response=true` é ignorada. Este é o root cause do bug de disparo em bulk.
   - Files: `backend-hormonia/app/services/flow/sequential_message_handler_pkg/sequencing.py`
   - Do: Modificar `_send_all_sequential` para verificar `expects_response` em cada mensagem do loop. Quando `msg.get("expects_response", False)` for True, parar o loop, persistir `awaiting_response=true` no index atual via `_set_flow_progress`, e retornar `status: "waiting"` com o `message_index`. Garantir que `_send_remaining_after_response` já está correto (review mostra que ele já verifica `expects_response` por mensagem — confirmar). Atualizar logging para incluir `expects_response` em cada iteração.

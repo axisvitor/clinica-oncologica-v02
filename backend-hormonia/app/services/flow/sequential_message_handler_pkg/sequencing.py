@@ -137,7 +137,15 @@ class SequencingMixin:
         day_config: Optional[Dict] = None,
         delay_seconds: float = 3.0,
     ) -> Dict[str, Any]:
-        """Send all messages with short delays between them."""
+        """Send messages sequentially, stopping when one expects a response.
+
+        Checks ``expects_response`` on **each** message right after it is
+        sent.  When a message has ``expects_response=True`` the method
+        persists ``awaiting_response`` state and returns immediately with
+        ``status="waiting"`` so no subsequent messages are fired.
+
+        If no message requires a response the day is advanced normally.
+        """
         sent_count = 0
 
         for i, msg in enumerate(messages):
@@ -163,37 +171,54 @@ class SequencingMixin:
 
             sent_count += 1
 
+            # ── per-message expects_response check (was only on last msg) ──
+            if msg.get("expects_response", False):
+                pending_message_id = self._resolve_sent_message_id(
+                    patient_id=patient.id,
+                    flow_kind=flow_kind,
+                    day_number=day_number,
+                    message_index=i,
+                )
+                await self._set_flow_progress(
+                    flow_state,
+                    message_index=i,
+                    awaiting_response=True,
+                    mark_last_sent=True,
+                    flow_day=day_number,
+                    flow_kind=flow_kind,
+                    pending_message_id=pending_message_id,
+                )
+                logger.info(
+                    "Sequential send stopped at expects_response message",
+                    extra={
+                        "patient_id": str(getattr(patient, "id", None)),
+                        "flow_kind": flow_kind,
+                        "day_number": day_number,
+                        "stopped_at_index": i,
+                        "sent_count": sent_count,
+                    },
+                )
+                return {
+                    "status": "waiting",
+                    "message_index": i,
+                    "awaiting_response": True,
+                    "sent_count": sent_count,
+                }
+
             if i < len(messages) - 1:
                 await self._await_inter_message_delay(delay_seconds)
 
-        if messages[-1].get("expects_response", False):
-            pending_index = max(len(messages) - 1, 0)
-            pending_message_id = self._resolve_sent_message_id(
-                patient_id=patient.id,
-                flow_kind=flow_kind,
-                day_number=day_number,
-                message_index=pending_index,
-            )
-            await self._set_flow_progress(
-                flow_state,
-                message_index=pending_index,
-                awaiting_response=True,
-                mark_last_sent=True,
-                flow_day=day_number,
-                flow_kind=flow_kind,
-                pending_message_id=pending_message_id,
-            )
-        else:
-            await advance_day_atomic(
-                db=self.db,
-                flow_state=flow_state,
-                patient_id=getattr(patient, "id", None),
-                day_number=day_number,
-                flow_kind=flow_kind,
-                message_index=max(len(messages) - 1, 0),
-                sent_count=sent_count,
-                mark_last_message_sent=self._mark_last_message_sent,
-            )
+        # No message needed a response — advance the day
+        await advance_day_atomic(
+            db=self.db,
+            flow_state=flow_state,
+            patient_id=getattr(patient, "id", None),
+            day_number=day_number,
+            flow_kind=flow_kind,
+            message_index=max(len(messages) - 1, 0),
+            sent_count=sent_count,
+            mark_last_message_sent=self._mark_last_message_sent,
+        )
 
         return {"status": "ok", "sent_count": sent_count, "mode": "sequential_auto"}
 
