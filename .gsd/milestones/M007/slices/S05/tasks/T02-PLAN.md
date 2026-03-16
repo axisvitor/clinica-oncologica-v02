@@ -84,6 +84,13 @@ T01 wired the evaluator into quiz completion and added Notification creation. Th
 - `backend-hormonia/tests/unit/services/flow/test_sequential_message_handler.py` — reference for mock DB shim pattern
 - T01 summary — confirms all wiring changes and method signatures
 
+## Observability Impact
+
+- **No new runtime signals** — this task produces only tests, no production code changes.
+- **Inspection surface**: Run `python3 -m pytest tests/unit/services/flow/test_quiz_alert_notifications.py -v` to verify the alert→notification chain contract.
+- **Failure visibility**: Test failures surface as pytest assertion errors with descriptive messages showing expected vs actual values for severity mappings, notification targeting, and serializer output shape.
+- **Future agent inspection**: If any T01-wired behavior regresses (evaluator, notification creation, serializer), these tests will fail and pinpoint which contract was broken.
+
 ## Expected Output
 
 - `backend-hormonia/tests/unit/services/flow/test_quiz_alert_notifications.py` — ≥7 focused tests proving the complete alert→notification chain with edge cases

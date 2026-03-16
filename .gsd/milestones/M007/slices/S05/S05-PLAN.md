@@ -67,7 +67,7 @@
   - Verify: `cd frontend-hormonia && npx tsc --noEmit` — typecheck green
   - Done when: evaluator is called on quiz completion, notifications are created for doctors, alert API returns title/message/recommendation, dashboard shows recommendation
 
-- [ ] **T02: Focused tests proving alert→notification chain** `est:45m`
+- [x] **T02: Focused tests proving alert→notification chain** `est:45m`
   - Why: The wiring in T01 needs contract-level proof that the chain from quiz responses → alert evaluation → Alert + Notification creation works correctly, with edge cases for missing doctor, duplicates, and severity mapping.
   - Files: `backend-hormonia/tests/unit/services/flow/test_quiz_alert_notifications.py`
   - Do:
