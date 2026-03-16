@@ -248,7 +248,21 @@ class FlowCoreTransitionsMixin:
     ) -> None:
         old_flow_type = flow_state.flow_type
 
-        flow_state.flow_type = new_flow_type.value
+        try:
+            flow_state.flow_type = new_flow_type.value
+        except ValueError as exc:
+            # flow_type setter queries FlowKind + active FlowTemplateVersion from DB.
+            # If the target flow type has no active template version, it raises ValueError.
+            logger.error(
+                "Flow transition failed: %s (patient flow_state %s, day %d, %s → %s)",
+                exc,
+                flow_state.id,
+                current_day,
+                old_flow_type,
+                new_flow_type.value,
+            )
+            raise
+
         flow_state.step_data = flow_state.step_data or {}
         flow_state.step_data["transitions"] = flow_state.step_data.get("transitions", [])
         flow_state.step_data["transitions"].append(
@@ -258,4 +272,12 @@ class FlowCoreTransitionsMixin:
                 "to_flow": new_flow_type.value,
                 "at_day": current_day,
             }
+        )
+
+        logger.info(
+            "Flow type transition recorded: %s → %s at day %d (flow_state %s)",
+            old_flow_type,
+            new_flow_type.value,
+            current_day,
+            flow_state.id,
         )

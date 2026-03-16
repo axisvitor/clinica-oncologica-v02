@@ -47,7 +47,7 @@
   - Verify: row em patient_flow_responses com response_text correto, step_data atualizado
   - Done when: resposta "Estou me sentindo bem" enviada pelo WhatsApp aparece em patient_flow_responses com day_number e message_index corretos
 
-- [ ] **T02: Transição onboarding → daily_follow_up** `est:20m`
+- [x] **T02: Transição onboarding → daily_follow_up** `est:20m`
   - Why: provar que o sistema transiciona automaticamente de fase quando o dia atinge 16
   - Files: `backend-hormonia/app/services/flow/core/transitions.py`
   - Do: chamar `advance_patient_flow(patient_id, force_day=16)` via script Python ou API. Verificar que flow_type muda de `onboarding` para `daily_follow_up`, step_data.transitions registra a transição. Se possível, triggar process_daily_flows com current_day=16 e verificar que template de daily_follow_up é usado.
