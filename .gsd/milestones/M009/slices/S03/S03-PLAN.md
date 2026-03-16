@@ -49,7 +49,7 @@
 
 ## Tasks
 
-- [ ] **T01: Create flows_taskiq.py with process_daily_flows + flow_automation + monthly tasks (8 tasks)** `est:45m`
+- [x] **T01: Create flows_taskiq.py with process_daily_flows + flow_automation + monthly tasks (8 tasks)** `est:45m`
   - Why: These 8 tasks are the core flow domain — process_daily_flows is the daily patient loop, flow_automation handles pending/paused flows and reminders, monthly handles quizzes. This is the bulk of R080.
   - Files: `backend-hormonia/app/tasks/flows_taskiq.py` (NEW), `backend-hormonia/app/tasks/flows/flow_tasks.py` (read), `backend-hormonia/app/tasks/flow_automation.py` (read), `backend-hormonia/app/tasks/flows/monthly_tasks.py` (read), `backend-hormonia/app/tasks/flows/batch_tasks.py` (read), `backend-hormonia/app/tasks/messaging_taskiq.py` (reference)
   - Do: Create `flows_taskiq.py` following S02 pattern. Translate 8 Celery tasks to async Taskiq tasks with `@broker.task`, `DbSession`, schedule labels. `process_daily_flows` uses `process_daily_flows_async()` as task body directly (the function is already async). Import pure helpers from Celery modules without duplication. For `send_daily_reminders`, use `await send_scheduled_message.kiq()` from `messaging_taskiq` instead of Celery `.delay()`. Batch helpers (`_process_single_patient_flow_by_id`, etc.) are sync and manage their own sessions — import and call from Taskiq task without modification.
