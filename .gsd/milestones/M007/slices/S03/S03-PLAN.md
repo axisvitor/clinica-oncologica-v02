@@ -59,7 +59,7 @@
   - Verify: `cd backend-hormonia && python -m pytest tests/unit/services/flow/test_day_config_editor_api.py -v` — all tests pass
   - Done when: 6+ tests pass covering round-trip, validation, draft-only, and loader compatibility.
 
-- [ ] **T03: Frontend — DayConfigEditor component and FlowTemplateCard integration** `est:35m`
+- [x] **T03: Frontend — DayConfigEditor component and FlowTemplateCard integration** `est:35m`
   - Why: The physician-facing surface — without this, the API exists but the doctor can't use it.
   - Files: `frontend-hormonia/src/hooks/useTemplates.ts`, `frontend-hormonia/src/features/templates/flows/DayConfigEditor.tsx`, `frontend-hormonia/src/features/templates/flows/FlowTemplateCard.tsx`
   - Do: Add `DayConfigItem` interface and `getFlowTemplateDays()` / `updateFlowTemplateDays()` functions to `useTemplates.ts`. Create `DayConfigEditor.tsx` as a Dialog with: scrollable list of day rows (auto-numbered), each with textarea (content), select (question/motivation/reminder), checkbox (expects_response); Add Day / Remove Day buttons; Save button calls PUT. Add "Editar Dias" button to `FlowTemplateCard.tsx` that opens the editor.

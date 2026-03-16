@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { FlowTemplateVersionsDialog } from './FlowTemplateVersionsDialog'
+import { DayConfigEditor } from './DayConfigEditor'
 import type { FlowTemplate } from '@/hooks/useTemplates'
 import { useTemplates } from '@/hooks/useTemplates'
 import { useToast } from '@/components/ui/use-toast'
@@ -22,6 +23,7 @@ export const FlowTemplateCard = memo<FlowTemplateCardProps>(({ template }) => {
   const { toast } = useToast()
   const { deleteFlowTemplate } = useTemplates()
   const [showVersions, setShowVersions] = useState(false)
+  const [showDayEditor, setShowDayEditor] = useState(false)
 
   const handleDelete = async () => {
     try {
@@ -71,6 +73,9 @@ export const FlowTemplateCard = memo<FlowTemplateCardProps>(({ template }) => {
               <Button variant="outline" size="sm" onClick={() => setShowVersions(true)}>
                 Versões
               </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowDayEditor(true)}>
+                Editar Dias
+              </Button>
               <Button variant="outline" size="sm" onClick={handleDelete}>
                 Desativar
               </Button>
@@ -83,6 +88,13 @@ export const FlowTemplateCard = memo<FlowTemplateCardProps>(({ template }) => {
         open={showVersions}
         onOpenChange={setShowVersions}
         template={template}
+      />
+
+      <DayConfigEditor
+        open={showDayEditor}
+        onOpenChange={setShowDayEditor}
+        templateId={template.id}
+        templateName={template.template_name}
       />
     </>
   )

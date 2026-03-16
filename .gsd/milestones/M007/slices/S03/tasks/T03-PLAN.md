@@ -171,3 +171,10 @@ Build the physician-facing day-config editing surface: a new `DayConfigEditor` d
 - `frontend-hormonia/src/hooks/useTemplates.ts` — `DayConfigItem` interface, `DayConfigListResponse` interface, `getFlowTemplateDays()`, `updateFlowTemplateDays()` functions added
 - `frontend-hormonia/src/features/templates/flows/DayConfigEditor.tsx` — New component (~120-160 lines)
 - `frontend-hormonia/src/features/templates/flows/FlowTemplateCard.tsx` — "Editar Dias" button and DayConfigEditor dialog added
+
+## Observability Impact
+
+- **New network signals:** Browser makes GET/PUT requests to `/api/v2/templates/flows/{id}/days` — visible in DevTools Network tab for debugging.
+- **User-facing feedback:** Toast notifications surface success/error states for save operations; error messages from backend (409/400/404) are displayed to the physician.
+- **Inspection:** A future agent can verify the component works by checking: (1) "Editar Dias" button renders in FlowTemplateCard, (2) clicking opens the DayConfigEditor dialog, (3) GET request fires on dialog open, (4) PUT request fires on save.
+- **No new backend signals** — backend observability (audit log, cache invalidation) was established in T01.

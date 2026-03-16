@@ -36,6 +36,23 @@ export interface FlowTemplateStep {
   base_content?: string
 }
 
+// ==================== Day Config Types ====================
+
+export interface DayConfigItem {
+  day_number: number
+  content: string
+  message_type: 'question' | 'motivation' | 'reminder'
+  expects_response: boolean
+}
+
+export interface DayConfigListResponse {
+  template_id: string
+  template_name: string
+  is_draft: boolean
+  days: DayConfigItem[]
+  total_days: number
+}
+
 export interface FullTemplate {
   version: string
   author?: string
@@ -635,6 +652,57 @@ export function useTemplates() {
     [toast]
   )
 
+  // ==================== Day Config Editor ====================
+
+  const getFlowTemplateDays = useCallback(
+    async (templateId: string): Promise<DayConfigListResponse | null> => {
+      try {
+        const response = await apiClient.get<DayConfigListResponse>(
+          `/api/v2/templates/flows/${templateId}/days`
+        )
+        return response
+      } catch (error: unknown) {
+        const errorMessage =
+          error && typeof error === 'object' && 'response' in error
+            ? (error.response as { data?: { detail?: string } })?.data?.detail ||
+              'Erro ao carregar dias do template'
+            : 'Erro ao carregar dias do template'
+        toast({
+          title: 'Erro ao carregar dias',
+          description: errorMessage,
+          variant: 'destructive',
+        })
+        return null
+      }
+    },
+    [toast]
+  )
+
+  const updateFlowTemplateDays = useCallback(
+    async (templateId: string, days: DayConfigItem[]): Promise<DayConfigListResponse | null> => {
+      try {
+        const response = await apiClient.put<DayConfigListResponse>(
+          `/api/v2/templates/flows/${templateId}/days`,
+          { days }
+        )
+        return response
+      } catch (error: unknown) {
+        const errorMessage =
+          error && typeof error === 'object' && 'response' in error
+            ? (error.response as { data?: { detail?: string } })?.data?.detail ||
+              'Erro ao salvar dias do template'
+            : 'Erro ao salvar dias do template'
+        toast({
+          title: 'Erro ao salvar dias',
+          description: errorMessage,
+          variant: 'destructive',
+        })
+        throw error // re-throw so UI can handle
+      }
+    },
+    [toast]
+  )
+
   return {
     loading,
     // Flow templates
@@ -647,6 +715,9 @@ export function useTemplates() {
     compareFlowTemplateVersions,
     rollbackFlowTemplateVersion,
     publishFlowTemplateVersion,
+    // Day config editor
+    getFlowTemplateDays,
+    updateFlowTemplateDays,
     // Quiz templates
     createQuizTemplate,
     listQuizTemplates,
