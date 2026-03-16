@@ -112,7 +112,7 @@ pandas>=2.2.0,<3.0.0  # For enhanced analytics data processing (NumPy 2 compatib
 # Circuit breaker, retry, health checks, rate limiting
 asyncio-mqtt>=0.16.1,<1.0.0  # For async operations in resilience patterns
 aiobreaker>=1.2.0,<2.0.0  # Async circuit breaker with native asyncio support (HIGH-006)
-tenacity>=8.2.3,<9.0.0  # Retry with exponential backoff
+tenacity>=9.0.0,<10.0.0  # Retry with exponential backoff (google-adk requires >=9.0.0)
 
 # Protobuf 5.x-6.x compatible with retained Google dependencies:
 # - googleapis-common-protos accepts protobuf>=3.20.2,<7.0.0

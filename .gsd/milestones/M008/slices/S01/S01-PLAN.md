@@ -42,7 +42,7 @@
   - Verify: `redis-cli ping` retorna PONG, `alembic current` mostra head, psql conecta ao banco
   - Done when: Dragonfly + Postgres acessíveis, schema atualizado, .env funcional
 
-- [ ] **T02: Backend + Celery worker rodando** `est:30m`
+- [x] **T02: Backend + Celery worker rodando** `est:30m`
   - Why: backend é o runtime central; Celery processa tasks async (welcome message, daily flows)
   - Files: `backend-hormonia/app/main.py`, `backend-hormonia/app/celery_app.py`
   - Do: instalar dependências Python (`pip install -r requirements.txt` ou `poetry install`), iniciar backend com `uvicorn app.main:app --port 8000`, iniciar Celery worker com `celery -A app.celery_app worker --loglevel=info`. Corrigir qualquer import error ou config missing.
