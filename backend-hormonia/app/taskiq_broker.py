@@ -3,12 +3,17 @@ Taskiq broker configuration for Hormonia Backend System.
 
 Async-native task queue replacing Celery (M009).
 Uses Dragonfly (Redis-compatible) as broker and result backend.
+
+IMPORTANT: taskiq_fastapi.init() is called AFTER broker creation but
+BEFORE any task definitions that use TaskiqDepends. This module must
+be imported before task modules.
 """
 
 import logging
 import os
 from typing import Optional
 
+import taskiq_fastapi
 from taskiq import TaskiqScheduler
 from taskiq.middlewares import SmartRetryMiddleware
 from taskiq.schedule_sources import LabelScheduleSource
@@ -57,6 +62,13 @@ broker = ListQueueBroker(
         max_delay_exponent=600,  # cap at 10 minutes (matches Celery retry_backoff_max)
     ),
 )
+
+# ---------------------------------------------------------------------------
+# FastAPI integration — allows TaskiqDepends to resolve FastAPI dependencies
+# inside tasks. Must be called AFTER broker creation, BEFORE task definitions.
+# The app path string is resolved lazily when the worker starts.
+# ---------------------------------------------------------------------------
+taskiq_fastapi.init(broker, "app.main:app")
 
 # ---------------------------------------------------------------------------
 # Scheduler — uses LabelScheduleSource to read schedule from task decorators

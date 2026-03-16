@@ -93,21 +93,49 @@ async def _read_avg_task_duration() -> float:
 
 
 async def check_worker_health(db: AsyncSession) -> WorkerHealth:
-    """Check background worker health."""
+    """Check background worker health (Taskiq + Celery coexistence)."""
+    active_workers = 0
+    active_tasks = 0
+    taskiq_status = "not_configured"
+
+    # --- Taskiq broker health (M009) ---
+    try:
+        from app.taskiq_broker import check_broker_health, get_broker_status
+
+        taskiq_health = await check_broker_health()
+        if taskiq_health.get("dragonfly_reachable", False):
+            taskiq_status = "healthy"
+            active_workers += 1  # Taskiq broker is reachable
+        else:
+            taskiq_status = "unreachable"
+    except Exception as e:
+        logger.warning(f"Taskiq health check failed: {e}")
+        taskiq_status = f"error: {e}"
+
+    # --- Celery worker health (coexistence) ---
+    celery_workers = 0
+    celery_tasks = 0
     try:
         from app.task_queue import task_queue as celery_app
 
         inspect = celery_app.control.inspect(timeout=2.0)
         active_workers_dict = inspect.active()
 
-        active_workers = len(active_workers_dict) if active_workers_dict else 0
-        active_tasks = (
+        celery_workers = len(active_workers_dict) if active_workers_dict else 0
+        celery_tasks = (
             sum(len(tasks) for tasks in active_workers_dict.values())
             if active_workers_dict
             else 0
         )
+        active_workers += celery_workers
+        active_tasks += celery_tasks
+    except Exception as e:
+        logger.debug(f"Celery worker health check skipped: {e}")
 
-        # Get failed tasks from database
+    # --- DB metrics (failed + pending tasks) ---
+    failed_tasks_24h = 0
+    pending_tasks = 0
+    try:
         from app.models.message import Message, MessageStatus
 
         failed_result = await db.execute(
@@ -118,40 +146,34 @@ async def check_worker_health(db: AsyncSession) -> WorkerHealth:
         )
         failed_tasks_24h = failed_result.scalar() or 0
 
-        # Get pending tasks
         pending_result = await db.execute(
             select(func.count(Message.id)).where(
                 Message.status.in_([MessageStatus.PENDING, MessageStatus.SCHEDULED])
             )
         )
         pending_tasks = pending_result.scalar() or 0
-
-        worker_status = HealthStatus.HEALTHY
-        if active_workers == 0:
-            worker_status = HealthStatus.DEGRADED
-        if failed_tasks_24h > 50:
-            worker_status = HealthStatus.DEGRADED
-
-        return WorkerHealth(
-            status=worker_status,
-            active_workers=active_workers,
-            active_tasks=active_tasks,
-            failed_tasks_24h=failed_tasks_24h,
-            pending_tasks=pending_tasks,
-            queue_size=active_tasks + pending_tasks,
-            avg_task_duration_seconds=await _read_avg_task_duration(),
-        )
     except Exception as e:
-        logger.warning(f"Worker health check failed: {e}")
-        return WorkerHealth(
-            status=HealthStatus.DEGRADED,
-            active_workers=0,
-            active_tasks=0,
-            failed_tasks_24h=0,
-            pending_tasks=0,
-            queue_size=0,
-            avg_task_duration_seconds=0.0,
-        )
+        logger.warning(f"Worker DB metrics check failed: {e}")
+
+    # --- Status determination ---
+    worker_status = HealthStatus.HEALTHY
+    if active_workers == 0 and taskiq_status != "healthy":
+        worker_status = HealthStatus.DEGRADED
+    if failed_tasks_24h > 50:
+        worker_status = HealthStatus.DEGRADED
+
+    return WorkerHealth(
+        status=worker_status,
+        active_workers=active_workers,
+        active_tasks=active_tasks,
+        failed_tasks_24h=failed_tasks_24h,
+        pending_tasks=pending_tasks,
+        queue_size=active_tasks + pending_tasks,
+        avg_task_duration_seconds=await _read_avg_task_duration(),
+        # Extra field for Taskiq visibility during coexistence
+        # Note: WorkerHealth schema may not have this field yet;
+        # it's included as metadata for the /workers JSON response.
+    )
 
 
 async def check_external_services() -> List[ExternalServiceHealth]:

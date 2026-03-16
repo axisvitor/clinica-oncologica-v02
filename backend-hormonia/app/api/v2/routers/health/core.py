@@ -108,21 +108,51 @@ async def readiness_probe(
         ready = False
 
     # Check workers only if critical readiness check passed.
-    # Run broker inspection in a bounded background call to avoid hanging probe requests.
+    # Try Taskiq first (M009), fall back to Celery for coexistence.
     if ready:
         try:
-            def _inspect_workers():
-                from app.task_queue import task_queue as celery_app
-                inspector = celery_app.control.inspect(timeout=0.5)
-                return inspector.active()
+            from app.taskiq_broker import check_broker_health
 
-            active = await asyncio.wait_for(
-                asyncio.to_thread(_inspect_workers),
-                timeout=1.5,
+            taskiq_health = await asyncio.wait_for(
+                check_broker_health(),
+                timeout=2.0,
             )
-            checks["workers"] = active is not None and len(active) > 0
+            taskiq_ok = taskiq_health.get("dragonfly_reachable", False)
+            checks["taskiq_broker"] = taskiq_ok
+
+            # Also check Celery for coexistence period
+            try:
+                def _inspect_workers():
+                    from app.task_queue import task_queue as celery_app
+                    inspector = celery_app.control.inspect(timeout=0.5)
+                    return inspector.active()
+
+                active = await asyncio.wait_for(
+                    asyncio.to_thread(_inspect_workers),
+                    timeout=1.5,
+                )
+                checks["celery_workers"] = active is not None and len(active) > 0
+            except Exception:
+                checks["celery_workers"] = False
+
+            # Workers check passes if either Taskiq or Celery is healthy
+            checks["workers"] = taskiq_ok or checks.get("celery_workers", False)
+
         except Exception:
-            checks["workers"] = False  # Celery may not be configured/reachable
+            # Taskiq not available — fall back to Celery only
+            try:
+                def _inspect_workers():
+                    from app.task_queue import task_queue as celery_app
+                    inspector = celery_app.control.inspect(timeout=0.5)
+                    return inspector.active()
+
+                active = await asyncio.wait_for(
+                    asyncio.to_thread(_inspect_workers),
+                    timeout=1.5,
+                )
+                checks["workers"] = active is not None and len(active) > 0
+            except Exception:
+                checks["workers"] = False
     else:
         checks["workers"] = False
 

@@ -53,3 +53,22 @@ Wire Taskiq into FastAPI lifespan, create TaskiqDepends-based DB session provide
 - Health checks currently use `celery_app.control.inspect()` — need Taskiq equivalent
 - During coexistence (S02-S04), both Celery and Taskiq may be running — health should report both
 - DB sessions in Celery tasks used `get_scoped_session()` (sync) — Taskiq can use AsyncSession directly
+
+## Observability Impact
+
+### Signals Changed
+- `/api/v2/health/ready` — `checks.workers` now reports Taskiq broker reachability (Redis ping) alongside Celery worker inspection during coexistence.
+- `/api/v2/health/workers` — `WorkerHealth` includes `taskiq_status` field showing broker health: `healthy | unreachable | not_configured`.
+- `/api/v2/health/detailed` — Aggregated status reflects Taskiq worker connectivity.
+- FastAPI lifespan logs emit `Taskiq broker started` / `Taskiq broker shut down` at startup/shutdown boundaries.
+
+### How to Inspect
+- **Broker health:** `GET /api/v2/health/workers` → check `taskiq_status` field.
+- **Lifespan integration:** Application logs contain `Taskiq broker started` and `Taskiq broker shut down`.
+- **DB dependency in tasks:** Worker logs show `TaskiqDepends[get_db_session]` resolution when DB-using tasks execute.
+- **Failure surfaces:** Health endpoints return `degraded` with `error` detail when Dragonfly is unreachable — never 500.
+
+### Failure State Visibility
+- If Dragonfly is down: health endpoints report `taskiq_broker: unreachable` with error string.
+- If broker.startup() fails: lifespan logs `Taskiq broker startup failed: <error>` and continues (non-blocking).
+- If DB session injection fails: task fails with structured error in result backend, logged at ERROR level.

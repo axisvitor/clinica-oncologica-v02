@@ -171,7 +171,7 @@ def delete_task(task_id: str) -> None:
 
 
 class TaskQueue:
-    """Task queue backed by Celery."""
+    """Task queue backed by Celery (with Taskiq coexistence, M009)."""
 
     @property
     def control(self):
@@ -194,3 +194,45 @@ class TaskQueue:
 
 
 task_queue = TaskQueue()
+
+
+# ---------------------------------------------------------------------------
+# Taskiq broker access (M009 coexistence period).
+#
+# During migration, both Celery and Taskiq may be running.
+# New tasks should use the Taskiq broker directly:
+#   from app.taskiq_broker import broker
+#   @broker.task
+#   async def my_new_task(): ...
+#
+# Legacy callers that need a unified interface can use get_taskiq_broker().
+# ---------------------------------------------------------------------------
+
+def get_taskiq_broker():
+    """
+    Return the Taskiq broker instance.
+
+    Lazy import to avoid circular dependencies and heavy settings chain.
+    Returns None if Taskiq is not configured (should not happen after M009/S01).
+    """
+    try:
+        from app.taskiq_broker import broker
+        return broker
+    except ImportError:
+        logger.warning("Taskiq broker not available — taskiq_broker module not found")
+        return None
+
+
+async def get_taskiq_broker_health() -> dict:
+    """
+    Return Taskiq broker health status.
+
+    Convenience wrapper for health checks that need both Celery and Taskiq status.
+    """
+    try:
+        from app.taskiq_broker import check_broker_health
+        return await check_broker_health()
+    except ImportError:
+        return {"taskiq_broker": "not_installed", "dragonfly_reachable": False}
+    except Exception as e:
+        return {"taskiq_broker": "error", "error": str(e), "dragonfly_reachable": False}

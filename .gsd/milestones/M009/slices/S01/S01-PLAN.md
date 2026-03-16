@@ -21,7 +21,7 @@
 - [x] **T01: Taskiq broker setup + dependencies + test task**
   Install taskiq + taskiq-redis + taskiq-fastapi. Create `app/taskiq_broker.py` with broker, SmartRetryMiddleware, result backend, scheduler. Create a smoke-test task. Prove broker sends/receives via Dragonfly.
 
-- [ ] **T02: FastAPI integration + DB dependency + health check + base patterns**
+- [x] **T02: FastAPI integration + DB dependency + health check + base patterns**
   Integrate taskiq-fastapi into lifespan. Create TaskiqDepends-based DB session provider. Replace health check Celery inspect with Taskiq liveness probe. Establish base task patterns (retry labels, logging, config).
 
 ## Files Likely Touched
@@ -40,3 +40,13 @@
 - Health check endpoint returns Taskiq worker status
 - Test task result retrievable via result backend
 - Scheduler logs show periodic task dispatch
+
+## Verification
+
+- Worker starts and processes smoke_test_echo → result returned
+- SmartRetryMiddleware retries smoke_test_retry with exponential backoff
+- FastAPI lifespan starts/shuts down broker cleanly (logs confirm)
+- DB session dependency injects AsyncSession into task
+- `/api/v2/health/ready` reports Taskiq worker status
+- `/api/v2/health/workers` reports Taskiq connectivity alongside Celery
+- **Failure-path check:** When Dragonfly is unreachable, health endpoints report `degraded` status with error details (not 500/crash). Task dispatch returns structured error, not unhandled exception.

@@ -97,6 +97,7 @@ async def _startup(app: FastAPI) -> object:
             app.state.pubsub_manager = None
             app.state.follow_up_service = None
             app.state.monitoring_manager = None
+            app.state.taskiq_broker = None
             await _initialize_enum_validation(app, logger)
             await _initialize_session_manager(app, logger)
             return logger
@@ -117,6 +118,9 @@ async def _startup(app: FastAPI) -> object:
 
         phase1_time = time.time() - phase1_start
         logger.info(f"Phase 1 completed in {phase1_time:.2f}s")
+
+        # Taskiq broker startup (after Redis init, before dependent services)
+        await _initialize_taskiq_broker(app, logger)
 
         # PHASE 2: Initialize services that depend on Phase 1
         # These need Redis client and other Phase 1 services
@@ -219,6 +223,9 @@ async def _shutdown(app: FastAPI, logger) -> None:
     logger.info("Initiating Hormonia Backend System shutdown...")
 
     try:
+        # Shutdown Taskiq broker (before other cleanup)
+        await _cleanup_taskiq_broker(app, logger)
+
         # Stop monitoring system
         await _cleanup_monitoring(app, logger)
 
@@ -631,6 +638,48 @@ async def _initialize_follow_up_system(app: FastAPI, logger) -> None:
             "Continuing without follow-up system - will initialize on first use"
         )
         app.state.follow_up_service = None
+
+
+async def _initialize_taskiq_broker(app: FastAPI, logger) -> None:
+    """Start Taskiq broker lifecycle (M009).
+
+    Only runs in the FastAPI process (not inside worker processes).
+    The `broker.is_worker_process` guard prevents infinite startup loops
+    in worker child processes.
+    """
+    start = time.time()
+    try:
+        from app.taskiq_broker import broker
+
+        if broker.is_worker_process:
+            logger.info("Taskiq: running inside worker process — skipping broker.startup()")
+            return
+
+        logger.info("Taskiq: starting broker lifecycle...")
+        await broker.startup()
+
+        elapsed = time.time() - start
+        logger.info(f"✓ Taskiq broker started ({elapsed:.2f}s)")
+        app.state.taskiq_broker = broker
+
+    except Exception as e:
+        elapsed = time.time() - start
+        logger.error(f"Taskiq broker startup failed ({elapsed:.2f}s): {e}")
+        logger.warning("Continuing without Taskiq — tasks will not dispatch from this process")
+        app.state.taskiq_broker = None
+
+
+async def _cleanup_taskiq_broker(app: FastAPI, logger) -> None:
+    """Shut down Taskiq broker cleanly (M009)."""
+    try:
+        broker = getattr(app.state, "taskiq_broker", None)
+        if broker is not None:
+            logger.info("Shutting down Taskiq broker...")
+            await broker.shutdown()
+            app.state.taskiq_broker = None
+            logger.info("✓ Taskiq broker shut down")
+    except Exception as e:
+        logger.error(f"Error shutting down Taskiq broker: {e}")
 
 
 async def _cleanup_session_manager(app: FastAPI, logger) -> None:
