@@ -47,7 +47,7 @@
 
 ## Tasks
 
-- [ ] **T01: Fix the S02 caplog blocker and confirm the full S02 verification list** `est:30m`
+- [x] **T01: Fix the S02 caplog blocker and confirm the full S02 verification list** `est:30m`
   - Why: The test `test_get_current_user_from_session_db_timeout_logs_error` fails under Postgres because `caplog` doesn't capture the expected log when the conftest provisions the schema via `alembic upgrade head` at session scope, which may reconfigure the module logger's handler/propagation chain. This blocks honest S02 closeout and the final-schema runner's pytest replay phase.
   - Files: `backend-hormonia/tests/api/v2/test_auth_timeout.py`
   - Do: Reproduce the failure under `TEST_DATABASE_URL`. Diagnose why caplog doesn't see the log (likely `propagate=False` or handler attachment during early Alembic imports). Fix the test's log capture — either set `propagate=True` on the target logger in the test, capture at root level and filter by logger name, or use `logging_plugin` instead of `caplog.set_level`. Do NOT change production logging in `auth_dependencies.py`. Rerun the full S02 verification list from the S02-PLAN to confirm everything passes.

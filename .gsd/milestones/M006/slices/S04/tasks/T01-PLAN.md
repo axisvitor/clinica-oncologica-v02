@@ -62,3 +62,9 @@ The fix must stay in the test file only — no production logging changes.
 ## Expected Output
 
 - `backend-hormonia/tests/api/v2/test_auth_timeout.py` — modified with a caplog fix that makes the log assertion work under both SQLite and Postgres harnesses, without touching production code.
+
+## Observability Impact
+
+- **No new runtime signals.** This is a test-only fix; no production logging or instrumentation changes.
+- **Diagnostic surface:** If the caplog assertion fails again under Postgres, inspect `logging.getLogger("app.dependencies.auth_dependencies").disabled` — a `True` value indicates `fileConfig` re-disabled the logger.
+- **Failure visibility:** The test itself is the canary. A failure on the `assert any(canonical_user_prefix in message ...)` line means caplog isn't receiving records from the target logger.

@@ -91,6 +91,19 @@ async def test_get_current_user_from_session_db_timeout_logs_error(monkeypatch, 
     from fastapi import Request
     import logging
 
+    # When the Postgres harness runs, alembic/env.py calls
+    # fileConfig(alembic.ini) with disable_existing_loggers=True (the default).
+    # Because this test file imports app.dependencies.auth_dependencies at
+    # module level, the logger already exists when fileConfig fires, so it gets
+    # its `disabled` flag set to True.  A disabled logger silently drops all
+    # records — caplog never sees them.  Reset the flag here so caplog works
+    # under both SQLite and Postgres harnesses.
+    target_logger = logging.getLogger("app.dependencies.auth_dependencies")
+    _orig_disabled = target_logger.disabled
+    _orig_propagate = target_logger.propagate
+    target_logger.disabled = False
+    target_logger.propagate = True
+
     caplog.set_level(logging.ERROR, logger="app.dependencies.auth_dependencies")
 
     canonical_user_id = str(uuid4())
@@ -127,22 +140,26 @@ async def test_get_current_user_from_session_db_timeout_logs_error(monkeypatch, 
     mock_request = MagicMock(spec=Request)
     mock_request.state = MagicMock()
 
-    with pytest.raises(HTTPException):
-        await get_current_user_from_session(
-            request=mock_request,
-            session_cookie_id="test_session_id",
-            x_session_id=None,
-            authorization=None,
-            redis_cache=mock_redis_cache,
-        )
+    try:
+        with pytest.raises(HTTPException):
+            await get_current_user_from_session(
+                request=mock_request,
+                session_cookie_id="test_session_id",
+                x_session_id=None,
+                authorization=None,
+                redis_cache=mock_redis_cache,
+            )
 
-    logged_messages = [
-        record.getMessage()
-        for record in caplog.records
-        if record.name == "app.dependencies.auth_dependencies"
-    ]
-    assert any(canonical_user_prefix in message for message in logged_messages)
-    assert any("timeout" in message.lower() for message in logged_messages)
+        logged_messages = [
+            record.getMessage()
+            for record in caplog.records
+            if record.name == "app.dependencies.auth_dependencies"
+        ]
+        assert any(canonical_user_prefix in message for message in logged_messages)
+        assert any("timeout" in message.lower() for message in logged_messages)
+    finally:
+        target_logger.disabled = _orig_disabled
+        target_logger.propagate = _orig_propagate
 
 
 @pytest.mark.asyncio
