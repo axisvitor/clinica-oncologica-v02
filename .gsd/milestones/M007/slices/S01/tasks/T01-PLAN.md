@@ -42,3 +42,9 @@ Criar uma suite de testes que isola o comportamento de `expects_response` por me
 ## Expected Output
 
 - `backend-hormonia/tests/unit/services/flow/test_sequencing_expects_response.py` — suite nova com reprodução confirmada do bug
+
+## Observability Impact
+
+- **Signals changed:** None (test-only task). No runtime code modified.
+- **How to inspect:** Run the test suite — `test_sequential_auto_stops_at_expects_response` failing confirms the bulk-send bug is active. After T02 fix, it passing confirms the bug is resolved.
+- **Failure state:** If the bug test passes pre-fix, the diagnosis is wrong and the slice plan needs revision. If tests fail with import errors, the shim pattern needs updating.

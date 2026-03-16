@@ -23,6 +23,7 @@
 - `cd backend-hormonia && .venv/bin/pytest -q tests/unit/services/flow/test_sequencing_expects_response.py -vv` — todos os testes passam
 - `cd backend-hormonia && .venv/bin/pytest -q tests/unit/services/flow/test_sequential_message_handler.py -vv` — testes existentes continuam verdes
 - `cd backend-hormonia && .venv/bin/pytest -q tests/unit/services/test_flow_advance_awaiting_response_block.py -vv` — testes existentes continuam verdes
+- Diagnostic: query `SELECT step_data->'awaiting_response', step_data->'current_day_message_index' FROM patient_flow_states WHERE status='active'` returns consistent state (no awaiting_response=true with day_complete=true simultaneously)
 
 ## Observability / Diagnostics
 
@@ -39,7 +40,7 @@
 
 ## Tasks
 
-- [ ] **T01: Criar suite de testes focada em expects_response e diagnosticar o bug de bulk** `est:45m`
+- [x] **T01: Criar suite de testes focada em expects_response e diagnosticar o bug de bulk** `est:45m`
   - Why: O bug de disparo em bulk precisa primeiro de uma reprodução precisa via testes, antes de qualquer fix. A suite existente (`test_sequential_message_handler.py`, 610 linhas) cobre cenários gerais mas não isola o comportamento de `expects_response` no meio da sequência com `send_mode=sequential_auto`.
   - Files: `backend-hormonia/tests/unit/services/flow/test_sequencing_expects_response.py` (novo), `backend-hormonia/app/services/flow/sequential_message_handler_pkg/sequencing.py`
   - Do: Criar `test_sequencing_expects_response.py` com fixtures mínimas (mock WhatsApp, mock DB, mock flow_state). Testes: (1) `test_sequential_auto_stops_at_expects_response` — 3 mensagens, segunda com `expects_response=true`, verifica que só 2 são enviadas e estado fica `awaiting_response=true` no index 1; (2) `test_sequential_auto_all_false_sends_all` — 3 mensagens sem espera, todas enviadas; (3) `test_wait_each_stops_at_first_expects_response` — já existente mas re-confirmar; (4) `test_continuation_after_response_respects_expects_response` — após resposta, se mensagem 3 tem `expects_response=true`, para e espera de novo. Rodar contra o código atual para identificar exatamente onde falha.
