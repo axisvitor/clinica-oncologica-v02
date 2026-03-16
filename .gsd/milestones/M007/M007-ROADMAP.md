@@ -61,7 +61,7 @@ This milestone is complete only when all are true:
 - [x] **S02: Remover abstrações mortas do subsistema de fluxo** `risk:medium` `depends:[]`
   > After this: FlowDesigner visual (~4800 linhas com testes) deletado, FlowTypes fantasma (TREATMENT_ADHERENCE, SYMPTOM_TRACKING, MEDICATION_REMINDER) removidos do enum, tombstone `templates/manager.py` removido, referências mortas limpas. Build frontend, typecheck e testes backend verdes.
 
-- [ ] **S03: Editor de templates dia-a-dia para o médico** `risk:high` `depends:[S01,S02]`
+- [x] **S03: Editor de templates dia-a-dia para o médico** `risk:high` `depends:[S01,S02]`
   > After this: o médico abre uma UI de lista de dias no dashboard, edita conteúdo/tipo/espera-resposta por dia, salva — e o template publicado é carregado pelo `EnhancedTemplateLoader` para envio real.
 
 - [ ] **S04: Personalização IA e armazenamento de respostas** `risk:medium` `depends:[S01]`

@@ -16,14 +16,14 @@ Guidelines:
 
 ### R058 — Médico edita templates dia-a-dia por UI simples
 - Class: primary-user-loop
-- Status: active
+- Status: validated
 - Description: O médico tem uma interface de lista de dias para editar conteúdo, adicionar/remover dias, definir tipo (pergunta, motivação, lembrete), e marcar se espera resposta. Template global por médico.
 - Why it matters: Os templates atuais são rascunhos de teste. O médico precisa configurar o fluxo do seu consultório sem complexidade visual estilo N8N.
 - Source: user
 - Primary owning slice: M007/S03
 - Supporting slices: M007/S01, M007/S02
-- Validation: mapped
-- Notes: O FlowDesigner visual existente (~3300 linhas) é overengineered para o caso real e será removido.
+- Validation: validated by S03 — GET/PUT /flows/{template_id}/days API with physician-friendly DayConfigItem projection/hydration, DayConfigEditor dialog in FlowTemplateCard, 30 focused tests proving round-trip fidelity and validate_day_config() loader compatibility, frontend typecheck + build green
+- Notes: O FlowDesigner visual existente (~3300 linhas) foi removido em M007/S02. Substituído por editor simples de lista de dias.
 
 ### R059 — Abstrações mortas de fluxo são removidas com prova
 - Class: operability
@@ -619,7 +619,7 @@ Guidelines:
 | ID | Class | Status | Primary owner | Supporting | Proof |
 |---|---|---|---|---|---|
 | R057 | core-capability | validated | M007/S01 | none | validated by 11 tests + 0 regressions |
-| R058 | primary-user-loop | active | M007/S03 | M007/S01, M007/S02 | mapped |
+| R058 | primary-user-loop | validated | M007/S03 | M007/S01, M007/S02 | validated by S03 — 30 tests + green frontend |
 | R059 | operability | validated | M007/S02 | none | validated by S02 — FlowDesigner + phantom FlowTypes + tombstones removed |
 | R060 | differentiator | active | M007/S04 | M007/S01 | mapped |
 | R061 | core-capability | active | M007/S04 | M007/S01 | mapped |
@@ -674,7 +674,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 5
-- Mapped to slices: 5
-- Validated: 28
+- Active requirements: 4
+- Mapped to slices: 4
+- Validated: 29
 - Unmapped active requirements: 0
