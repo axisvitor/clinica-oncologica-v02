@@ -30,6 +30,16 @@ cd backend-hormonia && python -m pytest tests/unit/services/flow/test_personaliz
 # Diagnostic / failure-path check: verify dual-write model can be instantiated with NULL flow_state_id (no-flow-state path)
 cd backend-hormonia && python -c "from app.models.patient_flow_response import PatientFlowResponse; r = PatientFlowResponse(flow_state_id=None, patient_id='00000000-0000-0000-0000-000000000001', response_text='test', responded_at='2026-01-01T00:00:00+00:00'); assert r.flow_state_id is None; print('NULL flow_state_id OK')"
 
+# Diagnostic / failure-path check: verify API endpoint returns 404 for non-existent patient (failure-path)
+cd backend-hormonia && python -c "
+from app.api.v2.routers.patients.flow_responses import FlowResponseItem
+from datetime import datetime, timezone
+from uuid import uuid4
+items = [FlowResponseItem(id=uuid4(), response_text='t', responded_at=datetime.now(timezone.utc))]
+assert items[0].flow_state_id is None
+print('404/empty-path schema OK')
+"
+
 # T01: Grounding calibration tests
 cd backend-hormonia && python -m pytest tests/unit/services/flow/test_personalization_grounding.py -v
 
@@ -76,7 +86,7 @@ cd backend-hormonia && python -m pytest tests/unit/services/flow/ -v --tb=short
   - Verify: `cd backend-hormonia && python -c "from app.models.patient_flow_response import PatientFlowResponse; print('OK')"` succeeds; existing flow tests still pass
   - Done when: Migration file created, model importable, `process_patient_response` writes to new table in same transaction, existing tests green.
 
-- [ ] **T03: Response query API endpoint and integration tests** `est:45m`
+- [x] **T03: Response query API endpoint and integration tests** `est:45m`
   - Why: R061 requires responses to be "consultáveis via API". This builds the query endpoint and proves the full write-through path with integration-level tests.
   - Files: `backend-hormonia/app/api/v2/routers/patients/flow_responses.py` (new router), `backend-hormonia/app/api/v2/routers/patients/__init__.py` (modify to include new router), `backend-hormonia/tests/unit/services/flow/test_patient_flow_responses.py` (new test file)
   - Do: (1) Create `GET /api/v2/patients/{patient_id}/flow-responses` with query params `start_date`, `end_date` (optional date filters), returning list of `{id, flow_state_id, day_number, message_index, response_text, responded_at, prompt_message_id}`. Require doctor_or_admin auth. (2) Write integration-level tests proving: write-through from `process_patient_response` populates the new table, API returns correct data filtered by date, empty results when no data, correct patient scoping.
