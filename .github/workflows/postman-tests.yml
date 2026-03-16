@@ -104,20 +104,12 @@ jobs:
           REDIS_URL=redis://localhost:6379/0
           REDIS_SSL=false
 
-          JWT_SECRET=test-jwt-secret-for-ci-cd-only-not-for-production
-          CSRF_SECRET_KEY=test-csrf-secret-for-ci-cd-only
-          ENCRYPTION_KEY=test-encryption-key-for-ci-cd-only-32-bytes
+          SECURITY_SECRET_KEY=test-secret-key-for-ci-cd-only-not-for-production
+          SECURITY_CSRF_SECRET_KEY=test-csrf-secret-for-ci-cd-only
 
-          ENABLE_EVOLUTION=false
-          EVOLUTION_API_URL=http://localhost:8080
-          EVOLUTION_API_KEY=test-key
-          EVOLUTION_WEBHOOK_SECRET=test-webhook-secret
+          WHATSAPP_ENABLE_SERVICE=false
 
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
-
-          FIREBASE_ADMIN_PROJECT_ID=test-project
-          FIREBASE_ADMIN_CLIENT_EMAIL=test@test.iam.gserviceaccount.com
-          FIREBASE_ADMIN_PRIVATE_KEY=${{ secrets.FIREBASE_ADMIN_PRIVATE_KEY }}
 
           SENTRY_DSN=
           ENABLE_SWAGGER_UI=true

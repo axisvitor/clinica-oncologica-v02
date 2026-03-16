@@ -8,18 +8,18 @@ O Sistema Hormonia utiliza uma arquitetura modular baseada em FastAPI, projetada
 - **API Server:** FastAPI com roteamento modular v2.
 - **Processamento Assíncrono:** Celery com Redis para tarefas de segundo plano e agendamentos.
 - **Camada de Dados:** PostgreSQL (SQLAlchemy 2.0) com Row-Level Security (RLS).
-- **Segurança:** Autenticação via Firebase Admin SDK e RBAC (Role-Based Access Control).
+- **Segurança:** Autenticação via cookie-session (HttpOnly, Secure, SameSite) com RBAC (Role-Based Access Control).
 
 ## 2. Diagrama de Arquitetura
 
 ```mermaid
 graph TD
     User((Usuário)) -->|HTTP/REST| API[FastAPI Server]
-    API -->|Auth| Firebase[Firebase Auth]
+    API -->|Cookie-Session Auth| Session[Session Store]
     API -->|SQL| DB[(PostgreSQL)]
     API -->|Async Tasks| Queue[Redis Broker]
     Queue --> Worker[Celery Worker]
-    Worker -->|WhatsApp| WA[Evolution API]
+    Worker -->|WhatsApp| WA[WuzAPI]
     Beat[Celery Beat] -->|Scheduled| Queue
 ```
 

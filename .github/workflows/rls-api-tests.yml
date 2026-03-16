@@ -18,18 +18,10 @@ jobs:
     timeout-minutes: 15
 
     env:
-      # Supabase credentials (from GitHub secrets)
+      # Database
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      # Firebase credentials (from GitHub secrets)
-      FIREBASE_ADMIN_PROJECT_ID: ${{ secrets.FIREBASE_ADMIN_PROJECT_ID }}
-      FIREBASE_ADMIN_PRIVATE_KEY: ${{ secrets.FIREBASE_ADMIN_PRIVATE_KEY }}
-      FIREBASE_ADMIN_CLIENT_EMAIL: ${{ secrets.FIREBASE_ADMIN_CLIENT_EMAIL }}
-
-      # App settings
+      # App settings — cookie-session auth (no Firebase admin secrets needed at CI level)
       SECRET_KEY: ${{ secrets.SECRET_KEY }}
       ENVIRONMENT: testing
       DEBUG: false
@@ -106,7 +98,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Test Strategy" >> $GITHUB_STEP_SUMMARY
           echo "These tests validate RLS policies via HTTP API calls, testing the real production flow:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ JWT token → FastAPI middleware → RLS context → PostgreSQL" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Cookie-session auth → FastAPI middleware → RLS context → PostgreSQL" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Bypasses pgBouncer/AsyncPG compatibility issues" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Tests actual user experience" >> $GITHUB_STEP_SUMMARY
 

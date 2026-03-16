@@ -54,3 +54,9 @@ Workflows, docs, and the compatibility inventory still describe Firebase Admin /
 - Updated architecture, environment, and contributing docs describing canonical auth.
 - Updated compatibility inventory with retired auth/session entries.
 - New `backend-hormonia/docs/repo/HISTORICAL-ARCHIVE.md` boundary marker.
+
+## Observability Impact
+
+- **No runtime signal changes** — this task is static doc/workflow cleanup with no runtime behavior delta.
+- **Inspection:** `grep -l 'Firebase Admin' .github/workflows/*.yml 2>/dev/null | wc -l` should return 0 after this task. `grep -c 'RETIRED' docs/compatibility/backward-compatibility-inventory.md` should return ≥3.
+- **Future agent diagnostic:** If a workflow re-introduces Firebase Admin secrets, CI env will contain stale/missing secret references that fail silently (empty string). The `pre-commit-validation.yml` Firebase API-key scan is intentionally preserved as a safety net for accidental key commits.

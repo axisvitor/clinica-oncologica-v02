@@ -42,7 +42,7 @@ Bem-vindo! Este guia resume o fluxo de contribuição, commits, PRs e CI/CD.
   - `frontend` → `frontend-hormonia/` + `Dockerfile`
   - `quiz` → `quiz-mensal-interface/` + Nixpacks
 - Variáveis comuns:
-  - Backend: `DATABASE_URL`, `REDIS_URL`, `SECRET_KEY`/`JWT_SECRET_KEY`, Firebase/Supabase.
+  - Backend: `DATABASE_URL`, `REDIS_URL`, `SECURITY_SECRET_KEY`, `SECURITY_CSRF_SECRET_KEY`, `SESSION_TTL_SECONDS`.
   - Frontend: `BACKEND_URL` ou `VITE_API_BASE_URL`.
   - Quiz: `NEXT_PUBLIC_API_URL` (ou equivalente).
 - Healthchecks esperados:

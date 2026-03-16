@@ -27,7 +27,9 @@ In production (`APP_ENVIRONMENT=production`), the following variables are **requ
    - Generate: `python -c 'import secrets; print(secrets.token_hex(32))'`
    - Example: `abc123...` (Hex-encoded, 64 characters minimum)
 
-#### Firebase Admin SDK (if using Firebase)
+#### Firebase Admin SDK (optional — legacy user-sync only)
+
+Firebase Admin SDK credentials are **not** required for authentication. The canonical auth path uses cookie-session auth (`SESSION_TTL_SECONDS`, `SECURITY_SECRET_KEY`, `SECURITY_CSRF_SECRET_KEY`). Firebase Admin credentials are only needed if the Firebase user-sync service (`firebase_user_sync_service.py`) is active.
 
 If **any** Firebase variable is set, **all three** must be set:
 
