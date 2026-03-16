@@ -60,13 +60,13 @@ Guidelines:
 
 ### R062 — Alertas do quiz mensal chegam ao médico de forma acionável
 - Class: failure-visibility
-- Status: active
+- Status: validated
 - Description: Quando o quiz mensal gera um alerta clínico (dor crítica, febre com calafrios, etc.), o alerta chega ao médico com ação clara — notificação e destaque no dashboard — não fica passivo em Redis.
 - Why it matters: Alerta que não chega ao médico é pior que não ter alerta — gera falsa sensação de segurança.
 - Source: inferred
 - Primary owning slice: M007/S05
 - Supporting slices: M007/S04
-- Validation: mapped
+- Validation: validated by S05 — QuizResponseEvaluator wired into complete_quiz_session(), Notification records created for patient's doctor on triggered alerts, duplicate alert guard, _serialize_alert() returns title/message/recommendation, PhysicianDashboard renders recommendation text. Proven by 14 focused tests covering full chain + 42 API tests with 0 regressions.
 - Notes: As regras de alerta em `quiz_alert_rules.py` são boas clinicamente. A questão é o caminho até o médico.
 
 ### R063 — IA gera resumo mensal detalhado para consulta do médico
@@ -623,7 +623,7 @@ Guidelines:
 | R059 | operability | validated | M007/S02 | none | validated by S02 — FlowDesigner + phantom FlowTypes + tombstones removed |
 | R060 | differentiator | validated | M007/S04 | M007/S01 | validated by S04 — 25 tests |
 | R061 | core-capability | validated | M007/S04 | M007/S01 | validated by S04 — 14 integration tests |
-| R062 | failure-visibility | active | M007/S05 | M007/S04 | mapped |
+| R062 | failure-visibility | validated | M007/S05 | M007/S04 | validated by S05 — 14 tests + 0 regressions |
 | R063 | differentiator | active | M007/S06 | M007/S04, M007/S05 | mapped |
 | R064 | admin/support | deferred | none | none | unmapped |
 | R065 | anti-feature | out-of-scope | none | none | n/a |
@@ -674,7 +674,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 2
-- Mapped to slices: 2
-- Validated: 31
+- Active requirements: 1
+- Mapped to slices: 1
+- Validated: 32
 - Unmapped active requirements: 0

@@ -67,7 +67,7 @@ This milestone is complete only when all are true:
 - [x] **S04: Personalização IA e armazenamento de respostas** `risk:medium` `depends:[S01]`
   > After this: a IA reformula mensagens com grounding calibrado (similarity check contra template base), e respostas livres do paciente são persistidas com contexto completo (dia, mensagem, timestamp) e consultáveis via API.
 
-- [ ] **S05: Alertas do quiz mensal acionáveis para o médico** `risk:medium` `depends:[S04]`
+- [x] **S05: Alertas do quiz mensal acionáveis para o médico** `risk:medium` `depends:[S04]`
   > After this: quando o quiz mensal gera um alerta clínico, uma notificação é criada para o médico e o alerta aparece destacado no dashboard com ação recomendada.
 
 - [ ] **S06: Resumo mensal por IA integrado ao dashboard** `risk:high` `depends:[S04,S05]`
