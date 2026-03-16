@@ -1,10 +1,10 @@
 # GSD State
 
 **Active Milestone:** M007: Refinamento dos Fluxos de Acompanhamento
-**Active Slice:** S03: Editor de templates dia-a-dia para o médico
+**Active Slice:** S05: Alertas do quiz mensal acionáveis para o médico
+**Active Task:** T01: Wire evaluator into quiz completion and persist notifications
 **Phase:** execution
-**Current Task:** T01
-**Requirements Status:** 5 active · 28 validated · 8 deferred · 13 out of scope
+**Requirements Status:** 6 active · 27 validated · 8 deferred · 13 out of scope
 
 ## Milestone Registry
 - ✅ **M001:** Bulletproof Flow Pipeline
@@ -16,10 +16,11 @@
 - 🔄 **M007:** Refinamento dos Fluxos de Acompanhamento
 
 ## Recent Decisions
-- None recorded
+- #56: Notification creation alongside Alert in QuizResponseEvaluator
+- #57: Duplicate quiz alert prevention
 
 ## Blockers
 - None
 
 ## Next Action
-Execute T01: Backend — Pydantic schemas and GET/PUT day-config endpoints.
+Execute T01 of S05 — wire evaluator into quiz completion and persist notifications.
