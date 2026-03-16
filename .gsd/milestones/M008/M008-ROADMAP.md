@@ -69,7 +69,7 @@ This milestone is complete only when all are true:
 - [x] **S04: Criação de paciente → welcome → ciclo diário** `risk:high` `depends:[S01,S02,S03]`
   > After this: médico cria paciente via API (ou dashboard), saga executa 4 steps, welcome message chega no WhatsApp real. Trigger de process_daily_flows envia mensagem do dia com conteúdo personalizado. Provado por mensagens recebidas no telefone.
 
-- [ ] **S05: Resposta do paciente e transição de fase** `risk:medium` `depends:[S04]`
+- [x] **S05: Resposta do paciente e transição de fase** `risk:medium` `depends:[S04]`
   > After this: paciente responde no WhatsApp, webhook processa resposta, row existe em patient_flow_responses com day_number e message_index corretos. Transição onboarding → daily_follow_up funciona quando current_day atinge 16. Provado por query SQL e comportamento observado.
 
 ## Boundary Map

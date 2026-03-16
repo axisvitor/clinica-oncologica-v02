@@ -71,25 +71,25 @@ Guidelines:
 
 ### R072 — Resposta do paciente chega e persiste via webhook
 - Class: core-capability
-- Status: active
+- Status: validated
 - Description: Paciente responde livremente no WhatsApp, webhook do WuzAPI envia pro backend, MessageWebhookHandler processa, resposta persiste em patient_flow_responses com day_number e message_index.
 - Why it matters: Sem captura de resposta, o resumo mensal do médico fica vazio.
 - Source: user
 - Primary owning slice: M008/S05
 - Supporting slices: M008/S04
-- Validation: unmapped
-- Notes: Dual-write (step_data + patient_flow_responses) provado em M007/S04 por testes. Falta prova real.
+- Validation: validated by S05 — WuzAPI webhook _handle_message wired to full pipeline: _process_patient_message() finds patient by phone, creates inbound message record, _process_flow_response() dual-writes to patient_flow_responses (flow_state_id, day_number, message_index, response_text, responded_at) AND step_data.responses_by_message. Sequential continuation triggered after persistence. Proven by 23 webhook tests (flow processing, patient-not-found, general_chat paths) + code path verification.
+- Notes: Uses db.run_sync() bridge pattern since WuzAPI webhook is async but repositories are sync. is_from_me guard skips WuzAPI echo messages.
 
 ### R073 — Transição automática onboarding → daily follow-up verificada
 - Class: continuity
-- Status: active
+- Status: validated
 - Description: Quando current_day atinge 16, determine_flow_type() retorna DAILY_FOLLOW_UP e _transition_flow_type() muda o flow_type no PatientFlowState. Transição registrada em step_data.transitions.
 - Why it matters: Se a transição não funcionar, paciente fica preso no onboarding ou pula direto pro quiz mensal.
 - Source: inferred
 - Primary owning slice: M008/S05
 - Supporting slices: M008/S04
-- Validation: unmapped
-- Notes: Lógica existe em transitions.py. Nunca exercitada contra stack real.
+- Validation: validated by S05 — determine_flow_type boundary logic verified (≤15→onboarding, 16-45→daily_follow_up, 46+→quiz_mensal), _transition_flow_type records in step_data.transitions with {from_flow, to_flow, at_day, timestamp}, advance_patient_flow(force_day=16) triggers full transition with broadcaster and platform sync. Proven by 19 unit tests covering all boundary conditions, recording, and integration. Error handling + structured logging added.
+- Notes: Transition logic pre-existed in FlowCoreTransitionsMixin. S05 focused on verification, proof, and observability rather than new implementation.
 
 ### R074 — Templates de daily follow-up (dia 16-45) com conteúdo
 - Class: core-capability
@@ -786,15 +786,15 @@ Guidelines:
 | R069 | core-capability | validated | M008/S03 | none | validated by S03 — SQL + loader verification scripts |
 | R070 | primary-user-loop | validated | M008/S04 | M008/S01, M008/S02, M008/S03 | validated by S04 — saga 4 steps, welcome sent via WuzAPI |
 | R071 | core-capability | validated | M008/S04 | M008/S01, M008/S02, M008/S03 | validated by S04 — process_daily_flows success, Gemini personalization, WuzAPI delivery |
-| R072 | core-capability | active | M008/S05 | M008/S04 | unmapped |
-| R073 | continuity | active | M008/S05 | M008/S04 | unmapped |
+| R072 | core-capability | validated | M008/S05 | M008/S04 | validated by S05 — 23 webhook tests + dual-write pipeline |
+| R073 | continuity | validated | M008/S05 | M008/S04 | validated by S05 — 19 transition tests + observability |
 | R074 | core-capability | validated | M008/S03 | none | validated by S03 — SQL + loader verification scripts |
 | R075 | constraint | out-of-scope | none | none | n/a |
 | R076 | constraint | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 2
-- Mapped to slices: 2
-- Validated: 39
+- Active requirements: 0
+- Mapped to slices: 0
+- Validated: 41
 - Unmapped active requirements: 0

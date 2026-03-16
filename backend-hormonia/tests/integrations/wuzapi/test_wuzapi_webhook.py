@@ -44,6 +44,18 @@ def secret() -> str:
     return "test-webhook-secret"
 
 
+@pytest.fixture(autouse=True)
+def _no_hmac_by_default():
+    """Disable HMAC validation by default so tests without explicit HMAC work.
+
+    Tests that need HMAC validation explicitly patch settings with their own secret.
+    """
+    mock_settings = MagicMock()
+    mock_settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET = ""
+    with patch("app.integrations.wuzapi.webhook.settings", mock_settings):
+        yield
+
+
 @pytest.fixture
 async def fake_redis():
     redis = fakeredis.aioredis.FakeRedis()
