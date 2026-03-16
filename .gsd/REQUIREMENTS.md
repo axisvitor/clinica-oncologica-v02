@@ -14,19 +14,20 @@ Guidelines:
 
 ## Active
 
+(No active requirements remaining.)
+
+## Validated
 
 ### R052 — Código morto e compatibilidades restantes são removidos com prova
 - Class: operability
-- Status: active
+- Status: validated
 - Description: O restante do código morto, bridges, aliases, tombstones e compatibilidades sem uso real é removido com evidência e verificação, não por gosto.
 - Why it matters: A lapidação final só fecha quando o repositório deixa de carregar resíduo morto como se fosse parte legítima do sistema.
 - Source: user
 - Primary owning slice: M006/S04
 - Supporting slices: M006/S01, M006/S02, M006/S03
-- Validation: mapped
-- Notes: M006 herda a disciplina de manifests, guardrails e provas montadas estabelecida em M003; S01 já aposentou o seam vivo de auth/session no backend e republicou o guard com zero approved hits nessas categorias, mas R052 permanece ativa até S02–S04 fecharem schema, superfícies repo-wide e o pack final replayable.
-
-## Validated
+- Validation: validated by M006-VERIFY.json — 10 proof phases green: residue guards, focused backend packs, schema convergence under Postgres, absence scans, frontend import-boundary/build, and final-schema proof fresh/existing with mounted backend replay
+- Notes: M006 closed the M004→M006 convergence arc: dead backend services/auth cluster removed, Firebase-prefixed users schema dropped, dead frontend bridges/barrels deleted, config/manifests/workflows/docs aligned to canonical runtime.
 
 ### R001 — Flow continuation no longer stalls silently on delivery/gate failures
 - Class: continuity
@@ -514,7 +515,7 @@ Guidelines:
 | R049 | integration | validated | M004/S02 | M004/S01, M004/S04, M004/S05 | validated |
 | R050 | primary-user-loop | validated | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | validated |
 | R051 | quality-attribute | validated | M005/S03 | M005/S01, M005/S02 | validated |
-| R052 | operability | active | M006/S04 | M006/S01, M006/S02, M006/S03 | mapped |
+| R052 | operability | validated | M006/S04 | M006/S01, M006/S02, M006/S03 | validated by M006-VERIFY.json |
 | R053 | quality-attribute | validated | M005/S04 | M004/S06, M005/S01, M005/S03 | validated by M004/S06 mounted runtime proof plus M005/S04 final-schema backend replay |
 | R001 | continuity | validated | M001/S01 | none | validated |
 | R002 | operability | validated | M001/S02 | none | validated |
@@ -555,7 +556,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 1
-- Mapped to slices: 1
-- Validated: 25
+- Active requirements: 0
+- Mapped to slices: 0
+- Validated: 26
 - Unmapped active requirements: 0

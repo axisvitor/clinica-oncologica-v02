@@ -1,0 +1,70 @@
+{
+  "milestone": "M006",
+  "verified_at": "2026-03-15T21:54:00-03:00",
+  "phases": {
+    "s01_residue_guard_backend": {
+      "status": "passed",
+      "command": "bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check backend",
+      "diagnostic": ".gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json",
+      "summary": "Zero approved backend residue; all proof-only entries have test coverage"
+    },
+    "s01_residue_guard_frontend": {
+      "status": "passed",
+      "command": "bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check frontend",
+      "diagnostic": ".gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json",
+      "summary": "Zero approved frontend residue; zero proof-only residue"
+    },
+    "s02_auth_session_pack": {
+      "status": "passed",
+      "command": "cd backend-hormonia && pytest -q tests/unit/test_auth_session_cache_canonical_identity.py tests/api/v2/test_auth_session_shared_canonical_identity.py tests/api/v2/test_auth_uid_validation.py tests/api/v2/test_auth_timeout.py tests/integration/test_auth_fallback.py",
+      "diagnostic": "25 passed",
+      "summary": "Auth/session/cache/timeout/fallback canonical identity pack green under default harness"
+    },
+    "s02_profile_admin_pack": {
+      "status": "passed",
+      "command": "cd backend-hormonia && pytest -q tests/api/v2/test_canonical_user_profile_contracts.py tests/api/v2/test_physicians_crud_regression.py tests/api/v2/test_admin.py tests/unit/services/test_admin_stats_service.py",
+      "diagnostic": "66 passed",
+      "summary": "User profile, physician CRUD, admin audit/activity/stats pack green under default harness"
+    },
+    "s02_schema_convergence_postgres": {
+      "status": "passed",
+      "command": "cd backend-hormonia && TEST_DATABASE_URL='postgresql://postgres:postgres@localhost:55432/hormonia_test' pytest -q tests/migrations/test_canonical_schema_head_convergence.py",
+      "diagnostic": "1 passed",
+      "summary": "Canonical schema head convergence verified under real Postgres"
+    },
+    "s03_absence_scans": {
+      "status": "passed",
+      "command": "test ! -f backend-hormonia/app/services/session_service.py && test ! -f backend-hormonia/app/dependencies/auth_legacy_firebase.py && grep -rc FIREBASE_SESSION_TTL_SECONDS backend-hormonia/app/ == 0 && grep -rc WHATSAPP_EVOLUTION_ backend-hormonia/config/cloud-run/ == 0 && grep -rc FIREBASE_ADMIN .github/workflows/ == 0",
+      "diagnostic": "All 5 absence checks passed: session_service.py absent, auth_legacy_firebase.py absent, FIREBASE_SESSION_TTL_SECONDS 0 hits, WHATSAPP_EVOLUTION_ 0 hits, FIREBASE_ADMIN 0 hits in workflows",
+      "summary": "Dead backend services, legacy env vars, and workflow Firebase references confirmed absent"
+    },
+    "s03_frontend_import_boundary": {
+      "status": "passed",
+      "command": "cd frontend-hormonia && npx vitest run tests/unit/import-boundaries/dead-compat-cleanup.contract.test.ts",
+      "diagnostic": "4 passed (1 test file)",
+      "summary": "Dead frontend compat bridges/barrels confirmed absent by contract test"
+    },
+    "s03_frontend_build": {
+      "status": "passed",
+      "command": "cd frontend-hormonia && npm run build",
+      "diagnostic": "4758 modules transformed, built successfully",
+      "summary": "Production build green on post-purge state"
+    },
+    "final_schema_proof_fresh": {
+      "status": "passed",
+      "command": "bash .gsd/milestones/M005/slices/S04/run-final-schema-proof.sh --fresh",
+      "diagnostic": "/tmp/gsd-m005-s04-final-schema-proof/fresh/status.json",
+      "summary": "Fresh base->head migration, focused S02 runtime packs, mounted backend proof, and live auth probe all green"
+    },
+    "final_schema_proof_existing": {
+      "status": "passed",
+      "command": "bash .gsd/milestones/M005/slices/S04/run-final-schema-proof.sh --existing",
+      "diagnostic": "/tmp/gsd-m005-s04-final-schema-proof/existing/status.json",
+      "summary": "Existing-history upgrade, focused S02 runtime packs, mounted backend proof, and live auth probe all green"
+    }
+  },
+  "accepted_non_blocking_diagnostics": [
+    "Frontend typecheck emits 6 pre-existing TS4111 errors in tests/e2e/playwright.config.e2e.ts (excluded from tsconfig include, not a regression from M006 work)",
+    "Backend pytest still emits the existing pytest_asyncio loop-scope deprecation warning"
+  ]
+}

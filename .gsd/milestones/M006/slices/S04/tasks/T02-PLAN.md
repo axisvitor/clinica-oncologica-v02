@@ -83,3 +83,10 @@ With the caplog blocker resolved in T01, this task runs every published verifica
 - `.gsd/REQUIREMENTS.md` — R052 moved to validated.
 - `.gsd/milestones/M006/M006-ROADMAP.md` — S04 marked complete.
 - `.gsd/STATE.md` — M006 marked complete.
+
+## Observability Impact
+
+- **New signal:** `.gsd/milestones/M006/M006-VERIFY.json` — machine-readable proof record with per-phase `status`, `command`, and `diagnostic` pointer. A future agent can re-validate by running the `command` in each phase entry and comparing `status`.
+- **Inspection:** `python3 -c "import json; v=json.load(open('.gsd/milestones/M006/M006-VERIFY.json')); print({k: p['status'] for k,p in v['phases'].items()})"` shows per-phase status at a glance.
+- **Failure state:** If any phase were to regress, the `diagnostic` field in that phase entry points to the log/file/test output for localized inspection.
+- **Final-schema drill-down:** `/tmp/gsd-m005-s04-final-schema-proof/fresh/status.json` and `existing/status.json` provide sub-phase detail for the two heaviest proof phases.

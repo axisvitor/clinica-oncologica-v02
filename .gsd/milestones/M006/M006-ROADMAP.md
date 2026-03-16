@@ -55,7 +55,7 @@ This milestone is complete only when all are true:
   > After this: o head canônico de `users` e os leitores/runtime/testes alinhados deixam de depender das colunas Firebase restantes, com replay `fresh`/`existing` e backend montado ainda verdes.
 - [x] **S03: Purga final de bridges, tombstones, serviços mortos e narrativa operacional errada** `risk:medium` `depends:[S01]`
   > After this: imports oficiais, barrels de compatibilidade, serviços mortos, env/workflows/docs em escopo e tombstones sem valor operacional deixam de poluir o repositório, com build/typecheck/scans mostrando apenas o que é canônico ou explicitamente histórico.
-- [ ] **S04: Publicar o closeout final e provar o sistema montado pós-purga** `risk:medium` `depends:[S02,S03]`
+- [x] **S04: Publicar o closeout final e provar o sistema montado pós-purga** `risk:medium` `depends:[S02,S03]`
   > After this: existe um pack replayable de fechamento M006 que comprova ausência em escopo, schema final `fresh`/`existing` e stack montado pós-purga sem Firebase/legado funcional remanescente.
 
 ## Boundary Map

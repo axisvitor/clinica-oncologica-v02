@@ -54,7 +54,7 @@
   - Verify: `cd backend-hormonia && TEST_DATABASE_URL='postgresql://postgres:postgres@localhost:55432/hormonia_test' pytest -q tests/api/v2/test_auth_timeout.py -vv` — all 4 tests pass. Then the full S02 focused packs from S02-PLAN.md verification section.
   - Done when: All 4 auth_timeout tests pass under both default (SQLite) and Postgres harnesses, and the full S02 verification list is green.
 
-- [ ] **T02: Replay the full proof topology and publish M006 closeout artifacts** `est:45m`
+- [x] **T02: Replay the full proof topology and publish M006 closeout artifacts** `est:45m`
   - Why: S04's deliverable is a replayable closeout that combines all proof surfaces on the post-purge state. This task runs every published runner and records the results into a machine-readable M006-VERIFY.json and a human-readable M006-SUMMARY.md.
   - Files: `.gsd/milestones/M006/M006-VERIFY.json`, `.gsd/milestones/M006/M006-SUMMARY.md`, `.gsd/REQUIREMENTS.md`, `.gsd/STATE.md`, `.gsd/milestones/M006/M006-ROADMAP.md`
   - Do: Run proof phases in order: (1) S01 residue guards backend+frontend, (2) S02 focused backend packs under default harness, (3) S02 schema convergence under Postgres, (4) S03 absence scans for deleted files + env vars + manifests + workflows, (5) frontend import-boundary contract tests + typecheck + build, (6) final-schema proof `--fresh`, (7) final-schema proof `--existing`. Record each phase's command, status, and diagnostic pointer into M006-VERIFY.json following M003-VERIFY.json structure. Write M006-SUMMARY.md with milestone closeout. Move R052 to validated in REQUIREMENTS.md. Mark S04 complete in M006-ROADMAP.md. Update STATE.md.
