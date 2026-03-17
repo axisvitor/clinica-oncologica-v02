@@ -67,7 +67,7 @@ This milestone is complete only when all are true:
 - [x] **S03: Flow/saga tasks migradas** `risk:high` `depends:[S01,S02]`
   > After this: process_daily_flows executa via Taskiq worker com async nativo (sem bridge), saga_retry funciona, stuck_detection roda periodicamente, flow_automation e monthly_tasks migrados.
 
-- [ ] **S04: Quiz/alert/follow-up/monitoring migradas + schedule completo** `risk:medium` `depends:[S01]`
+- [x] **S04: Quiz/alert/follow-up/monitoring migradas + schedule completo** `risk:medium` `depends:[S01]`
   > After this: todas as tasks de quiz, alertas, follow-up, LGPD, audit, webhook DLQ, e monitoring migradas. Schedule completo com todas as 40+ entries no Taskiq scheduler com timing correto.
 
 - [ ] **S05: Celery removal + bridge cleanup** `risk:medium` `depends:[S02,S03,S04]`

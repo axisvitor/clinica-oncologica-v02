@@ -56,8 +56,8 @@ This file is the explicit capability and coverage contract for the project.
 - Source: user
 - Primary owning slice: M009/S04
 - Supporting slices: M009/S01
-- Validation: unmapped
-- Notes: Pode rodar em paralelo com S02/S03 — depende só de S01.
+- Validation: S04 proved (contract-level): 10 new Taskiq modules (audit, lgpd, reports, saga_monitoring, alerts, webhook_dlq, monitoring, quiz_link, quiz_flow, follow_up) with 72 total @broker.task declarations across 13 modules. All parse cleanly via ast.parse(). Zero async_to_sync/run_async bridges in new modules. Cross-module dispatch chains wired via .kiq(). Full runtime validation deferred to S06.
+- Notes: Combined with S02 (messaging) and S03 (flows/saga), all task groups now have Taskiq equivalents. MonitoringTask class hierarchy flattened, quiz_flow 4-file subpackage consolidated.
 
 ### R082 — Todas as 40+ entries do Celery beat_schedule estão no Taskiq scheduler com timing equivalente (crontab e interval).
 - Class: continuity
@@ -67,8 +67,8 @@ This file is the explicit capability and coverage contract for the project.
 - Source: inferred
 - Primary owning slice: M009/S04
 - Supporting slices: M009/S02, M009/S03
-- Validation: unmapped
-- Notes: LabelScheduleSource do Taskiq suporta cron e interval.
+- Validation: S04 proved: verify_schedule_parity.sh confirms 47/47 Celery beat_schedule entries have matching Taskiq schedule labels. Zero missing, zero extra. Cron schedules correctly converted BRT→UTC (+3h). Script handles 3 known renamings. Runtime schedule firing deferred to S06.
+- Notes: Schedule labels come from S02 (7 messaging), S03 (12 flow/saga), and S04 (28 remaining) — combined total 47.
 
 ### R083 — Todos os ~20 call sites que usam .delay() ou .apply_async() foram migrados para .kiq() do Taskiq.
 - Class: continuity
@@ -78,8 +78,8 @@ This file is the explicit capability and coverage contract for the project.
 - Source: inferred
 - Primary owning slice: M009/S04
 - Supporting slices: M009/S02, M009/S03
-- Validation: unmapped
-- Notes: Includes call sites em middleware (lgpd), API routes (retry), services (flow recovery, sequential handler), e tasks cross-calling.
+- Validation: S04 proved: rg audit shows zero non-TODO(S05) external .delay()/.apply_async() call sites in non-task code. LGPD middleware migrated to await .kiq() (T01). trigger_service.py (2 lines) and recovery.py (1 line) marked TODO(S05) per D010. All cross-task dispatch uses .kiq().
+- Notes: 3 remaining call sites are in sync code chains that require cascading async conversion — S05 handles these when Celery is removed.
 
 ### R084 — async_context_manager.py, run_async_in_celery(), async_helpers.py (partes que só existem para Celery), e demais bridge code removidos.
 - Class: operability
@@ -906,9 +906,9 @@ This file is the explicit capability and coverage contract for the project.
 | R078 | quality-attribute | active | M009/S01 | none | S01 proved: SmartRetryMiddleware (3 retries, 60s base, 600s cap, jitter) tested with smoke_test_retry. DbSession = TaskiqDepends(get_db_session) injects AsyncSession per task. Structured logging (task_name, event, duration_ms, error_type) via log_task_start/success/error. Full validation after downstream slices use these patterns with real tasks. |
 | R079 | core-capability | active | M009/S02 | M009/S01 | unmapped |
 | R080 | core-capability | active | M009/S03 | M009/S01, M009/S02 | unmapped |
-| R081 | core-capability | active | M009/S04 | M009/S01 | unmapped |
-| R082 | continuity | active | M009/S04 | M009/S02, M009/S03 | unmapped |
-| R083 | continuity | active | M009/S04 | M009/S02, M009/S03 | unmapped |
+| R081 | core-capability | active | M009/S04 | M009/S01 | S04 proved (contract-level): 10 new Taskiq modules (audit, lgpd, reports, saga_monitoring, alerts, webhook_dlq, monitoring, quiz_link, quiz_flow, follow_up) with 72 total @broker.task declarations across 13 modules. All parse cleanly via ast.parse(). Zero async_to_sync/run_async bridges in new modules. Cross-module dispatch chains wired via .kiq(). Full runtime validation deferred to S06. |
+| R082 | continuity | active | M009/S04 | M009/S02, M009/S03 | S04 proved: verify_schedule_parity.sh confirms 47/47 Celery beat_schedule entries have matching Taskiq schedule labels. Zero missing, zero extra. Cron schedules correctly converted BRT→UTC (+3h). Script handles 3 known renamings. Runtime schedule firing deferred to S06. |
+| R083 | continuity | active | M009/S04 | M009/S02, M009/S03 | S04 proved: rg audit shows zero non-TODO(S05) external .delay()/.apply_async() call sites in non-task code. LGPD middleware migrated to await .kiq() (T01). trigger_service.py (2 lines) and recovery.py (1 line) marked TODO(S05) per D010. All cross-task dispatch uses .kiq(). |
 | R084 | operability | active | M009/S05 | none | unmapped |
 | R085 | operability | active | M009/S05 | none | unmapped |
 | R086 | integration | active | M009/S06 | M009/S02, M009/S03, M009/S05 | unmapped |
