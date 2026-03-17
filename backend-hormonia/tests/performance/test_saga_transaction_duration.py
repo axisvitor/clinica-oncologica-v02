@@ -2,6 +2,7 @@ import asyncio
 import threading
 import time
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from uuid import uuid4, UUID
 from unittest.mock import AsyncMock, MagicMock
 
@@ -13,7 +14,7 @@ from app.orchestration.saga_orchestrator import SagaOrchestrator
 from app.orchestration.saga_orchestrator import orchestrator as orchestrator_module
 from app.orchestration.saga_orchestrator.steps import SagaStepExecutor
 from app.schemas.patient import PatientCreate
-from app.tasks import messaging as messaging_tasks
+from app.tasks import messaging_taskiq as messaging_tasks
 
 
 @asynccontextmanager
@@ -67,8 +68,8 @@ async def test_saga_transaction_duration_under_2s(db_session, monkeypatch):
     monkeypatch.setattr(orchestrator_module, "acquire_lock", _noop_lock)
     monkeypatch.setattr(
         messaging_tasks.send_scheduled_message,
-        "apply_async",
-        lambda *args, **kwargs: None,
+        "kiq",
+        AsyncMock(return_value=SimpleNamespace(task_id="test-id")),
     )
 
     orchestrator = _build_orchestrator(db_session)
@@ -104,8 +105,8 @@ async def test_step3_duration_under_500ms(db_session, monkeypatch):
     monkeypatch.setattr(SagaStepExecutor, "step_send_welcome_message", _timed_step)
     monkeypatch.setattr(
         messaging_tasks.send_scheduled_message,
-        "apply_async",
-        lambda *args, **kwargs: None,
+        "kiq",
+        AsyncMock(return_value=SimpleNamespace(task_id="test-id")),
     )
 
     orchestrator = _build_orchestrator(db_session)
@@ -131,16 +132,15 @@ async def test_saga_transaction_fast_with_slow_async_whatsapp(
     doctor_id = uuid4()
     _ensure_doctor(db_session, doctor_id)
 
-    def _slow_apply_async(*_args, **_kwargs):
-        thread = threading.Thread(target=time.sleep, args=(5,), daemon=True)
-        thread.start()
-        return None
+    async def _slow_kiq(*_args, **_kwargs):
+        await asyncio.sleep(0)  # yield, no real delay in test
+        return SimpleNamespace(task_id="slow-test-id")
 
     monkeypatch.setattr(orchestrator_module, "acquire_lock", _noop_lock)
     monkeypatch.setattr(
         messaging_tasks.send_scheduled_message,
-        "apply_async",
-        _slow_apply_async,
+        "kiq",
+        _slow_kiq,
     )
 
     orchestrator = _build_orchestrator(db_session)
@@ -163,8 +163,8 @@ async def test_concurrent_sagas_no_deadlocks(test_engine, monkeypatch):
     monkeypatch.setattr(orchestrator_module, "acquire_lock", _noop_lock)
     monkeypatch.setattr(
         messaging_tasks.send_scheduled_message,
-        "apply_async",
-        lambda *args, **kwargs: None,
+        "kiq",
+        AsyncMock(return_value=SimpleNamespace(task_id="test-id")),
     )
 
     SessionLocal = sessionmaker(bind=test_engine)

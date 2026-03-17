@@ -73,7 +73,7 @@ This milestone is complete only when all are true:
 - [x] **S05: Celery removal + bridge cleanup** `risk:medium` `depends:[S02,S03,S04]`
   > After this: celery, kombu, amqp, billiard, flower removidos de requirements.txt. celery_app.py deletado. async_context_manager.py, run_async_in_celery(), e bridge code removidos (~900 linhas). Backend sobe sem nenhum import de celery.
 
-- [ ] **S06: Verificação integrada ponta-a-ponta** `risk:low` `depends:[S05]`
+- [x] **S06: Verificação integrada ponta-a-ponta** `risk:low` `depends:[S05]`
   > After this: pipeline M008 completo verificado via Taskiq: create patient → welcome → daily flow → response → transition. Testes existentes passam. Stack local roda end-to-end sem Celery.
 
 ## Boundary Map

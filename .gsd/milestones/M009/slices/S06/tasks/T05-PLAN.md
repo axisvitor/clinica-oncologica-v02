@@ -128,3 +128,9 @@ Fix 6 test files that mock Celery dispatch patterns (`.apply_async`, `app.tasks.
 - Full test suite passing (exit 0)
 - AST verification scan passing on both `app/` and `tests/`
 - Milestone M009 verification complete — all success criteria met
+
+## Observability Impact
+
+- **Signals that change:** After this task, `pytest --collect-only` transitions from N collection errors (import failures from deleted Celery modules) to zero Celery-related collection errors. The AST zero-import scan becomes a green gate.
+- **How to inspect:** Run `grep -rn 'apply_async\|schedule_celery_task\|cancel_celery_task' tests/ --include='*.py'` — must return empty. Run the AST scan script from the slice plan to verify zero deleted-module imports.
+- **Failure state visibility:** Any regression re-introducing a deleted-module import surfaces as `ModuleNotFoundError` during `pytest --collect-only`, pinpointing the exact file and line. Any residual `.apply_async` mock would cause `AttributeError` at test runtime since Taskiq tasks don't have that attribute.

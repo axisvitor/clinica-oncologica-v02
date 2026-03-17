@@ -2,7 +2,6 @@ from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
-import sys
 
 import pytest
 
@@ -25,7 +24,7 @@ async def test_schedule_message_creates_pending_status():
     scheduler.timezone_handler.calculate_optimal_delivery_time = AsyncMock(
         return_value=now_sao_paulo() + timedelta(hours=1)
     )
-    scheduler.task_scheduler.schedule_celery_task = AsyncMock(
+    scheduler.task_scheduler.schedule_task = AsyncMock(
         return_value={"task_id": "task-123"}
     )
 
@@ -47,8 +46,8 @@ async def test_reschedule_message_keeps_message_claimable():
     scheduler = MessageScheduler(db=None)
     scheduler.db = db
     scheduler.message_repo = Mock()
-    scheduler.task_scheduler.cancel_celery_task = Mock()
-    scheduler.task_scheduler.schedule_celery_task = AsyncMock(
+    scheduler.task_scheduler.cancel_task = Mock()
+    scheduler.task_scheduler.schedule_task = AsyncMock(
         return_value={"task_id": "task-new"}
     )
 
@@ -76,7 +75,7 @@ async def test_schedule_existing_message_keeps_pending_status():
     scheduler = MessageScheduler(db=None)
     scheduler.db = db
     scheduler.message_repo = Mock()
-    scheduler.task_scheduler.schedule_celery_task = AsyncMock(
+    scheduler.task_scheduler.schedule_task = AsyncMock(
         return_value={"task_id": "task-existing"}
     )
 
@@ -142,7 +141,7 @@ async def test_schedule_message_marks_failed_when_celery_task_not_created():
     scheduler.timezone_handler.calculate_optimal_delivery_time = AsyncMock(
         return_value=now_sao_paulo() + timedelta(hours=1)
     )
-    scheduler.task_scheduler.schedule_celery_task = AsyncMock(
+    scheduler.task_scheduler.schedule_task = AsyncMock(
         return_value={"task_id": None, "error": "broker unavailable"}
     )
 
@@ -166,7 +165,7 @@ async def test_cancel_scheduled_message_initializes_null_metadata():
     scheduler = MessageScheduler(db=None)
     scheduler.db = db
     scheduler.message_repo = Mock()
-    scheduler.task_scheduler.cancel_celery_task = Mock()
+    scheduler.task_scheduler.cancel_task = Mock()
 
     message = SimpleNamespace(
         id=uuid4(),
@@ -217,11 +216,12 @@ async def test_retry_handler_schedule_retry_initializes_null_metadata(monkeypatc
     handler = RetryHandler(db=Mock())
     message = SimpleNamespace(id=uuid4(), message_metadata=None)
 
-    send_scheduled_message = SimpleNamespace(
-        apply_async=Mock(return_value=SimpleNamespace(id="retry-task-1"))
+    # Production code lazy-imports schedule_task_at from app.tasks.taskiq_base
+    fake_schedule_result = SimpleNamespace(schedule_id="retry-task-1")
+    monkeypatch.setattr(
+        "app.tasks.taskiq_base.schedule_task_at",
+        AsyncMock(return_value=fake_schedule_result),
     )
-    fake_tasks_module = SimpleNamespace(send_scheduled_message=send_scheduled_message)
-    monkeypatch.setitem(sys.modules, "app.tasks.messaging", fake_tasks_module)
 
     await handler.schedule_retry(
         message=message, retry_time=now_sao_paulo() + timedelta(minutes=10)

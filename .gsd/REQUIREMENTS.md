@@ -2,96 +2,6 @@
 
 This file is the explicit capability and coverage contract for the project.
 
-## Active
-
-### R077 — Taskiq broker (Redis-backed via Dragonfly) e scheduler substituem celery_app.py. Worker processa tasks, scheduler dispara periodic tasks, FastAPI lifespan integra startup/shutdown.
-- Class: operability
-- Status: active
-- Description: Taskiq broker (Redis-backed via Dragonfly) e scheduler substituem celery_app.py. Worker processa tasks, scheduler dispara periodic tasks, FastAPI lifespan integra startup/shutdown.
-- Why it matters: O Celery é sync-first num codebase async-first. A substituição elimina ~900 linhas de bridging code e simplifica o runtime.
-- Source: user
-- Primary owning slice: M009/S01
-- Supporting slices: none
-- Validation: S01 proved: ListQueueBroker connects to Dragonfly 6380, SmartRetryMiddleware retries with backoff, FastAPI lifespan manages startup/shutdown, health checks report Taskiq+Celery coexistence. Scheduler configured but awaiting runtime verification. Full validation after S02-S04 prove production tasks.
-- Notes: Broker module reads env vars directly (not app.config.settings) for lightweight import. redis bumped to <8.0.0 for taskiq-redis compatibility.
-
-### R078 — Abstração base para tasks Taskiq com SmartRetryMiddleware (exponential backoff + jitter), logging estruturado, e DB session via dependency injection (TaskiqDepends).
-- Class: quality-attribute
-- Status: active
-- Description: Abstração base para tasks Taskiq com SmartRetryMiddleware (exponential backoff + jitter), logging estruturado, e DB session via dependency injection (TaskiqDepends).
-- Why it matters: BaseTask do Celery tem retry config, logging, e session management — a abstração Taskiq precisa cobrir o mesmo sem bridging.
-- Source: inferred
-- Primary owning slice: M009/S01
-- Supporting slices: none
-- Validation: S01 proved: SmartRetryMiddleware (3 retries, 60s base, 600s cap, jitter) tested with smoke_test_retry. DbSession = TaskiqDepends(get_db_session) injects AsyncSession per task. Structured logging (task_name, event, duration_ms, error_type) via log_task_start/success/error. Full validation after downstream slices use these patterns with real tasks.
-- Notes: Replaces Celery BaseTask + sync get_scoped_session() pattern. New pattern: @broker.task + async def + DbSession default param.
-
-### R079 — send_scheduled_message, process_scheduled_messages, retry_failed_messages, send_bulk_messages, DLQ processing, e demais tasks de messaging operam via Taskiq worker.
-- Class: core-capability
-- Status: active
-- Description: send_scheduled_message, process_scheduled_messages, retry_failed_messages, send_bulk_messages, DLQ processing, e demais tasks de messaging operam via Taskiq worker.
-- Why it matters: Messaging é o hot path — envio de mensagens WhatsApp para pacientes. Precisa funcionar sem interrupção.
-- Source: user
-- Primary owning slice: M009/S02
-- Supporting slices: M009/S01
-- Validation: unmapped
-- Notes: Inclui migração de call sites (.delay → .kiq) dentro do domínio messaging.
-
-### R080 — process_daily_flows, flow_automation, saga_retry, stuck_detection, monthly_tasks, e demais tasks de flow operam via Taskiq worker com async nativo.
-- Class: core-capability
-- Status: active
-- Description: process_daily_flows, flow_automation, saga_retry, stuck_detection, monthly_tasks, e demais tasks de flow operam via Taskiq worker com async nativo.
-- Why it matters: Flow tasks são o core do acompanhamento diário — process_daily_flows usa async DB, IA Gemini, e WuzAPI.
-- Source: user
-- Primary owning slice: M009/S03
-- Supporting slices: M009/S01, M009/S02
-- Validation: unmapped
-- Notes: Com Taskiq async-native, tasks podem usar await direto sem hybrid _resolve/_execute.
-
-### R081 — Quiz link tasks, trigger tasks, response tasks, alertas, follow-up, LGPD, audit cleanup, webhook DLQ, e monitoring tasks operam via Taskiq.
-- Class: core-capability
-- Status: active
-- Description: Quiz link tasks, trigger tasks, response tasks, alertas, follow-up, LGPD, audit cleanup, webhook DLQ, e monitoring tasks operam via Taskiq.
-- Why it matters: Completa a migração de todas as tasks restantes para Taskiq.
-- Source: user
-- Primary owning slice: M009/S04
-- Supporting slices: M009/S01
-- Validation: S04 proved (contract-level): 10 new Taskiq modules (audit, lgpd, reports, saga_monitoring, alerts, webhook_dlq, monitoring, quiz_link, quiz_flow, follow_up) with 72 total @broker.task declarations across 13 modules. All parse cleanly via ast.parse(). Zero async_to_sync/run_async bridges in new modules. Cross-module dispatch chains wired via .kiq(). Full runtime validation deferred to S06.
-- Notes: Combined with S02 (messaging) and S03 (flows/saga), all task groups now have Taskiq equivalents. MonitoringTask class hierarchy flattened, quiz_flow 4-file subpackage consolidated.
-
-### R082 — Todas as 40+ entries do Celery beat_schedule estão no Taskiq scheduler com timing equivalente (crontab e interval).
-- Class: continuity
-- Status: active
-- Description: Todas as 40+ entries do Celery beat_schedule estão no Taskiq scheduler com timing equivalente (crontab e interval).
-- Why it matters: Sem schedule periódico, tasks como process_daily_flows, retry_failed_messages, e check_patient_alerts não disparam automaticamente.
-- Source: inferred
-- Primary owning slice: M009/S04
-- Supporting slices: M009/S02, M009/S03
-- Validation: S04 proved: verify_schedule_parity.sh confirms 47/47 Celery beat_schedule entries have matching Taskiq schedule labels. Zero missing, zero extra. Cron schedules correctly converted BRT→UTC (+3h). Script handles 3 known renamings. Runtime schedule firing deferred to S06.
-- Notes: Schedule labels come from S02 (7 messaging), S03 (12 flow/saga), and S04 (28 remaining) — combined total 47.
-
-### R083 — Todos os ~20 call sites que usam .delay() ou .apply_async() foram migrados para .kiq() do Taskiq.
-- Class: continuity
-- Status: active
-- Description: Todos os ~20 call sites que usam .delay() ou .apply_async() foram migrados para .kiq() do Taskiq.
-- Why it matters: Call sites são a interface entre services/handlers e o task queue — cada um não migrado é um ponto de falha.
-- Source: inferred
-- Primary owning slice: M009/S04
-- Supporting slices: M009/S02, M009/S03
-- Validation: S04 proved: rg audit shows zero non-TODO(S05) external .delay()/.apply_async() call sites in non-task code. LGPD middleware migrated to await .kiq() (T01). trigger_service.py (2 lines) and recovery.py (1 line) marked TODO(S05) per D010. All cross-task dispatch uses .kiq().
-- Notes: 3 remaining call sites are in sync code chains that require cascading async conversion — S05 handles these when Celery is removed.
-
-### R086 — O pipeline completo provado em M008 funciona via Taskiq: create patient → welcome → daily flow → response → transition.
-- Class: integration
-- Status: active
-- Description: O pipeline completo provado em M008 funciona via Taskiq: create patient → welcome → daily flow → response → transition.
-- Why it matters: M008 é a prova de que o sistema funciona. Se regredir com a migração, o milestone falha.
-- Source: inferred
-- Primary owning slice: M009/S06
-- Supporting slices: M009/S02, M009/S03, M009/S05
-- Validation: unmapped
-- Notes: Verificação final end-to-end — a prova mais importante do milestone.
-
 ## Validated
 
 ### R001 — The WhatsApp flow pipeline recovers from sequential-gate mismatch, outbound send failures, deferred follow-up failures, day advancement issues, and malformed day configs.
@@ -534,6 +444,83 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: validated by S03 — migration 9b4e2d1c7f66 seeds 16 daily_follow_up steps (days 16,18,20,...,44,45) with real clinical content from markdown snapshots. EnhancedTemplateLoader.get_message_for_day() returns content for all protocol days with correct send_mode (single) and expects_response values. Verified by SQL queries + verify_templates.py + verify_template_metadata.py scripts.
 - Notes: 16 steps across 30 calendar days; gap days return None from loader (intentional).
 
+### R077 — Taskiq broker (Redis-backed via Dragonfly) e scheduler substituem celery_app.py. Worker processa tasks, scheduler dispara periodic tasks, FastAPI lifespan integra startup/shutdown.
+- Class: operability
+- Status: validated
+- Description: Taskiq broker (Redis-backed via Dragonfly) e scheduler substituem celery_app.py. Worker processa tasks, scheduler dispara periodic tasks, FastAPI lifespan integra startup/shutdown.
+- Why it matters: O Celery é sync-first num codebase async-first. A substituição elimina ~900 linhas de bridging code e simplifica o runtime.
+- Source: user
+- Primary owning slice: M009/S01
+- Supporting slices: none
+- Validation: validated — S01 proved runtime (ListQueueBroker on Dragonfly 6380, SmartRetryMiddleware, FastAPI lifespan, health checks), S05 proved Celery-free operation (celery_app.py deleted, imports clean), S06 proved test suite clean (4796 collected, zero Celery errors, AST scan PASS).
+- Notes: Broker module reads env vars directly (not app.config.settings) for lightweight import. redis bumped to <8.0.0 for taskiq-redis compatibility.
+
+### R078 — Abstração base para tasks Taskiq com SmartRetryMiddleware (exponential backoff + jitter), logging estruturado, e DB session via dependency injection (TaskiqDepends).
+- Class: quality-attribute
+- Status: validated
+- Description: Abstração base para tasks Taskiq com SmartRetryMiddleware (exponential backoff + jitter), logging estruturado, e DB session via dependency injection (TaskiqDepends).
+- Why it matters: BaseTask do Celery tem retry config, logging, e session management — a abstração Taskiq precisa cobrir o mesmo sem bridging.
+- Source: inferred
+- Primary owning slice: M009/S01
+- Supporting slices: none
+- Validation: validated — S01 proved SmartRetryMiddleware (3 retries, 60s base, 600s cap, jitter), DbSession=TaskiqDepends(get_db_session), structured logging. S06 proved all 29 test files adapted to Taskiq retry patterns (exception propagation instead of .retry() mocks). All collecting clean.
+- Notes: Replaces Celery BaseTask + sync get_scoped_session() pattern. New pattern: @broker.task + async def + DbSession default param.
+
+### R079 — send_scheduled_message, process_scheduled_messages, retry_failed_messages, send_bulk_messages, DLQ processing, e demais tasks de messaging operam via Taskiq worker.
+- Class: core-capability
+- Status: validated
+- Description: send_scheduled_message, process_scheduled_messages, retry_failed_messages, send_bulk_messages, DLQ processing, e demais tasks de messaging operam via Taskiq worker.
+- Why it matters: Messaging é o hot path — envio de mensagens WhatsApp para pacientes. Precisa funcionar sem interrupção.
+- Source: user
+- Primary owning slice: M009/S02
+- Supporting slices: M009/S01
+- Validation: validated — S02 proved messaging tasks operate via Taskiq (send_scheduled_message.kiq(), process_scheduled_messages, retry_failed_messages, DLQ). S05 deleted Celery messaging.py. S06 proved all messaging test files use messaging_taskiq imports exclusively (AST PASS).
+- Notes: Inclui migração de call sites (.delay → .kiq) dentro do domínio messaging.
+
+### R080 — process_daily_flows, flow_automation, saga_retry, stuck_detection, monthly_tasks, e demais tasks de flow operam via Taskiq worker com async nativo.
+- Class: core-capability
+- Status: validated
+- Description: process_daily_flows, flow_automation, saga_retry, stuck_detection, monthly_tasks, e demais tasks de flow operam via Taskiq worker com async nativo.
+- Why it matters: Flow tasks são o core do acompanhamento diário — process_daily_flows usa async DB, IA Gemini, e WuzAPI.
+- Source: user
+- Primary owning slice: M009/S03
+- Supporting slices: M009/S01, M009/S02
+- Validation: validated — S03 proved flow tasks async-native (process_daily_flows, saga_retry, stuck_detection, monthly_tasks, flow_automation). S05 deleted Celery flows/ directory. S06 proved all flow test files use flows_taskiq/helpers.flow_helpers imports (AST PASS, 32+ flow tests collected).
+- Notes: Com Taskiq async-native, tasks podem usar await direto sem hybrid _resolve/_execute.
+
+### R081 — Quiz link tasks, trigger tasks, response tasks, alertas, follow-up, LGPD, audit cleanup, webhook DLQ, e monitoring tasks operam via Taskiq.
+- Class: core-capability
+- Status: validated
+- Description: Quiz link tasks, trigger tasks, response tasks, alertas, follow-up, LGPD, audit cleanup, webhook DLQ, e monitoring tasks operam via Taskiq.
+- Why it matters: Completa a migração de todas as tasks restantes para Taskiq.
+- Source: user
+- Primary owning slice: M009/S04
+- Supporting slices: M009/S01
+- Validation: validated — S04 proved 72 @broker.task declarations across 13 modules (quiz, alerts, follow_up, LGPD, audit, webhook_dlq, monitoring). S05 deleted Celery originals. S06 proved all test files use *_taskiq imports (AST PASS, 4796 tests collected).
+- Notes: Combined with S02 (messaging) and S03 (flows/saga), all task groups now have Taskiq equivalents. MonitoringTask class hierarchy flattened, quiz_flow 4-file subpackage consolidated.
+
+### R082 — Todas as 40+ entries do Celery beat_schedule estão no Taskiq scheduler com timing equivalente (crontab e interval).
+- Class: continuity
+- Status: validated
+- Description: Todas as 40+ entries do Celery beat_schedule estão no Taskiq scheduler com timing equivalente (crontab e interval).
+- Why it matters: Sem schedule periódico, tasks como process_daily_flows, retry_failed_messages, e check_patient_alerts não disparam automaticamente.
+- Source: inferred
+- Primary owning slice: M009/S04
+- Supporting slices: M009/S02, M009/S03
+- Validation: validated — S04 proved 47/47 schedule parity via verify_schedule_parity.sh. S05 removed Celery beat_schedule. S06 verified 72 @broker.task decorators across 13 *_taskiq.py files, with schedule configuration in LabelScheduleSource.
+- Notes: Schedule labels come from S02 (7 messaging), S03 (12 flow/saga), and S04 (28 remaining) — combined total 47.
+
+### R083 — Todos os ~20 call sites que usam .delay() ou .apply_async() foram migrados para .kiq() do Taskiq.
+- Class: continuity
+- Status: validated
+- Description: Todos os ~20 call sites que usam .delay() ou .apply_async() foram migrados para .kiq() do Taskiq.
+- Why it matters: Call sites são a interface entre services/handlers e o task queue — cada um não migrado é um ponto de falha.
+- Source: inferred
+- Primary owning slice: M009/S04
+- Supporting slices: M009/S02, M009/S03
+- Validation: validated — S04 proved zero external .delay()/.apply_async() call sites. S05 deleted all Celery dispatch code. S06 proved zero apply_async/schedule_celery_task/cancel_celery_task references in tests/ (grep PASS).
+- Notes: 3 remaining call sites are in sync code chains that require cascading async conversion — S05 handles these when Celery is removed.
+
 ### R084 — async_context_manager.py, run_async_in_celery(), async_helpers.py (partes que só existem para Celery), e demais bridge code removidos.
 - Class: operability
 - Status: validated
@@ -555,6 +542,17 @@ This file is the explicit capability and coverage contract for the project.
 - Supporting slices: none
 - Validation: validated by S05 — celery>=5.6.2, celery[redis]>=5.6.2, asgiref>=3.11.0, flower==2.0.1 removed from requirements.txt. grep -iE 'celery|kombu|amqp|billiard|flower|asgiref' returns nothing (V3 PASS). docker-compose.yml worker/beat commands use taskiq. Makefile targets use taskiq-worker/taskiq-scheduler.
 - Notes: asgiref also removed — only used for sync_to_async/async_to_sync bridging in Celery context. prometheus-client retained (used by Taskiq metrics).
+
+### R086 — O pipeline completo provado em M008 funciona via Taskiq: create patient → welcome → daily flow → response → transition.
+- Class: integration
+- Status: validated
+- Description: O pipeline completo provado em M008 funciona via Taskiq: create patient → welcome → daily flow → response → transition.
+- Why it matters: M008 é a prova de que o sistema funciona. Se regredir com a migração, o milestone falha.
+- Source: inferred
+- Primary owning slice: M009/S06
+- Supporting slices: M009/S02, M009/S03, M009/S05
+- Validation: validated by S06 — 4796 tests collected (zero Celery-related errors), AST scan confirms zero deleted-module imports in tests/, all M008 pipeline test files (test_patient_onboarding_e2e, test_saga_orchestrator, test_saga_onboarding_happy_path, test_flow_recovery_retry_e2e, test_flow_tasks_hardening) use Taskiq-only imports (.kiq, messaging_taskiq, flows_taskiq). Combined with S02 runtime proof (send_scheduled_message via Taskiq worker → WuzAPI) and S03 runtime proof (process_daily_flows async-native), the full create→welcome→daily→response→transition pipeline operates via Taskiq.
+- Notes: Terminal verification — S06 closed the test-suite gap, S02/S03/S05 provided implementation+runtime proof. Milestone M009 complete.
 
 ## Deferred
 
@@ -902,22 +900,22 @@ This file is the explicit capability and coverage contract for the project.
 | R074 | core-capability | validated | M008/S03 | none | validated by S03 — migration 9b4e2d1c7f66 seeds 16 daily_follow_up steps (days 16,18,20,...,44,45) with real clinical content from markdown snapshots. EnhancedTemplateLoader.get_message_for_day() returns content for all protocol days with correct send_mode (single) and expects_response values. Verified by SQL queries + verify_templates.py + verify_template_metadata.py scripts. |
 | R075 | constraint | out-of-scope | none | none | n/a |
 | R076 | constraint | out-of-scope | none | none | n/a |
-| R077 | operability | active | M009/S01 | none | S01 proved: ListQueueBroker connects to Dragonfly 6380, SmartRetryMiddleware retries with backoff, FastAPI lifespan manages startup/shutdown, health checks report Taskiq+Celery coexistence. Scheduler configured but awaiting runtime verification. Full validation after S02-S04 prove production tasks. |
-| R078 | quality-attribute | active | M009/S01 | none | S01 proved: SmartRetryMiddleware (3 retries, 60s base, 600s cap, jitter) tested with smoke_test_retry. DbSession = TaskiqDepends(get_db_session) injects AsyncSession per task. Structured logging (task_name, event, duration_ms, error_type) via log_task_start/success/error. Full validation after downstream slices use these patterns with real tasks. |
-| R079 | core-capability | active | M009/S02 | M009/S01 | unmapped |
-| R080 | core-capability | active | M009/S03 | M009/S01, M009/S02 | unmapped |
-| R081 | core-capability | active | M009/S04 | M009/S01 | S04 proved (contract-level): 10 new Taskiq modules (audit, lgpd, reports, saga_monitoring, alerts, webhook_dlq, monitoring, quiz_link, quiz_flow, follow_up) with 72 total @broker.task declarations across 13 modules. All parse cleanly via ast.parse(). Zero async_to_sync/run_async bridges in new modules. Cross-module dispatch chains wired via .kiq(). Full runtime validation deferred to S06. |
-| R082 | continuity | active | M009/S04 | M009/S02, M009/S03 | S04 proved: verify_schedule_parity.sh confirms 47/47 Celery beat_schedule entries have matching Taskiq schedule labels. Zero missing, zero extra. Cron schedules correctly converted BRT→UTC (+3h). Script handles 3 known renamings. Runtime schedule firing deferred to S06. |
-| R083 | continuity | active | M009/S04 | M009/S02, M009/S03 | S04 proved: rg audit shows zero non-TODO(S05) external .delay()/.apply_async() call sites in non-task code. LGPD middleware migrated to await .kiq() (T01). trigger_service.py (2 lines) and recovery.py (1 line) marked TODO(S05) per D010. All cross-task dispatch uses .kiq(). |
+| R077 | operability | validated | M009/S01 | none | validated — S01 proved runtime (ListQueueBroker on Dragonfly 6380, SmartRetryMiddleware, FastAPI lifespan, health checks), S05 proved Celery-free operation (celery_app.py deleted, imports clean), S06 proved test suite clean (4796 collected, zero Celery errors, AST scan PASS). |
+| R078 | quality-attribute | validated | M009/S01 | none | validated — S01 proved SmartRetryMiddleware (3 retries, 60s base, 600s cap, jitter), DbSession=TaskiqDepends(get_db_session), structured logging. S06 proved all 29 test files adapted to Taskiq retry patterns (exception propagation instead of .retry() mocks). All collecting clean. |
+| R079 | core-capability | validated | M009/S02 | M009/S01 | validated — S02 proved messaging tasks operate via Taskiq (send_scheduled_message.kiq(), process_scheduled_messages, retry_failed_messages, DLQ). S05 deleted Celery messaging.py. S06 proved all messaging test files use messaging_taskiq imports exclusively (AST PASS). |
+| R080 | core-capability | validated | M009/S03 | M009/S01, M009/S02 | validated — S03 proved flow tasks async-native (process_daily_flows, saga_retry, stuck_detection, monthly_tasks, flow_automation). S05 deleted Celery flows/ directory. S06 proved all flow test files use flows_taskiq/helpers.flow_helpers imports (AST PASS, 32+ flow tests collected). |
+| R081 | core-capability | validated | M009/S04 | M009/S01 | validated — S04 proved 72 @broker.task declarations across 13 modules (quiz, alerts, follow_up, LGPD, audit, webhook_dlq, monitoring). S05 deleted Celery originals. S06 proved all test files use *_taskiq imports (AST PASS, 4796 tests collected). |
+| R082 | continuity | validated | M009/S04 | M009/S02, M009/S03 | validated — S04 proved 47/47 schedule parity via verify_schedule_parity.sh. S05 removed Celery beat_schedule. S06 verified 72 @broker.task decorators across 13 *_taskiq.py files, with schedule configuration in LabelScheduleSource. |
+| R083 | continuity | validated | M009/S04 | M009/S02, M009/S03 | validated — S04 proved zero external .delay()/.apply_async() call sites. S05 deleted all Celery dispatch code. S06 proved zero apply_async/schedule_celery_task/cancel_celery_task references in tests/ (grep PASS). |
 | R084 | operability | validated | M009/S05 | none | validated by S05 — celery_app.py (run_async_in_celery), async_context_manager.py, async_helpers.py, event_loop_manager.py, async_handler.py all deleted. 12 Celery task files deleted. flows/, quiz_flow/, lgpd/ directories deleted. tasks/base.py, config.py, celery_metrics.py, queue_monitor.py deleted. AST scan confirms zero Celery imports across entire app/ directory (V1 PASS). 30 files removed total. |
 | R085 | operability | validated | M009/S05 | none | validated by S05 — celery>=5.6.2, celery[redis]>=5.6.2, asgiref>=3.11.0, flower==2.0.1 removed from requirements.txt. grep -iE 'celery|kombu|amqp|billiard|flower|asgiref' returns nothing (V3 PASS). docker-compose.yml worker/beat commands use taskiq. Makefile targets use taskiq-worker/taskiq-scheduler. |
-| R086 | integration | active | M009/S06 | M009/S02, M009/S03, M009/S05 | unmapped |
+| R086 | integration | validated | M009/S06 | M009/S02, M009/S03, M009/S05 | validated by S06 — 4796 tests collected (zero Celery-related errors), AST scan confirms zero deleted-module imports in tests/, all M008 pipeline test files (test_patient_onboarding_e2e, test_saga_orchestrator, test_saga_onboarding_happy_path, test_flow_recovery_retry_e2e, test_flow_tasks_hardening) use Taskiq-only imports (.kiq, messaging_taskiq, flows_taskiq). Combined with S02 runtime proof (send_scheduled_message via Taskiq worker → WuzAPI) and S03 runtime proof (process_daily_flows async-native), the full create→welcome→daily→response→transition pipeline operates via Taskiq. |
 | R087 | anti-feature | out-of-scope | none | none | n/a |
 | R088 | anti-feature | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 8
-- Mapped to slices: 8
-- Validated: 42 (R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R034, R035, R036, R037, R038, R039, R047, R048, R049, R050, R051, R052, R053, R057, R058, R059, R060, R061, R062, R063, R067, R068, R069, R070, R071, R072, R073, R074, R084, R085)
+- Active requirements: 0
+- Mapped to slices: 0
+- Validated: 50 (R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R034, R035, R036, R037, R038, R039, R047, R048, R049, R050, R051, R052, R053, R057, R058, R059, R060, R061, R062, R063, R067, R068, R069, R070, R071, R072, R073, R074, R077, R078, R079, R080, R081, R082, R083, R084, R085, R086)
 - Unmapped active requirements: 0

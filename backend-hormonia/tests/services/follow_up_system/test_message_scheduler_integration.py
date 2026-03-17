@@ -96,7 +96,7 @@ async def scheduler_setup(
     db = FakeDB()
     message_scheduler = AsyncMock()
     message_scheduler.task_scheduler = AsyncMock()
-    message_scheduler.task_scheduler.schedule_celery_task = AsyncMock()
+    message_scheduler.task_scheduler.schedule_task = AsyncMock()
     scheduler = MessageScheduler(db, message_scheduler)
     return scheduler, db, message_scheduler
 
@@ -118,7 +118,7 @@ async def test_schedule_message_action_deduplication(scheduler_setup):
     await scheduler.schedule_message_action(action_two)
 
     assert len(db.added) == 1
-    assert message_scheduler.task_scheduler.schedule_celery_task.call_count == 1
+    assert message_scheduler.task_scheduler.schedule_task.call_count == 1
 
 
 @pytest.mark.integration
@@ -138,7 +138,7 @@ async def test_schedule_different_messages_allowed(scheduler_setup):
     await scheduler.schedule_message_action(action_two)
 
     assert len(db.added) == 2
-    assert message_scheduler.task_scheduler.schedule_celery_task.call_count == 2
+    assert message_scheduler.task_scheduler.schedule_task.call_count == 2
 
 
 @pytest.mark.integration
@@ -159,7 +159,7 @@ async def test_schedule_same_message_different_patients(scheduler_setup):
     await scheduler.schedule_message_action(action_two)
 
     assert len(db.added) == 2
-    assert message_scheduler.task_scheduler.schedule_celery_task.call_count == 2
+    assert message_scheduler.task_scheduler.schedule_task.call_count == 2
 
 
 @pytest.mark.integration
@@ -177,7 +177,7 @@ async def test_deduplication_after_23h(scheduler_setup):
     await scheduler.schedule_message_action(action_two)
 
     assert len(db.added) == 1
-    assert message_scheduler.task_scheduler.schedule_celery_task.call_count == 1
+    assert message_scheduler.task_scheduler.schedule_task.call_count == 1
 
 
 @pytest.mark.integration
@@ -195,7 +195,7 @@ async def test_deduplication_after_25h(scheduler_setup):
     await scheduler.schedule_message_action(action_two)
 
     assert len(db.added) == 2
-    assert message_scheduler.task_scheduler.schedule_celery_task.call_count == 2
+    assert message_scheduler.task_scheduler.schedule_task.call_count == 2
 
 
 @pytest.mark.integration

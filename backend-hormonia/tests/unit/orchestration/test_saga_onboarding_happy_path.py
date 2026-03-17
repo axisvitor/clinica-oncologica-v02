@@ -75,7 +75,7 @@ def saga_env(mock_redis, mock_evolution_client, test_patient_data):
     ) as MockWhatsApp, patch(
         "app.orchestration.saga_orchestrator.orchestrator.MessageService"
     ) as MockMessageService, patch(
-        "app.tasks.messaging.send_scheduled_message"
+        "app.tasks.messaging_taskiq.send_scheduled_message"
     ):
         orchestrator = SagaOrchestrator(mock_db, mock_redis, mock_evolution_client)
 

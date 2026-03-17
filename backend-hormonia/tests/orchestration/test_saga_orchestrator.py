@@ -54,7 +54,7 @@ def saga_orchestrator(mock_db, mock_redis, mock_evolution):
          patch('app.orchestration.saga_orchestrator.orchestrator.PatientFlowService') as MockFlowService, \
          patch('app.orchestration.saga_orchestrator.orchestrator.UnifiedWhatsAppService') as MockWhatsApp, \
          patch('app.orchestration.saga_orchestrator.orchestrator.MessageService') as MockMessageService, \
-         patch('app.tasks.messaging.send_scheduled_message') as MockSendTask:
+         patch('app.tasks.messaging_taskiq.send_scheduled_message') as MockSendTask:
          
         orchestrator = SagaOrchestrator(mock_db, mock_redis, mock_evolution)
         

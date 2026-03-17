@@ -13,7 +13,7 @@ from app.models.enums import SagaStatus
 from app.models.message import Message, MessageStatus
 from app.models.patient import Patient
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
-from app.tasks import messaging as messaging_tasks
+from app.tasks import messaging_taskiq as messaging_tasks
 
 
 def _build_phone_variants(seed: int) -> tuple[str, str, str]:
@@ -57,12 +57,10 @@ def test_patient_onboarding_flow_e2e(
 ):
     scheduled_tasks = []
 
-    def _record_apply_async(*args, **kwargs):
-        message_args = kwargs.get("args")
-        if message_args is None and args:
-            message_args = args[0]
-        scheduled_tasks.append(message_args or [])
-        return None
+    async def _record_kiq(*args, **kwargs):
+        from types import SimpleNamespace
+        scheduled_tasks.append(list(args))
+        return SimpleNamespace(task_id="test-id")
 
     class _StubWhatsAppService:
         async def send_message(self, message):
@@ -70,8 +68,8 @@ def test_patient_onboarding_flow_e2e(
 
     monkeypatch.setattr(
         messaging_tasks.send_scheduled_message,
-        "apply_async",
-        _record_apply_async,
+        "kiq",
+        _record_kiq,
     )
     monkeypatch.setattr(
         messaging_tasks,
@@ -139,7 +137,7 @@ def test_patient_onboarding_flow_e2e(
     }
 
     if os.getenv("CONFIRM_REAL_DB") != "1":
-        assert scheduled_tasks, "Expected Celery task to be scheduled"
+        assert scheduled_tasks, "Expected Taskiq task to be scheduled"
 
     if os.getenv("CONFIRM_REAL_DB") == "1":
         return
