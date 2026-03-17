@@ -178,3 +178,7 @@ tmp/
 .gsd/DISCUSSION-MANIFEST.json
 .gsd/milestones/**/*-CONTINUE.md
 .gsd/milestones/**/continue.md
+
+# ── GSD baseline (auto-generated) ──
+.gsd/forensics/
+.gsd/parallel/
