@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Sistema de acompanhamento oncológico via WhatsApp para acompanhamento contínuo entre consultas. O backend roda em FastAPI + Celery + PostgreSQL + Dragonfly (drop-in Redis), com WuzAPI como provedor único de WhatsApp e frontends web para operação clínica. Pacientes em hormonioterapia recebem mensagens diárias por WhatsApp em 3 fases (onboarding 15 dias, follow-up diário até dia 45, ciclo mensal depois), respondem livremente com texto, e a IA reformula perguntas para manter engajamento natural. Cada médico configura o template do seu consultório. A cada 30 dias, um quiz web avalia sintomas clínicos. Antes da consulta, a IA gera um resumo mensal detalhado para o médico não precisar re-perguntar o mês inteiro ao paciente.
+Sistema de acompanhamento oncológico via WhatsApp para acompanhamento contínuo entre consultas. O backend roda em FastAPI + Taskiq + PostgreSQL + Dragonfly (drop-in Redis), com WuzAPI como provedor único de WhatsApp e frontends web para operação clínica. Pacientes em hormonioterapia recebem mensagens diárias por WhatsApp em 3 fases (onboarding 15 dias, follow-up diário até dia 45, ciclo mensal depois), respondem livremente com texto, e a IA reformula perguntas para manter engajamento natural. Cada médico configura o template do seu consultório. A cada 30 dias, um quiz web avalia sintomas clínicos. Antes da consulta, a IA gera um resumo mensal detalhado para o médico não precisar re-perguntar o mês inteiro ao paciente.
 
 ## Core Value
 
@@ -21,10 +21,10 @@ Diminuir o tempo de consulta e melhorar a qualidade do atendimento oncológico: 
 
 ## Architecture / Key Patterns
 
-- Backend FastAPI com AsyncSession nas rotas API e Session síncrona nos workers Celery (migração para Taskiq em M009).
+- Backend FastAPI com AsyncSession nas rotas API e Session síncrona em serviços ORM internos dos workers Taskiq.
 - Sessão autenticada baseada em Dragonfly + cookie HttpOnly, com identidade canônica por `user_id`.
 - Frontend dashboard em React/Vite com `AuthContext`, `apiClient` modular e bootstrap de WebSocket.
-- Task queue via Celery com Dragonfly como broker, 35 task files (~12,600 linhas), 40+ periodic tasks no beat schedule (migração para Taskiq async-native planejada em M009).
+- Task queue via Taskiq (async-native) com Dragonfly como broker (ListQueueBroker), 13 task modules (72 tasks), 47 periodic schedules via LabelScheduleSource, SmartRetryMiddleware com DLQ routing, ETA dispatch via ListRedisScheduleSource.
 - Fluxo de mensagens via WuzAPI com sequenciamento dia-a-dia (`SequentialMessageHandler`), personalização por IA (Gemini) com grounding calibrado, e sistema de follow-up com escalonamento.
 - Templates de fluxo armazenados no banco (`FlowTemplateVersion`), editáveis pelo médico via API de day-configs + DayConfigEditor no dashboard, carregados pelo `EnhancedTemplateLoader` com cache in-memory.
 - Quiz mensal como formulário web enviado por link WhatsApp, com regras de alerta clínico em `quiz_alert_rules.py` e notificações persistentes para o médico.
@@ -45,4 +45,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M006: Purga Final de Código Morto e Resíduo Legado — bridges, aliases, tombstones e código morto removidos com prova final.
 - [x] M007: Refinamento dos Fluxos de Acompanhamento — sequenciamento correto, editor de templates para médico, personalização IA, armazenamento de respostas, quiz review, resumo mensal para consulta.
 - [x] M008: Onboarding Real de Pacientes — stack local rodando, WuzAPI real conectado, templates semeados, fluxo ponta-a-ponta de criação → welcome → ciclo diário → resposta → transição de fase.
-- [ ] M009: Substituição do Celery por Taskiq — migração do task queue para async-native, eliminando ~900 linhas de bridge code sync/async, com paridade funcional total. **S01 complete**: Taskiq broker + base task + FastAPI integration operacional contra Dragonfly. **S02 complete**: All 9 messaging tasks migrated to async-native Taskiq with SmartRetryMiddleware, 7 schedule labels, ETA dispatch via ListRedisScheduleSource, and messaging-domain call sites switched to .kiq(). Celery coexistence maintained for external callers. **S03 complete**: All 17 flow/saga tasks migrated (14 in flows_taskiq.py, 3 in saga_retry_taskiq.py), 12 schedule labels, SmartRetryMiddleware DLQ routing for retry tasks, 3 external call sites wired to Taskiq dispatch. recovery.py deferred to S05. **S04 complete**: 10 new Taskiq modules (72 total tasks across 13 modules) covering all remaining task groups — quiz, alerts, follow-up, LGPD, audit, webhook DLQ, monitoring. 47/47 schedule parity verified by script. All external call sites migrated or marked TODO(S05).
+- [ ] M009: Substituição do Celery por Taskiq — migração do task queue para async-native, eliminando ~900 linhas de bridge code sync/async, com paridade funcional total. **S01-S05 complete**: Taskiq broker + base task + FastAPI integration, all 72 tasks migrated across 13 modules, 47/47 schedule parity, all Celery/bridge code deleted (30 files), requirements/docker-compose/Makefile updated, AST-verified zero Celery imports. R084+R085 validated. **S06 remaining**: end-to-end pipeline verification.

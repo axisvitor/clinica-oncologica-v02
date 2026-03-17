@@ -81,28 +81,6 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: S04 proved: rg audit shows zero non-TODO(S05) external .delay()/.apply_async() call sites in non-task code. LGPD middleware migrated to await .kiq() (T01). trigger_service.py (2 lines) and recovery.py (1 line) marked TODO(S05) per D010. All cross-task dispatch uses .kiq().
 - Notes: 3 remaining call sites are in sync code chains that require cascading async conversion — S05 handles these when Celery is removed.
 
-### R084 — async_context_manager.py, run_async_in_celery(), async_helpers.py (partes que só existem para Celery), e demais bridge code removidos.
-- Class: operability
-- Status: active
-- Description: async_context_manager.py, run_async_in_celery(), async_helpers.py (partes que só existem para Celery), e demais bridge code removidos.
-- Why it matters: Com Taskiq async-native, o bridge code é dead weight — complexidade sem valor.
-- Source: user
-- Primary owning slice: M009/S05
-- Supporting slices: none
-- Validation: S05 plan: T03 deletes celery_app.py (run_async_in_celery), async_context_manager.py, async_helpers.py, event_loop_manager.py, async_handler.py. T01 extracts helpers first to preserve Taskiq imports. T02 resolves TODO(S05) call sites. AST zero-import scan verifies.
-- Notes: async_helpers.py pode ter funções usadas fora de Celery — remover só o que é Celery-specific.
-
-### R085 — celery, celery[redis], kombu, amqp, billiard, flower, e qualquer dep que só existe para Celery são removidos.
-- Class: operability
-- Status: active
-- Description: celery, celery[redis], kombu, amqp, billiard, flower, e qualquer dep que só existe para Celery são removidos.
-- Why it matters: Dependências mortas aumentam superfície de ataque, tempo de install, e confusão de manutenção.
-- Source: user
-- Primary owning slice: M009/S05
-- Supporting slices: none
-- Validation: S05 plan: T04 step 10 removes celery>=5.6.2, celery[redis]>=5.6.2, asgiref>=3.11.0, flower==2.0.1 from requirements.txt. grep verification confirms zero matches.
-- Notes: asgiref pode continuar se usado fora de Celery. prometheus-client provavelmente fica.
-
 ### R086 — O pipeline completo provado em M008 funciona via Taskiq: create patient → welcome → daily flow → response → transition.
 - Class: integration
 - Status: active
@@ -556,6 +534,28 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: validated by S03 — migration 9b4e2d1c7f66 seeds 16 daily_follow_up steps (days 16,18,20,...,44,45) with real clinical content from markdown snapshots. EnhancedTemplateLoader.get_message_for_day() returns content for all protocol days with correct send_mode (single) and expects_response values. Verified by SQL queries + verify_templates.py + verify_template_metadata.py scripts.
 - Notes: 16 steps across 30 calendar days; gap days return None from loader (intentional).
 
+### R084 — async_context_manager.py, run_async_in_celery(), async_helpers.py (partes que só existem para Celery), e demais bridge code removidos.
+- Class: operability
+- Status: validated
+- Description: async_context_manager.py, run_async_in_celery(), async_helpers.py (partes que só existem para Celery), e demais bridge code removidos.
+- Why it matters: Com Taskiq async-native, o bridge code é dead weight — complexidade sem valor.
+- Source: user
+- Primary owning slice: M009/S05
+- Supporting slices: none
+- Validation: validated by S05 — celery_app.py (run_async_in_celery), async_context_manager.py, async_helpers.py, event_loop_manager.py, async_handler.py all deleted. 12 Celery task files deleted. flows/, quiz_flow/, lgpd/ directories deleted. tasks/base.py, config.py, celery_metrics.py, queue_monitor.py deleted. AST scan confirms zero Celery imports across entire app/ directory (V1 PASS). 30 files removed total.
+- Notes: Helpers extracted to app/tasks/helpers/ before deletion (9 domain modules). tasks/__init__.py re-exports 72 task functions from 13 *_taskiq.py modules.
+
+### R085 — celery, celery[redis], kombu, amqp, billiard, flower, e qualquer dep que só existe para Celery são removidos.
+- Class: operability
+- Status: validated
+- Description: celery, celery[redis], kombu, amqp, billiard, flower, e qualquer dep que só existe para Celery são removidos.
+- Why it matters: Dependências mortas aumentam superfície de ataque, tempo de install, e confusão de manutenção.
+- Source: user
+- Primary owning slice: M009/S05
+- Supporting slices: none
+- Validation: validated by S05 — celery>=5.6.2, celery[redis]>=5.6.2, asgiref>=3.11.0, flower==2.0.1 removed from requirements.txt. grep -iE 'celery|kombu|amqp|billiard|flower|asgiref' returns nothing (V3 PASS). docker-compose.yml worker/beat commands use taskiq. Makefile targets use taskiq-worker/taskiq-scheduler.
+- Notes: asgiref also removed — only used for sync_to_async/async_to_sync bridging in Celery context. prometheus-client retained (used by Taskiq metrics).
+
 ## Deferred
 
 ### R020 — Add a second factor for high-privilege staff authentication.
@@ -909,15 +909,15 @@ This file is the explicit capability and coverage contract for the project.
 | R081 | core-capability | active | M009/S04 | M009/S01 | S04 proved (contract-level): 10 new Taskiq modules (audit, lgpd, reports, saga_monitoring, alerts, webhook_dlq, monitoring, quiz_link, quiz_flow, follow_up) with 72 total @broker.task declarations across 13 modules. All parse cleanly via ast.parse(). Zero async_to_sync/run_async bridges in new modules. Cross-module dispatch chains wired via .kiq(). Full runtime validation deferred to S06. |
 | R082 | continuity | active | M009/S04 | M009/S02, M009/S03 | S04 proved: verify_schedule_parity.sh confirms 47/47 Celery beat_schedule entries have matching Taskiq schedule labels. Zero missing, zero extra. Cron schedules correctly converted BRT→UTC (+3h). Script handles 3 known renamings. Runtime schedule firing deferred to S06. |
 | R083 | continuity | active | M009/S04 | M009/S02, M009/S03 | S04 proved: rg audit shows zero non-TODO(S05) external .delay()/.apply_async() call sites in non-task code. LGPD middleware migrated to await .kiq() (T01). trigger_service.py (2 lines) and recovery.py (1 line) marked TODO(S05) per D010. All cross-task dispatch uses .kiq(). |
-| R084 | operability | active | M009/S05 | none | S05 plan: T03 deletes celery_app.py (run_async_in_celery), async_context_manager.py, async_helpers.py, event_loop_manager.py, async_handler.py. T01 extracts helpers first to preserve Taskiq imports. T02 resolves TODO(S05) call sites. AST zero-import scan verifies. |
-| R085 | operability | active | M009/S05 | none | S05 plan: T04 step 10 removes celery>=5.6.2, celery[redis]>=5.6.2, asgiref>=3.11.0, flower==2.0.1 from requirements.txt. grep verification confirms zero matches. |
+| R084 | operability | validated | M009/S05 | none | validated by S05 — celery_app.py (run_async_in_celery), async_context_manager.py, async_helpers.py, event_loop_manager.py, async_handler.py all deleted. 12 Celery task files deleted. flows/, quiz_flow/, lgpd/ directories deleted. tasks/base.py, config.py, celery_metrics.py, queue_monitor.py deleted. AST scan confirms zero Celery imports across entire app/ directory (V1 PASS). 30 files removed total. |
+| R085 | operability | validated | M009/S05 | none | validated by S05 — celery>=5.6.2, celery[redis]>=5.6.2, asgiref>=3.11.0, flower==2.0.1 removed from requirements.txt. grep -iE 'celery|kombu|amqp|billiard|flower|asgiref' returns nothing (V3 PASS). docker-compose.yml worker/beat commands use taskiq. Makefile targets use taskiq-worker/taskiq-scheduler. |
 | R086 | integration | active | M009/S06 | M009/S02, M009/S03, M009/S05 | unmapped |
 | R087 | anti-feature | out-of-scope | none | none | n/a |
 | R088 | anti-feature | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 10
-- Mapped to slices: 10
-- Validated: 40 (R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R034, R035, R036, R037, R038, R039, R047, R048, R049, R050, R051, R052, R053, R057, R058, R059, R060, R061, R062, R063, R067, R068, R069, R070, R071, R072, R073, R074)
+- Active requirements: 8
+- Mapped to slices: 8
+- Validated: 42 (R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R034, R035, R036, R037, R038, R039, R047, R048, R049, R050, R051, R052, R053, R057, R058, R059, R060, R061, R062, R063, R067, R068, R069, R070, R071, R072, R073, R074, R084, R085)
 - Unmapped active requirements: 0

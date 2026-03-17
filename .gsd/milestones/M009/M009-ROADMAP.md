@@ -70,7 +70,7 @@ This milestone is complete only when all are true:
 - [x] **S04: Quiz/alert/follow-up/monitoring migradas + schedule completo** `risk:medium` `depends:[S01]`
   > After this: todas as tasks de quiz, alertas, follow-up, LGPD, audit, webhook DLQ, e monitoring migradas. Schedule completo com todas as 40+ entries no Taskiq scheduler com timing correto.
 
-- [ ] **S05: Celery removal + bridge cleanup** `risk:medium` `depends:[S02,S03,S04]`
+- [x] **S05: Celery removal + bridge cleanup** `risk:medium` `depends:[S02,S03,S04]`
   > After this: celery, kombu, amqp, billiard, flower removidos de requirements.txt. celery_app.py deletado. async_context_manager.py, run_async_in_celery(), e bridge code removidos (~900 linhas). Backend sobe sem nenhum import de celery.
 
 - [ ] **S06: Verificação integrada ponta-a-ponta** `risk:low` `depends:[S05]`
