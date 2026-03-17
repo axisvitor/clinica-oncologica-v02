@@ -57,7 +57,7 @@ This milestone is complete only when all are true:
 - [x] **S01: Tabela de overrides + API de merge** `risk:high` `depends:[]`
   > After this: Alembic migration cria patient_flow_overrides. GET /api/v2/patients/{id}/flow-overrides retorna lista mergeada (global + overrides) com indicador de origem. PUT salva override. ast.parse green.
 
-- [ ] **S02: Injeção no pipeline de envio** `risk:high` `depends:[S01]`
+- [x] **S02: Injeção no pipeline de envio** `risk:high` `depends:[S01]`
   > After this: _get_day_config consulta override do paciente antes do template global. Dias com skip=true são pulados por process_daily_flows. Cache Redis com invalidação no PUT. ast.parse green.
 
 - [ ] **S03: Editor de override no PatientDetailPage** `risk:medium` `depends:[S01]`
