@@ -20,9 +20,17 @@
 - Real runtime required: no (contract verification per roadmap)
 - Human/UAT required: no
 
+## Observability / Diagnostics
+
+- **Script output:** `verify-m011.sh` prints labeled PASS/FAIL for each of 7 check groups with a final summary line (e.g., `7/7 checks passed`)
+- **Exit code:** Non-zero exit on any failure — CI-friendly and machine-parseable
+- **Failure visibility:** Each failed group prints its error output inline before the FAIL label so the root cause is immediately visible without re-running individual checks
+- **Replayability:** Script can be re-run at any time without side effects (no mutations, no installs, pure verification)
+
 ## Verification
 
 - `bash verify-m011.sh` — exits 0 with all checks passing
+- On failure: script exits non-zero and FAIL labels identify which check groups failed with inline error output
 
 ## Integration Closure
 
@@ -32,7 +40,7 @@
 
 ## Tasks
 
-- [ ] **T01: Create and run verify-m011.sh integrated verification script** `est:20m`
+- [x] **T01: Create and run verify-m011.sh integrated verification script** `est:20m`
   - Why: Terminal verification gate — proves all M011 deliverables (R100, R101, R102) work together and produces milestone-closing proof
   - Files: `verify-m011.sh`
   - Do: Create `verify-m011.sh` at project root with 7 check groups: (1) ast.parse 3 backend files, (2) tsc --noEmit, (3) vite build, (4) response shape audit via git diff on schemas/, (5) caching value grep (TTL=60, TTL=120, user_id in key), (6) timing value grep with monitoring exclusions, (7) migration chain grep (down_revision, index name). Run the script and confirm exit 0.

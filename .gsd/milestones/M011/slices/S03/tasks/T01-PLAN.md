@@ -91,3 +91,9 @@ The 7 check groups:
 ## Expected Output
 
 - `verify-m011.sh` — Replayable milestone verification script at project root, 7 check groups, exits 0 on success
+
+## Observability Impact
+
+- **New signal:** `verify-m011.sh` produces structured PASS/FAIL output for 7 check groups, enabling milestone-closing proof
+- **Inspection:** Re-run `bash verify-m011.sh` at any time to re-verify M011 deliverables; each group's failure output is inline
+- **Failure state:** Non-zero exit code + FAIL labels make failed groups immediately identifiable; no hidden failures
