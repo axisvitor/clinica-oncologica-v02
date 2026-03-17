@@ -251,7 +251,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
   const { data: compensationFailures } = useQuery({
     queryKey: ['admin-compensation-failures-count'],
     queryFn: () => apiClient.adminV2.listCompensationFailures(1, 1),
-    refetchInterval: 60000,
+    refetchInterval: 120000,
     enabled: !!user && canViewCompensation,
   })
 

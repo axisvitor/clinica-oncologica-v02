@@ -44,7 +44,7 @@ export function useUserActivity(
     queryKey: ['admin-user-activity', userId],
     queryFn: () => apiClient.adminUsers.getActivity(userId!, { page: 1, size: 50 }),
     enabled: !!userId && options?.enabled !== false,
-    staleTime: 30000, // 30 seconds
+    staleTime: 120000, // 120 seconds
   })
 }
 
@@ -87,7 +87,7 @@ export interface UseUserAdminOptions {
 export function useUserAdmin(options: UseUserAdminOptions = {}) {
   const {
     realTimeUpdates = true,
-    refreshInterval = 30000,
+    refreshInterval = 120000,
     enableRetry = true,
     pageSize = 10,
   } = options

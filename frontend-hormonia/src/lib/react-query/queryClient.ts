@@ -15,7 +15,7 @@
  *
  * Phase 2.2 Improvements:
  * - Added IndexedDB persistent cache
- * - Increased deduplication window from 5s to 30s
+ * - Increased deduplication window from 5s to 60s
  * - Added query batching support
  * - Enhanced gcTime from 10min to 5min for better memory management
  */
@@ -33,7 +33,7 @@ const queryConfig: DefaultOptions = {
     // This prevents duplicate network calls when multiple components
     // mount and request the same data simultaneously
     // Expected improvement: 40-60% reduction in API calls
-    staleTime: 30 * 1000, // 30 seconds (Phase 2.2 improvement)
+    staleTime: 60 * 1000, // 60 seconds (Phase 2.2 improvement)
 
     // OPTIMIZED CACHE TIME (Phase 2.2): Reduced from 10min to 5min
     // Keep data in cache for 5 minutes after last use
@@ -150,7 +150,7 @@ export const queryPresets = {
    * - Prefetch adjacent pages
    */
   paginated: {
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 60 * 1000, // 60 seconds
     gcTime: 5 * 60 * 1000, // 5 minutes
     placeholderData: (previousData: unknown) => previousData,
     refetchOnWindowFocus: false, // Don't refetch pagination on focus

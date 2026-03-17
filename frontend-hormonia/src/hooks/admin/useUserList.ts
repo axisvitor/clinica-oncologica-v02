@@ -68,7 +68,7 @@ export interface UseUserListResult {
  * ```tsx
  * const { users, isLoading, total, refetch } = useUserList({
  *   filters: { search: 'john', role: 'admin', page: 1, size: 10 },
- *   refetchInterval: 30000,
+ *   refetchInterval: 120000,
  *   enableRetry: true
  * })
  * ```
@@ -126,7 +126,7 @@ export function useUserList(options: UseUserListOptions = {}): UseUserListResult
     enabled,
     refetchInterval,
     retry: enableRetry ? 3 : false,
-    staleTime: 10000, // 10 seconds
+    staleTime: 120000, // 120 seconds
     gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)
   })
 

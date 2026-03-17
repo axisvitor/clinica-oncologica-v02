@@ -65,7 +65,7 @@ export default function AdminPage() {
 
   // Fetch system stats with automatic refetching
   const { refetch: refetchStats, isLoading: statsLoading } = useSystemStats({
-    refetchInterval: 30000, // Refresh every 30s
+    refetchInterval: 120000, // Refresh every 120s
   })
 
   // Check admin access - case-insensitive to handle ADMIN, admin, super_admin, etc.

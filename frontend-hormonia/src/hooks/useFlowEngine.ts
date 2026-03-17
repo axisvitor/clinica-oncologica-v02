@@ -68,8 +68,8 @@ export function useFlowState(patientId: string) {
     queryKey: ['flow-state', patientId],
     queryFn: () => flowEngine.getFlowState(patientId),
     enabled: !!patientId,
-    staleTime: 30000, // 30 seconds
-    refetchInterval: 60000, // 1 minute
+    staleTime: 60000, // 60 seconds
+    refetchInterval: 120000, // 2 minutes
   })
 }
 

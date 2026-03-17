@@ -88,7 +88,7 @@ export function useMonthlyQuizAdmin() {
         return { ...first, status: uiStatus }
       },
       enabled: !!patientId,
-      staleTime: 30000, // 30 seconds
+      staleTime: 60000, // 60 seconds
     })
   }
 

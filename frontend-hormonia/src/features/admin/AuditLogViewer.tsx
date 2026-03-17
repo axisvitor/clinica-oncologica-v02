@@ -393,7 +393,7 @@ export function AuditLogViewer({
         pages: Math.ceil(mockLogs.length / filters.size),
       }
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 120000, // Refresh every 120 seconds
   })
 
   const exportLogs = () => {

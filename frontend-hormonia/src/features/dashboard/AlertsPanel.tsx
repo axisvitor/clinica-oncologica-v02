@@ -61,7 +61,7 @@ export function AlertsPanel({ alerts: propAlerts }: AlertsPanelProps) {
   const { data: alertsData, isLoading } = useQuery({
     queryKey: ['alerts', { page: 1, size: 5 }],
     queryFn: () => apiClient.alerts.list({ page: 1, size: 5 }),
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 120000, // Refresh every 120 seconds
   })
 
   const alerts: UIAlert[] = (propAlerts || alertsData?.items || []).map(normalizeAlert)

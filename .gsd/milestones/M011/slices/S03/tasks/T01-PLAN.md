@@ -1,58 +1,65 @@
 ---
-estimated_steps: 5
-estimated_files: 1
+estimated_steps: 3
+estimated_files: 2
 ---
 
-# T01: Create and run verify-m011.sh integrated verification script
+# T01: Run integrated verification and validate R100/R101/R102
 
 **Slice:** S03 — Verificação integrada
 **Milestone:** M011
 
 ## Description
 
-Create a replayable `verify-m011.sh` script at the project root that runs 7 integrated check groups covering all three M011 requirements (R100, R101, R102). The script consolidates checks from S01 and S02 into a single milestone-closing proof. No code changes — pure verification.
+Terminal verification gate for M011. Create and run a single verification script that confirms all deliverables from S01 (backend caching + composite index) and S02 (frontend request discipline) are correct and integrated. This validates requirements R100 (Redis caching on hot paths), R101 (composite index on patient_flow_states), and R102 (frontend staleTime/refetchInterval discipline).
 
-The 7 check groups:
-1. **ast.parse** — Parse 3 backend Python files (migration, patients.py, dashboard.py)
-2. **tsc --noEmit** — Frontend TypeScript compilation
-3. **vite build** — Frontend production build
-4. **Response shape** — Confirm zero changes to `backend-hormonia/app/schemas/` across M011
-5. **Caching values** — Grep confirm TTL=60 in patients.py, TTL=120 in dashboard.py, user_id in cache key
-6. **Timing values** — Grep confirm staleTime ≥ 60000 and refetchInterval ≥ 120000 outside monitoring exclusions (monitoring/system/whatsapp/hive-mind are intentionally exempt)
-7. **Migration chain** — Confirm down_revision = `m008_s01_t03_sessions_align` and index name = `idx_pfs_patient_started`
+No code changes to the application — this is pure verification.
 
 ## Steps
 
-1. Create `verify-m011.sh` at project root with all 7 check groups. Each group prints a clear PASS/FAIL label. The script tracks failures and exits non-zero if any group fails.
+1. **Create `verify-m011.sh`** at `.gsd/milestones/M011/slices/S03/verify-m011.sh` with 7 sequential checks, each printing PASS/FAIL and exiting non-zero on failure:
 
-2. For the **ast.parse** check (group 1), use:
+   **Check 1 — ast.parse backend files:**
    ```bash
    python3 -c "
-   import ast
-   for f in [
+   import ast, sys
+   files = [
        'backend-hormonia/alembic/versions/m011_s01_patient_flow_states_index.py',
        'backend-hormonia/app/api/v2/routers/physicians/patients.py',
        'backend-hormonia/app/api/v2/routers/dashboard.py',
-   ]:
+   ]
+   for f in files:
        ast.parse(open(f).read())
-       print(f'  OK: {f}')
+       print(f'  PASS: {f}')
    "
    ```
 
-3. For **tsc --noEmit** (group 2) and **vite build** (group 3), run from `frontend-hormonia/`:
+   **Check 2 — tsc --noEmit:**
    ```bash
    cd frontend-hormonia && npx tsc --noEmit
+   ```
+
+   **Check 3 — vite build:**
+   ```bash
    cd frontend-hormonia && npx vite build
    ```
 
-4. For **response shape** (group 4), check that no schema files were modified in M011 commits. Use `git diff` against the commit before M011 started (parent of first M011 commit) on `backend-hormonia/app/schemas/`. Also check that the response_model/return type annotations in patients.py and dashboard.py are unchanged by grepping for `response_model` in both files.
+   **Check 4 — Response shape unchanged (zero schema file changes in M011):**
+   ```bash
+   # Check that no files in backend-hormonia/app/schemas/ were modified in the M011 worktree
+   git diff origin/main --name-only -- backend-hormonia/app/schemas/ | wc -l
+   # Must be 0
+   ```
+   If `origin/main` is not available, use `git log --oneline --all` to find the base branch and diff against it. Alternative: check that no response_model or return type annotations changed in the modified endpoint files by grepping for `response_model` and confirming they match the original.
 
-5. For **caching values** (group 5):
-   - `grep -q "ttl=60" backend-hormonia/app/api/v2/routers/physicians/patients.py`
-   - `grep -q "CACHE_TTL_REALTIME = 120" backend-hormonia/app/api/v2/routers/dashboard.py`
-   - `grep -q 'user:{user_id}' backend-hormonia/app/api/v2/routers/physicians/patients.py` (or equivalent `user_id` in cache key)
+   **Check 5 — Caching values (R100 validation):**
+   ```bash
+   grep -q "ttl=60" backend-hormonia/app/api/v2/routers/physicians/patients.py
+   grep -q "user:{user_id}" backend-hormonia/app/api/v2/routers/physicians/patients.py  # or user_id in key
+   grep -q "CACHE_TTL_REALTIME = 120" backend-hormonia/app/api/v2/routers/dashboard.py
+   ```
+   The patients.py key pattern is `physician:patients:user:{user_id}:...` — confirm user_id is part of the cache key to prevent cross-doctor data leaks. Note: S01 used manual `redis_cache.get/set`, not `@cache_response` decorator — grep for `redis_cache` presence, not `@cache_response`.
 
-6. For **timing values** (group 6), use the canonical audit from S02:
+   **Check 6 — Timing values (R102 validation):**
    ```bash
    rg "staleTime|refetchInterval" --type ts --type-add 'tsx:*.tsx' --type tsx frontend-hormonia/src/ \
      | grep -v features/system | grep -v features/monitoring \
@@ -60,40 +67,45 @@ The 7 check groups:
      | grep -v AdminMonitoringTab | grep -v hooks/api/useSystemStats \
      | grep -v features/whatsapp
    ```
-   Then verify no value < 60000 for staleTime or < 120000 for refetchInterval appears (excluding `queryPresets.realtime` which is an intentional monitoring preset).
+   All remaining staleTime values must be ≥ 60000. All remaining refetchInterval values must be ≥ 120000. Known exceptions that are OK:
+   - `queryPresets.realtime` in queryClient.ts (intentional monitoring preset)
+   - Dead code files (`useOptimizedQuery.helpers.ts`, `ProductionProvider.tsx`) with zero imports
 
-7. For **migration chain** (group 7):
-   - `grep -q 'm008_s01_t03_sessions_align' backend-hormonia/alembic/versions/m011_s01_patient_flow_states_index.py`
-   - `grep -q 'idx_pfs_patient_started' backend-hormonia/alembic/versions/m011_s01_patient_flow_states_index.py`
+   **Check 7 — Migration chain (R101 validation):**
+   ```bash
+   grep -q 'down_revision = "m008_s01_t03_sessions_align"' backend-hormonia/alembic/versions/m011_s01_patient_flow_states_index.py
+   grep -q "idx_pfs_patient_started" backend-hormonia/alembic/versions/m011_s01_patient_flow_states_index.py
+   grep -q "if_not_exists" backend-hormonia/alembic/versions/m011_s01_patient_flow_states_index.py
+   ```
 
-8. Run `bash verify-m011.sh` and confirm exit 0 with all 7 groups passing.
+2. **Run the script** and confirm all 7 checks pass.
+
+3. **If any check fails**, diagnose and report. S03 is verification-only — if a check fails, it means S01 or S02 has a defect that was missed. Do NOT fix application code in this task; report the failure clearly.
 
 ## Must-Haves
 
-- [ ] `verify-m011.sh` exists at project root and is executable
-- [ ] All 7 check groups pass (ast.parse, tsc, vite build, response shape, caching values, timing values, migration chain)
-- [ ] Script exits 0 on success, non-zero on any failure
-- [ ] Script output clearly labels each check group PASS/FAIL
+- [ ] `verify-m011.sh` script created with all 7 checks
+- [ ] ast.parse passes on all 3 backend files
+- [ ] `tsc --noEmit` exits 0
+- [ ] `vite build` exits 0
+- [ ] Response shape unchanged (zero schema modifications)
+- [ ] Caching: TTL=60 in patients.py, TTL=120 in dashboard.py, user_id in cache key, redis_cache present
+- [ ] Timing: all non-monitoring staleTime ≥ 60000, refetchInterval ≥ 120000
+- [ ] Migration: correct down_revision, index name, if_not_exists
 
 ## Verification
 
-- `bash verify-m011.sh` exits 0
-- Script output shows 7/7 groups passing
-- No code files modified — only verify-m011.sh created
+- `bash .gsd/milestones/M011/slices/S03/verify-m011.sh` exits 0
+- All 7 checks print PASS
 
 ## Inputs
 
-- S01 deliverables: `backend-hormonia/alembic/versions/m011_s01_patient_flow_states_index.py` (Alembic migration with composite index), `backend-hormonia/app/api/v2/routers/physicians/patients.py` (manual redis_cache with TTL=60s and per-user key)
-- S01 confirmed unchanged: `backend-hormonia/app/api/v2/routers/dashboard.py` (pre-existing TTL=120s caching)
+- S01 deliverables: `backend-hormonia/alembic/versions/m011_s01_patient_flow_states_index.py` (composite index migration), `backend-hormonia/app/api/v2/routers/physicians/patients.py` (manual redis_cache with per-user key, TTL=60s)
+- S01 confirmed unchanged: `backend-hormonia/app/api/v2/routers/dashboard.py` (TTL=120s, per-user key)
 - S02 deliverables: 21 frontend files with staleTime ≥ 60s and refetchInterval ≥ 120s, `tsc --noEmit` + `vite build` already proven green
-- `node_modules` already exists from S02's `npm ci` — no reinstall needed
+- `node_modules` already installed from S02's `npm ci`
 
 ## Expected Output
 
-- `verify-m011.sh` — Replayable milestone verification script at project root, 7 check groups, exits 0 on success
-
-## Observability Impact
-
-- **New signal:** `verify-m011.sh` produces structured PASS/FAIL output for 7 check groups, enabling milestone-closing proof
-- **Inspection:** Re-run `bash verify-m011.sh` at any time to re-verify M011 deliverables; each group's failure output is inline
-- **Failure state:** Non-zero exit code + FAIL labels make failed groups immediately identifiable; no hidden failures
+- `.gsd/milestones/M011/slices/S03/verify-m011.sh` — replayable verification script for M011
+- All 7 checks passing — proves R100 (caching), R101 (index), R102 (frontend discipline) are validated

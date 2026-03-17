@@ -21,7 +21,7 @@ import { useSystemStats } from '@/hooks/api/useSystemStats'
 export default function AdminUsersTab() {
   const [searchUsers, setSearchUsers] = useState('')
   const { data: stats, isLoading: statsLoading } = useSystemStats({
-    refetchInterval: 30000,
+    refetchInterval: 120000,
   })
 
   return (

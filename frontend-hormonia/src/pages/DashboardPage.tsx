@@ -43,8 +43,8 @@ export function DashboardPage() {
     queryKey: ['dashboard-metrics'],
     queryFn: () => apiClient.dashboard.getMain({ time_range: 'week' }),
     enabled: !!user && !authLoading, // Only run when authenticated
-    refetchInterval: 60000, // Refresh every 60 seconds (optimized from 30s)
-    staleTime: 30000, // Consider data fresh for 30 seconds
+    refetchInterval: 120000, // Refresh every 120 seconds
+    staleTime: 60000, // Consider data fresh for 60 seconds
   })
 
   // Show skeleton while loading - UI appears immediately!
