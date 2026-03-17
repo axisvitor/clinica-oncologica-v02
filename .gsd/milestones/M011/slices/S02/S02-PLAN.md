@@ -28,7 +28,7 @@
   - Verify: `rg "staleTime" --type ts --type-add 'tsx:*.tsx' --type tsx frontend-hormonia/src/` — visually confirm no dashboard/patient/admin hook has staleTime < 60s or refetchInterval < 120s
   - Done when: All ~20 files edited with correct values, comments updated, monitoring hooks untouched
 
-- [ ] **T02: Install dependencies and verify build** `est:15m`
+- [x] **T02: Install dependencies and verify build** `est:15m`
   - Why: Worktree has no `node_modules`. Must install before running tsc/vite. This is the slice's terminal verification.
   - Files: `frontend-hormonia/package.json` (read-only)
   - Do: Run `cd frontend-hormonia && npm ci`, then `npx tsc --noEmit`, then `npx vite build`. Also run grep audit to confirm no staleTime < 60s or refetchInterval < 120s outside monitoring hooks.

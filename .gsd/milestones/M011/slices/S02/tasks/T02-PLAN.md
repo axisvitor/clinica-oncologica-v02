@@ -61,6 +61,13 @@ Terminal verification for S02. The worktree has no `node_modules`, so dependenci
 - `vite build` exit code 0
 - Grep audit returns empty (no violations found)
 
+## Observability Impact
+
+- **Build artifacts:** `vite build` produces `frontend-hormonia/dist/` — presence confirms compilable output.
+- **TypeScript diagnostics:** `tsc --noEmit` exit code is the primary signal; any type errors from T01 edits surface here.
+- **Grep audit:** `rg "staleTime|refetchInterval"` across `frontend-hormonia/src/` is the canonical inspection surface. Values below R102 thresholds outside monitoring hooks indicate regression.
+- **Failure visibility:** Build failures or type errors appear as non-zero exit codes. Grep audit violations appear as matched lines in stdout. No runtime signal — this is a compile-time/static-analysis gate.
+
 ## Inputs
 
 - T01 completed all value changes across ~21 files

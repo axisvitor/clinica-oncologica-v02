@@ -11,9 +11,9 @@ export default defineConfig({
   // Test execution settings
   timeout: 60000, // 60 seconds per test
   fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  forbidOnly: !!process.env['CI'],
+  retries: process.env['CI'] ? 2 : 0,
+  workers: process.env['CI'] ? 1 : undefined,
 
   // Reporter configuration
   reporter: [
@@ -25,7 +25,7 @@ export default defineConfig({
 
   // Shared settings
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:5173',
+    baseURL: process.env['E2E_BASE_URL'] || 'http://localhost:5173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -65,10 +65,10 @@ export default defineConfig({
   ],
 
   // Dev server
-  webServer: process.env.CI ? undefined : {
+  webServer: process.env['CI'] ? undefined : {
     command: 'npm run dev',
     url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !process.env['CI'],
     timeout: 120000,
   },
 });
