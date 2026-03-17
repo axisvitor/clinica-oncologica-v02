@@ -52,7 +52,7 @@ This milestone is complete only when all are true:
 - [x] **S02: Frontend request discipline** `risk:low` `depends:[]`
   > After this: hooks de dashboard/pacientes usam staleTime ≥ 60s e refetchInterval ≥ 120s. tsc + vite build green. Menos requests ao backend.
 
-- [ ] **S03: Verificação integrada** `risk:low` `depends:[S01,S02]`
+- [x] **S03: Verificação integrada** `risk:low` `depends:[S01,S02]`
   > After this: tsc + vite build green, ast.parse green no backend, response shape inalterada. Milestone verificado.
 
 ## Boundary Map
