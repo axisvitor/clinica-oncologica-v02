@@ -54,7 +54,7 @@ This milestone is complete only when all are true:
 
 ## Slices
 
-- [ ] **S01: Tabela de overrides + API de merge** `risk:high` `depends:[]`
+- [x] **S01: Tabela de overrides + API de merge** `risk:high` `depends:[]`
   > After this: Alembic migration cria patient_flow_overrides. GET /api/v2/patients/{id}/flow-overrides retorna lista mergeada (global + overrides) com indicador de origem. PUT salva override. ast.parse green.
 
 - [ ] **S02: Injeção no pipeline de envio** `risk:high` `depends:[S01]`
