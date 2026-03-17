@@ -122,3 +122,10 @@ print('PASS — All 3 files parse OK')
 - `trigger_service.py` — 2 call sites converted from `.apply_async(eta=)` to `await schedule_task_at()`
 - `recovery.py` — `attempt_recovery()` is now async, uses `await .kiq()`, no asgiref
 - `flows_taskiq.py` — `detect_stuck_flows` uses `await attempt_recovery()`
+
+## Observability Impact
+
+- **trigger_service.py**: Logger output changes from `task: {task_1.id}` (Celery task ID) to `schedule: {schedule_result_1.schedule_id}` (Taskiq schedule ID). Same `logger.info` call, same structured context — only the ID source changes.
+- **recovery.py**: `logger.info("Recovered stuck flow", extra={...})` unchanged — still emits `flow_state_id`, `patient_id`, `action`, `attempt`. Failure path: `ValueError` on missing prompt_message_id surfaces via `log_task_error` in the calling Taskiq task.
+- **flows_taskiq.py**: `detect_stuck_flows` structured return dict unchanged (`detected_count`, `recovered_count`, `skipped_count`, `failed_count`). `log_task_start/success/error` calls unchanged.
+- **How to inspect**: `grep "Recovered stuck flow" <logs>` for recovery events. `grep "detect_stuck_flows" <logs>` for periodic run summaries. `schedule_id` values in trigger_service logs can be correlated against Taskiq's `ListRedisScheduleSource` in Redis/Dragonfly.

@@ -708,7 +708,8 @@ class QuizTriggerService:
             expires_at: Link expiration datetime
         """
         try:
-            from app.tasks.quiz_flow.trigger_tasks import send_quiz_link_reminder_task
+            from app.tasks.quiz_link_taskiq import send_quiz_reminder
+            from app.tasks.taskiq_base import schedule_task_at
 
             get_monthly_quiz_config()
 
@@ -719,21 +720,21 @@ class QuizTriggerService:
             # Second reminder: 6h before expiry
             reminder_2_time = expires_at - timedelta(hours=6)
 
-            # Schedule reminders using Celery
+            # Schedule reminders via Taskiq schedule_task_at (ETA dispatch)
             if reminder_1_time > now_sao_paulo():
-                task_1 = send_quiz_link_reminder_task.apply_async(  # TODO(S05): migrate to quiz_link_taskiq.send_quiz_reminder.kiq() after Celery removal
-                    args=[str(quiz_session_id), 24], eta=reminder_1_time
+                schedule_result_1 = await schedule_task_at(
+                    send_quiz_reminder, reminder_1_time, str(quiz_session_id), 24
                 )
                 logger.info(
-                    f"Scheduled first reminder for quiz {quiz_session_id} at {reminder_1_time} (task: {task_1.id})"
+                    f"Scheduled first reminder for quiz {quiz_session_id} at {reminder_1_time} (schedule: {schedule_result_1.schedule_id})"
                 )
 
             if reminder_2_time > now_sao_paulo():
-                task_2 = send_quiz_link_reminder_task.apply_async(  # TODO(S05): migrate to quiz_link_taskiq.send_quiz_reminder.kiq() after Celery removal
-                    args=[str(quiz_session_id), 6], eta=reminder_2_time
+                schedule_result_2 = await schedule_task_at(
+                    send_quiz_reminder, reminder_2_time, str(quiz_session_id), 6
                 )
                 logger.info(
-                    f"Scheduled second reminder for quiz {quiz_session_id} at {reminder_2_time} (task: {task_2.id})"
+                    f"Scheduled second reminder for quiz {quiz_session_id} at {reminder_2_time} (schedule: {schedule_result_2.schedule_id})"
                 )
 
             # Store reminder schedule in session metadata

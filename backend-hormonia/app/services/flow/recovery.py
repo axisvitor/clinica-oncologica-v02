@@ -6,7 +6,6 @@ import logging
 from datetime import timedelta
 from typing import Any
 
-from asgiref.sync import async_to_sync
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -125,12 +124,15 @@ def determine_recovery_action(step_data: dict[str, Any]) -> str:
     return "resend_prompt"
 
 
-def attempt_recovery(
+async def attempt_recovery(
     db: Session,
     flow_state: PatientFlowState,
     redis_client,
 ) -> dict[str, Any]:
-    """Attempt bounded, idempotent recovery for a single stuck flow."""
+    """Attempt bounded, idempotent recovery for a single stuck flow.
+
+    This is an async coroutine — callers must ``await`` it.
+    """
     current_step_data = dict(flow_state.step_data or {})
     flow_state_id = str(flow_state.id)
 
@@ -195,7 +197,7 @@ def attempt_recovery(
         flow_manager = FlowManagementService(flow_repo=flow_repo, db=db)
         current_day = updated_step_data.get("current_flow_day") or latest_flow.current_step
         force_day = int(current_day or latest_flow.current_step or 0) + 1
-        async_to_sync(flow_manager.advance_patient_flow)(
+        await flow_manager.advance_patient_flow(
             latest_flow.patient_id,
             force_day=force_day,
         )
@@ -206,12 +208,9 @@ def attempt_recovery(
                 f"Unable to recover flow {flow_state_id}: missing prompt message id"
             )
 
-        from app.tasks.flows.send_retry import retry_failed_flow_send
+        from app.tasks.flows_taskiq import retry_failed_flow_send
 
-        # TODO(S05): migrate to flows_taskiq.retry_failed_flow_send.kiq() after Celery removal
-        # Cannot convert to async here — attempt_recovery() is sync, called by detect_stuck_flows
-        # and other sync callers. Requires coexistence until S05 cleans up.
-        retry_failed_flow_send.delay(  # TODO(S05): migrate to flows_taskiq.retry_failed_flow_send.kiq()
+        await retry_failed_flow_send.kiq(
             prompt_message_id,
             flow_context=_build_flow_context(latest_flow, updated_step_data),
         )

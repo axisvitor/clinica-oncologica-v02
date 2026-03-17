@@ -1069,12 +1069,8 @@ async def detect_stuck_flows() -> dict[str, Any]:
     Async-native Taskiq replacement for the Celery detect_stuck_flows task.
     Runs every 15 minutes (900s).
 
-    Uses ``get_scoped_session()`` (sync) because ``find_stuck_flows`` and
-    ``attempt_recovery`` are sync-only services operating on sync ORM.
-
-    IMPORTANT: ``attempt_recovery()`` internally calls
-    ``retry_failed_flow_send.delay()`` (Celery dispatch). This is intentional
-    during coexistence — S05 handles the cleanup.
+    Uses ``get_scoped_session()`` (sync) because ``find_stuck_flows``
+    operates on sync ORM. ``attempt_recovery`` is async and must be awaited.
 
     Returns:
         Dict with detected_count, recovered_count, skipped_count, failed_count.
@@ -1106,7 +1102,7 @@ async def detect_stuck_flows() -> dict[str, Any]:
 
             for flow_state in stuck_flows:
                 try:
-                    result = attempt_recovery(db, flow_state, redis_client)
+                    result = await attempt_recovery(db, flow_state, redis_client)
                 except Exception:
                     summary["failed_count"] += 1
                     logger.exception(

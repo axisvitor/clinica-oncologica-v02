@@ -140,6 +140,7 @@ print('PASS — tasks/__init__.py clean')
 - Inspection surfaces: `bash backend-hormonia/scripts/verify_schedule_parity.sh` — confirms schedule parity preserved after deletions
 - Failure visibility: AST-based import scan catches any surviving Celery references at file level, not just grep
 - Diagnostic check: If any Taskiq module fails to parse after helper extraction, `python3 -c "import ast; ast.parse(open('...').read())"` surfaces the exact `SyntaxError` with line/col. If a helper import fails at runtime, the structured `log_task_error` in each Taskiq task emits the `ImportError` traceback to stdout/Sentry.
+- Failure-path verification: `detect_stuck_flows` logs `"Failed to recover stuck flow"` with `flow_state_id`/`patient_id` on recovery failure and increments `failed_count` in its return dict. `attempt_recovery` raises `ValueError` on missing prompt_message_id — surfaced via Taskiq's structured error logging and Sentry.
 - Redaction constraints: none
 
 ## Integration Closure
@@ -157,7 +158,7 @@ print('PASS — tasks/__init__.py clean')
   - Verify: `python3 -c "import ast; ..."` — all 13 `*_taskiq.py` parse OK, no imports from Celery task modules remain in any `*_taskiq.py` file
   - Done when: All Taskiq modules import helpers exclusively from `app/tasks/helpers/`, zero imports from Celery task modules in any `*_taskiq.py` file
 
-- [ ] **T02: Resolve TODO(S05) call sites — trigger_service.py and recovery.py** `est:20m`
+- [x] **T02: Resolve TODO(S05) call sites — trigger_service.py and recovery.py** `est:20m`
   - Why: 3 remaining call sites still dispatch via Celery `.apply_async(eta=)` and `.delay()`. These must be converted to Taskiq dispatch before Celery files are deleted in T03.
   - Files: `app/domain/quizzes/integration/flow_integration/trigger_service.py`, `app/services/flow/recovery.py`, `app/tasks/flows_taskiq.py`
   - Do: (1) trigger_service.py lines 724,732: replace `send_quiz_link_reminder_task.apply_async(args=[...], eta=...)` with `await schedule_task_at(send_quiz_reminder, reminder_time, str(quiz_session_id), hours)` — function is already `async def _schedule_link_reminders`. Import `schedule_task_at` from `taskiq_base` and `send_quiz_reminder` from `quiz_link_taskiq`. Remove the Celery import of `send_quiz_link_reminder_task`. (2) recovery.py: make `attempt_recovery()` async, replace `async_to_sync(flow_manager.advance_patient_flow)(...)` with `await flow_manager.advance_patient_flow(...)`, replace `retry_failed_flow_send.delay(...)` with `await retry_failed_flow_send.kiq(...)` importing from `flows_taskiq`. Remove `from asgiref.sync import async_to_sync` import. (3) flows_taskiq.py: update `detect_stuck_flows` to `await attempt_recovery(...)` since it's now async. Remove all TODO(S05) comments.
