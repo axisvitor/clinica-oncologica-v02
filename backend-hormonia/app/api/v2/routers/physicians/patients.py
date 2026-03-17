@@ -15,7 +15,7 @@ from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_db
-from app.dependencies.auth_dependencies import get_current_user_from_session
+from app.dependencies.auth_dependencies import get_current_user_from_session, get_generic_cache
 from app.models.alert import Alert
 from app.models.flow import FlowKind, FlowTemplateVersion, PatientFlowState
 from app.models.patient import Patient
@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 async def list_physician_patients(
     db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
+    redis_cache=Depends(get_generic_cache),
     search: Optional[str] = Query(None, description="Search by patient name (ILIKE)"),
     flow_phase: Optional[str] = Query(
         None, description="Filter by flow phase: onboarding, daily_follow_up, quiz_mensal"
@@ -50,6 +51,19 @@ async def list_physician_patients(
     size: int = Query(20, ge=1, le=100, description="Page size"),
 ):
     """List patients with enriched flow data for the physician dashboard."""
+
+    # --- Extract user_id and build cache key ---
+    user_id = current_user.id if hasattr(current_user, "id") else current_user.get("id")
+    cache_key = f"physician:patients:user:{user_id}:page:{page}:size:{size}:search:{search}:phase:{flow_phase}:status:{flow_status}"
+
+    # Try cache first
+    try:
+        cached_data = await redis_cache.get(cache_key)
+        if cached_data is not None:
+            logger.debug(f"Cache hit for physician patients: {cache_key}")
+            return cached_data
+    except Exception:
+        logger.debug("Redis cache read failed, falling through to DB")
 
     # --- Build the latest-flow-state-per-patient subquery ---
     # Rank flow states by started_at DESC to get the most recent per patient
@@ -177,9 +191,17 @@ async def list_physician_patients(
             )
         )
 
-    return PhysicianPatientListResponse(
+    response = PhysicianPatientListResponse(
         items=items,
         total=total,
         page=page,
         size=size,
     )
+
+    # Cache the serialized response
+    try:
+        await redis_cache.set(cache_key, response.model_dump(), ttl=60)
+    except Exception:
+        logger.debug("Redis cache write failed, continuing without cache")
+
+    return response

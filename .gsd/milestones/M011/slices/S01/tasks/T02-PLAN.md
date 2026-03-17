@@ -82,6 +82,14 @@ Also verify that `dashboard.py`'s existing caching (TTL=120s, per-user key) is a
 - `grep "CACHE_TTL_REALTIME = 120" backend-hormonia/app/api/v2/routers/dashboard.py` → match (unchanged)
 - Schema file not modified: `git diff --name-only` does NOT include any schema files under `schemas/v2/physician_patients.py`
 
+## Observability Impact
+
+- **New signal:** `logger.debug(f"Cache hit for physician patients: {cache_key}")` — emitted on every Redis cache hit, visible in application debug logs
+- **New signal:** `logger.debug("Redis cache read failed, falling through to DB")` / `logger.debug("Redis cache write failed, continuing without cache")` — emitted on Redis failures, visible when Redis/Dragonfly is down
+- **Inspection:** Redis keys matching `physician:patients:user:*` visible via `redis-cli KEYS "physician:patients:user:*"` or Dragonfly CLI
+- **Failure state:** If Redis is down, no error surfaces to the user — the endpoint silently falls through to the DB query (slower but functional). Debug logs will show the "failed" messages.
+- **Cache TTL:** Keys auto-expire after 60s. Stale data window is bounded to 1 minute.
+
 ## Inputs
 
 - `backend-hormonia/app/api/v2/routers/physicians/patients.py` — current endpoint (131 lines, no caching, no Request param)
