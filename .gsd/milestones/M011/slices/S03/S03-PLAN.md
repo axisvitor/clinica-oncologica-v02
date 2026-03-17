@@ -31,7 +31,7 @@
 
 ## Tasks
 
-- [ ] **T01: Run integrated verification and validate R100/R101/R102** `est:15m`
+- [x] **T01: Run integrated verification and validate R100/R101/R102** `est:15m`
   - Why: Terminal verification gate — confirms all M011 deliverables work together and validates all three requirements
   - Files: `backend-hormonia/alembic/versions/m011_s01_patient_flow_states_index.py`, `backend-hormonia/app/api/v2/routers/physicians/patients.py`, `backend-hormonia/app/api/v2/routers/dashboard.py`, `frontend-hormonia/src/lib/react-query/queryClient.ts`
   - Do: Create `verify-m011.sh` script running all 7 checks in sequence (ast.parse, tsc, vite build, schema diff, caching grep, timing grep, migration chain). Execute it. All checks must pass.
