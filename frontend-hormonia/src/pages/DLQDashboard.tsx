@@ -168,7 +168,7 @@ export function DLQDashboard() {
   } = useQuery({
     queryKey: ['dlq-stats'],
     queryFn: fetchDLQStats,
-    refetchInterval: 30000, // Refresh every 30s
+    refetchInterval: 120000, // Refresh every 120s
   })
 
   const {
@@ -178,7 +178,7 @@ export function DLQDashboard() {
   } = useQuery({
     queryKey: ['dlq-messages', page, size, statusFilter, categoryFilter, searchTerm],
     queryFn: () => fetchDLQMessages(page, size, statusFilter, categoryFilter, searchTerm),
-    refetchInterval: 30000,
+    refetchInterval: 120000,
   })
 
   // Mutations

@@ -137,7 +137,7 @@ export function useMonthlyQuizAdminSecure() {
       queryKey: ['monthly-quiz-status', patientId],
       queryFn: () => getQuizLinkStatus(patientId),
       enabled: !!patientId && canViewStats,
-      staleTime: 30000, // 30 seconds
+      staleTime: 60000, // 60 seconds
     })
   }
 

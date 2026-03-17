@@ -37,7 +37,7 @@ export interface UseRiskPatientsOptions {
  * @example
  * ```tsx
  * const { data: riskPatients, isLoading, error } = useRiskPatients({
- *   refetchInterval: 60000, // Refresh every 60 seconds
+ *   refetchInterval: 120000, // Refresh every 120 seconds
  *   wsData // WebSocket data
  * })
  * ```
@@ -45,7 +45,7 @@ export interface UseRiskPatientsOptions {
 export function useRiskPatients(
   options?: UseRiskPatientsOptions
 ): UseQueryResult<PatientRisk[], Error> {
-  const { refetchInterval = 60000, wsData } = options ?? {}
+  const { refetchInterval = 120000, wsData } = options ?? {}
   const queryClient = useQueryClient()
 
   // Auto-refetch when WebSocket receives 'risk_alert'

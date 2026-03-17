@@ -17,7 +17,7 @@ interface UseSystemStatsOptions {
 export function useSystemStats(options: UseSystemStatsOptions = {}) {
   const {
     realTimeUpdates = true,
-    refreshInterval = 30000, // 30 seconds default
+    refreshInterval = 120000, // 120 seconds default
   } = options
 
   const {
@@ -32,7 +32,7 @@ export function useSystemStats(options: UseSystemStatsOptions = {}) {
       return mapDashboardMetricsToAdminStats(dashboardMetrics)
     },
     refetchInterval: realTimeUpdates ? refreshInterval : false,
-    staleTime: 10000, // 10 seconds
+    staleTime: 60000, // 60 seconds
     retry: 3,
   })
 

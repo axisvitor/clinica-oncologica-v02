@@ -74,8 +74,8 @@ export function useFlows(options?: UseFlowsOptions): UseFlowsReturn {
       return response as FlowListResponse
     },
     enabled: options?.enabled !== false,
-    staleTime: 30000, // 30 seconds
-    refetchInterval: 60000, // 1 minute
+    staleTime: 60000, // 60 seconds
+    refetchInterval: 120000, // 2 minutes
   })
 
   const rawItems = Array.isArray(data) ? data : (data?.data ?? data?.items ?? [])
@@ -199,8 +199,8 @@ export function useFlowState(patientId: string) {
       return await apiClient.flows.getState(patientId)
     },
     enabled: !!patientId,
-    staleTime: 30000, // 30 seconds
-    refetchInterval: 60000, // 1 minute
+    staleTime: 60000, // 60 seconds
+    refetchInterval: 120000, // 2 minutes
   })
 
   return {

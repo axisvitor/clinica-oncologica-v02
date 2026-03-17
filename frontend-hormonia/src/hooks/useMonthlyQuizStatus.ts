@@ -81,7 +81,7 @@ export function useMonthlyQuizStatus(patientId: string) {
       }
     },
     enabled: !!patientId,
-    staleTime: 30000, // 30 seconds
+    staleTime: 60000, // 60 seconds
     retry: 1,
   })
 }
@@ -132,7 +132,7 @@ export function useBulkMonthlyQuizStatus(patientIds: string[]) {
       return statuses
     },
     enabled: patientIds.length > 0,
-    staleTime: 30000, // 30 seconds
+    staleTime: 60000, // 60 seconds
   })
 }
 

@@ -24,7 +24,7 @@ export function NotificationCenter() {
       return result as NotificationListResponse
     },
     enabled: !!user && !authLoading, // Only run when authenticated
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 120000, // Refresh every 120 seconds
   })
 
   const notifications = notificationsData?.items || []

@@ -27,7 +27,7 @@ export function RecentQuizCompletions() {
       const response = await apiClient.quiz.sessions({})
       return response
     },
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 120000, // Refresh every 2 minutes
   })
 
   // Format date

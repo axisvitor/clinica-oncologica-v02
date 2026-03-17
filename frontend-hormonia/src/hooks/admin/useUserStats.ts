@@ -39,7 +39,7 @@ export interface UseUserStatsOptions {
  * ```tsx
  * const { stats, isLoading, error } = useUserStats({
  *   usersData: usersResponse,
- *   refetchInterval: 30000
+ *   refetchInterval: 120000
  * })
  *
  * console.log(stats?.users.total) // Total users count
@@ -150,7 +150,7 @@ export function useUserStats(options: UseUserStatsOptions = {}) {
     },
     enabled: enabled && !!usersData,
     refetchInterval,
-    staleTime: 10000, // 10 seconds
+    staleTime: 120000, // 120 seconds
   })
 
   // Calculate additional derived metrics

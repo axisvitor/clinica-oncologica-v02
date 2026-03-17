@@ -56,14 +56,14 @@ export interface UseClinicalMetricsOptions {
  * ```tsx
  * const { data: metrics, isLoading, error } = useClinicalMetrics({
  *   timeRange: '30d',
- *   refetchInterval: 30000 // Refresh every 30 seconds
+ *   refetchInterval: 120000 // Refresh every 120 seconds
  * })
  * ```
  */
 export function useClinicalMetrics(
   options?: UseClinicalMetricsOptions
 ): UseQueryResult<ClinicalMetrics, Error> {
-  const { refetchInterval = 30000 } = options ?? {}
+  const { refetchInterval = 120000 } = options ?? {}
 
   return useQuery<ClinicalMetrics, Error>({
     queryKey: ['clinical', 'metrics'],
@@ -86,7 +86,7 @@ export function useClinicalMetrics(
         completedFlows: response.completed_quizzes ?? 0,
       }
     },
-    staleTime: 30000, // 30 seconds - real-time monitoring
+    staleTime: 60000, // 60 seconds
     refetchInterval,
     retry: 2,
   })

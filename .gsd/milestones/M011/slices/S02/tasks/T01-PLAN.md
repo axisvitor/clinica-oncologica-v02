@@ -88,3 +88,10 @@ This task performs all value changes across ~21 files. Every change is a numeric
 - ~21 files modified with bumped staleTime/refetchInterval values
 - Comments updated alongside values
 - No structural or type changes — pure numeric literal edits
+
+## Observability Impact
+
+- **What changes:** Polling intervals for dashboard/patient/admin React Query hooks increase from 30-60s to 60-120s. This reduces API request volume by ~50-75% for affected endpoints.
+- **How to inspect:** Browser Network tab — non-monitoring API requests should show ≥ 120s spacing between automatic refetches. React Query devtools show staleTime/refetchInterval per query key.
+- **Failure state:** If values regress below threshold, backend request logs will show increased frequency. The grep audit (`rg "staleTime|refetchInterval"`) is the canonical CI-time check.
+- **No new signals added** — this task changes existing timing parameters only.
