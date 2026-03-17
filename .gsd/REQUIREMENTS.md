@@ -89,7 +89,7 @@ This file is the explicit capability and coverage contract for the project.
 - Source: user
 - Primary owning slice: M009/S05
 - Supporting slices: none
-- Validation: unmapped
+- Validation: S05 plan: T03 deletes celery_app.py (run_async_in_celery), async_context_manager.py, async_helpers.py, event_loop_manager.py, async_handler.py. T01 extracts helpers first to preserve Taskiq imports. T02 resolves TODO(S05) call sites. AST zero-import scan verifies.
 - Notes: async_helpers.py pode ter funções usadas fora de Celery — remover só o que é Celery-specific.
 
 ### R085 — celery, celery[redis], kombu, amqp, billiard, flower, e qualquer dep que só existe para Celery são removidos.
@@ -100,7 +100,7 @@ This file is the explicit capability and coverage contract for the project.
 - Source: user
 - Primary owning slice: M009/S05
 - Supporting slices: none
-- Validation: unmapped
+- Validation: S05 plan: T04 step 10 removes celery>=5.6.2, celery[redis]>=5.6.2, asgiref>=3.11.0, flower==2.0.1 from requirements.txt. grep verification confirms zero matches.
 - Notes: asgiref pode continuar se usado fora de Celery. prometheus-client provavelmente fica.
 
 ### R086 — O pipeline completo provado em M008 funciona via Taskiq: create patient → welcome → daily flow → response → transition.
@@ -909,8 +909,8 @@ This file is the explicit capability and coverage contract for the project.
 | R081 | core-capability | active | M009/S04 | M009/S01 | S04 proved (contract-level): 10 new Taskiq modules (audit, lgpd, reports, saga_monitoring, alerts, webhook_dlq, monitoring, quiz_link, quiz_flow, follow_up) with 72 total @broker.task declarations across 13 modules. All parse cleanly via ast.parse(). Zero async_to_sync/run_async bridges in new modules. Cross-module dispatch chains wired via .kiq(). Full runtime validation deferred to S06. |
 | R082 | continuity | active | M009/S04 | M009/S02, M009/S03 | S04 proved: verify_schedule_parity.sh confirms 47/47 Celery beat_schedule entries have matching Taskiq schedule labels. Zero missing, zero extra. Cron schedules correctly converted BRT→UTC (+3h). Script handles 3 known renamings. Runtime schedule firing deferred to S06. |
 | R083 | continuity | active | M009/S04 | M009/S02, M009/S03 | S04 proved: rg audit shows zero non-TODO(S05) external .delay()/.apply_async() call sites in non-task code. LGPD middleware migrated to await .kiq() (T01). trigger_service.py (2 lines) and recovery.py (1 line) marked TODO(S05) per D010. All cross-task dispatch uses .kiq(). |
-| R084 | operability | active | M009/S05 | none | unmapped |
-| R085 | operability | active | M009/S05 | none | unmapped |
+| R084 | operability | active | M009/S05 | none | S05 plan: T03 deletes celery_app.py (run_async_in_celery), async_context_manager.py, async_helpers.py, event_loop_manager.py, async_handler.py. T01 extracts helpers first to preserve Taskiq imports. T02 resolves TODO(S05) call sites. AST zero-import scan verifies. |
+| R085 | operability | active | M009/S05 | none | S05 plan: T04 step 10 removes celery>=5.6.2, celery[redis]>=5.6.2, asgiref>=3.11.0, flower==2.0.1 from requirements.txt. grep verification confirms zero matches. |
 | R086 | integration | active | M009/S06 | M009/S02, M009/S03, M009/S05 | unmapped |
 | R087 | anti-feature | out-of-scope | none | none | n/a |
 | R088 | anti-feature | out-of-scope | none | none | n/a |

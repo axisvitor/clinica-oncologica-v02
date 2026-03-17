@@ -1,7 +1,7 @@
 # GSD State
 
 **Active Milestone:** M009: Substituição do Celery por Taskiq
-**Active Slice:** S04: Quiz/alert/follow-up/monitoring migradas + schedule completo
+**Active Slice:** S05: Celery removal + bridge cleanup
 **Phase:** executing
 **Requirements Status:** 10 active · 40 validated · 8 deferred · 17 out of scope
 
@@ -23,4 +23,4 @@
 - None
 
 ## Next Action
-Execute S04/T01: Migrate simple sync-ORM modules (audit, lgpd, reports, saga_monitoring) + LGPD middleware call site.
+Execute S05/T01 (Extract pure helpers from Celery modules into shared helper package).
