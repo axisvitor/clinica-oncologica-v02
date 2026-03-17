@@ -12,7 +12,7 @@ Diminuir o tempo de consulta e melhorar a qualidade do atendimento oncológico: 
 
 - M001–M009 concluídos: pipeline de fluxo, auth canônico, refactor estrutural, convergência runtime/schema, purga de código morto, refinamento de fluxos, onboarding real ponta-a-ponta, migração Celery→Taskiq.
 - M010 concluído: dashboard médico refinado — visão patient-centric com contexto de fluxo, tela de preparo pré-consulta consolidada, responsivo desktop+mobile, código morto /medico/* removido.
-- M011 em andamento: otimização de carregamento e redução de stress no banco de dados.
+- M011 em andamento: S01 (backend caching + index composto) concluído — Redis caching per-user no physician/patients (TTL=60s), composite index em patient_flow_states. S02 (frontend request discipline) e S03 (verificação integrada) pendentes.
 
 ## Architecture / Key Patterns
 

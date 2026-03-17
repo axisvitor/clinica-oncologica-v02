@@ -46,7 +46,7 @@ This milestone is complete only when all are true:
 
 ## Slices
 
-- [ ] **S01: Backend caching + index composto** `risk:high` `depends:[]`
+- [x] **S01: Backend caching + index composto** `risk:high` `depends:[]`
   > After this: physician/patients e dashboard/main retornam dados cacheados no Dragonfly. Index composto em patient_flow_states criado. ast.parse green em todos os arquivos modificados.
 
 - [ ] **S02: Frontend request discipline** `risk:low` `depends:[]`
