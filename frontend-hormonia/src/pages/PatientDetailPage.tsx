@@ -23,19 +23,17 @@ import { FEATURES } from '@/config'
 import { PatientDetailHeader } from '@/features/patients/components/PatientDetailHeader'
 import { PatientOverviewCard } from '@/features/patients/components/PatientOverviewCard'
 import { PatientQuizSection } from '@/features/patients/components/PatientQuizSection'
-import { PatientAIAnalysis } from '@/features/patients/components/PatientAIAnalysis'
 import type { QuizHistoryEntry } from '@/lib/api-client/monthly-quiz'
 
 export function PatientDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
-  const defaultTab = searchParams.get('tab') || 'overview'
+  const defaultTab = searchParams.get('tab') || 'timeline'
   const [showSendQuizModal, setShowSendQuizModal] = useState(false)
   const { hasRole } = useAuth()
   const { useQuizLinkStatus, useQuizLinkHistory, resendQuizLink, cancelQuizLink } =
     useMonthlyQuizAdmin()
   const canAccessAiSummary = FEATURES.AI_SUMMARY && (hasRole('doctor') || hasRole('admin'))
-  const canAccessAiChat = FEATURES.AI_CHAT && (hasRole('doctor') || hasRole('admin'))
 
   const { data: patient, isLoading: patientLoading } = useQuery({
     queryKey: ['patient', id],
@@ -58,7 +56,6 @@ export function PatientDetailPage() {
   const { data: quizStatus } = useQuizLinkStatus(id || '')
   const { data: quizHistory, isLoading: quizHistoryLoading } = useQuizLinkHistory(id || '')
 
-  // Fetch patient messages
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: ['messages', { patient_id: id }],
     queryFn: () => {
@@ -94,24 +91,63 @@ export function PatientDetailPage() {
           O paciente solicitado não foi encontrado ou você não tem permissão para visualizá-lo.
         </p>
         <Button asChild>
-          <Link to="/patients">
+          <Link to="/physician/dashboard">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar para pacientes
+            Voltar ao dashboard
           </Link>
         </Button>
       </div>
     )
   }
 
+  // Determine which tab to default to — if ?tab=ai-summary, the summary is already
+  // visible as a primary section, so default tabs to 'timeline' instead
+  const effectiveTab = defaultTab === 'ai-summary' ? 'timeline' : defaultTab
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with back to physician dashboard */}
       <PatientDetailHeader patientName={patient.name} status={patient.status || 'inactive'} />
 
       {/* Patient Overview */}
       <PatientOverviewCard patient={patient} />
 
-      {/* Quiz Mensal Section */}
+      {/* ============================================================
+          PRIMARY CONTENT — Visible without tabs (pre-consultation prep)
+          ============================================================ */}
+
+      {/* AI Summary + Flow Status — 2 column grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: AI Summary (main content) */}
+        <div className="lg:col-span-2">
+          {canAccessAiSummary && id && patient ? (
+            <PatientAISummary patientId={id} patientName={patient.name} />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Resumo IA</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Resumo IA não disponível. Verifique as permissões ou configuração do sistema.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Right: Flow Status + Quick Actions */}
+        <div className="space-y-6">
+          {id && (
+            <>
+              <FlowStatus patientId={id} />
+              <QuickActions patientId={id} />
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Quiz Mensal Section — alerts visible */}
       <PatientQuizSection
         patientId={id || ''}
         quizStatus={quizStatus}
@@ -124,38 +160,16 @@ export function PatientDetailPage() {
         onCancelQuiz={cancelQuizLink}
       />
 
-      {/* Main Content Tabs */}
-      <Tabs defaultValue={defaultTab} className="space-y-6">
+      {/* ============================================================
+          SECONDARY CONTENT — Tabs for detailed views
+          ============================================================ */}
+
+      <Tabs defaultValue={effectiveTab} className="space-y-6">
         <TabsList>
-          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="timeline">Linha do Tempo</TabsTrigger>
           <TabsTrigger value="quiz-responses">Respostas de Quiz</TabsTrigger>
-          {canAccessAiSummary && <TabsTrigger value="ai-summary">Resumo IA</TabsTrigger>}
-          {canAccessAiChat && <TabsTrigger value="ai-chat">Chat IA</TabsTrigger>}
           <TabsTrigger value="messages">Mensagens</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Timeline */}
-            <div className="lg:col-span-2 space-y-6">
-              <PatientTimeline
-                timeline={timeline ? { events: timeline.events } : undefined}
-                isLoading={timelineLoading}
-              />
-            </div>
-
-            {/* Right Column - Flow Status and Actions */}
-            <div className="space-y-6">
-              {id && (
-                <>
-                  <FlowStatus patientId={id} />
-                  <QuickActions patientId={id} />
-                </>
-              )}
-            </div>
-          </div>
-        </TabsContent>
 
         <TabsContent value="timeline" className="space-y-6">
           <PatientTimeline
@@ -166,16 +180,11 @@ export function PatientDetailPage() {
 
         <TabsContent value="quiz-responses" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Quiz Responses */}
             <div className="lg:col-span-2">
               {id && patient && <QuizResponseViewer patientId={id} patientName={patient.name} />}
             </div>
-
-            {/* Right Column - Timeline and Actions */}
             <div className="space-y-6">
               {id && <QuizResponseTimeline patientId={id} />}
-
-              {/* Quick Actions for Quiz Responses */}
               <Card>
                 <CardHeader>
                   <CardTitle>Ações Rápidas</CardTitle>
@@ -194,19 +203,6 @@ export function PatientDetailPage() {
             </div>
           </div>
         </TabsContent>
-
-        {canAccessAiSummary && (
-          <TabsContent value="ai-summary" className="space-y-6">
-            {id && patient && <PatientAISummary patientId={id} patientName={patient.name} />}
-          </TabsContent>
-        )}
-        {canAccessAiChat && (
-          <PatientAIAnalysis
-            patientId={id || ''}
-            patientName={patient.name}
-            showChat={canAccessAiChat}
-          />
-        )}
 
         <TabsContent value="messages" className="space-y-6">
           <Card>

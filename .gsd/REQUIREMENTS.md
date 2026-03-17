@@ -2,6 +2,118 @@
 
 This file is the explicit capability and coverage contract for the project.
 
+## Active
+
+### R089 — Visão geral patient-centric com contexto clínico por paciente como tela principal do physician dashboard.
+- Class: primary-user-loop
+- Status: active
+- Description: O physician dashboard mostra todos os pacientes do médico com fase do fluxo (onboarding/follow-up/quiz), dia atual, último contato, e flags de atenção (alertas não reconhecidos, sem resposta há dias, fluxo parado) visíveis diretamente na lista, sem precisar clicar.
+- Why it matters: O médico precisa de um relance para decidir quem precisa de atenção. A tela atual é analytics-heavy e não mostra contexto clínico por paciente.
+- Source: user
+- Primary owning slice: M010/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Substitui a tabela de risk assessment atual por uma visão patient-centric com dados de fluxo.
+
+### R090 — Tela de preparo pré-consulta consolidada: resumo IA + respostas livres + alertas + status fluxo num clique.
+- Class: primary-user-loop
+- Status: active
+- Description: Ao clicar num paciente no dashboard, o médico vê numa tela consolidada o resumo IA do mês, as respostas livres recentes, alertas do quiz, e o status atual do fluxo — tudo visível sem navegar por tabs.
+- Why it matters: O médico prepara a consulta em 5 minutos. Se precisa navegar por 4 tabs para juntar informação, perde tempo e perde contexto.
+- Source: user
+- Primary owning slice: M010/S02
+- Supporting slices: M010/S01
+- Validation: unmapped
+- Notes: Reusa e recompõe PatientAISummary, FlowStatus, QuizResponseViewer existentes.
+
+### R091 — API backend enriquecida para lista de pacientes do médico com dados de fluxo.
+- Class: integration
+- Status: active
+- Description: A API de listagem de pacientes do physician dashboard retorna, para cada paciente, a fase do fluxo (onboarding/daily_follow_up/quiz_mensal), o dia atual do fluxo, a data do último contato, e contagem de alertas não reconhecidos — num único endpoint, sem N+1.
+- Why it matters: Sem dados de fluxo na listagem, o frontend faria N+1 requests para buscar status de cada paciente individualmente.
+- Source: inferred
+- Primary owning slice: M010/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Pode ser um novo endpoint /api/v2/physician/patients ou enriquecer o risk-assessments existente.
+
+### R092 — Acesso ao resumo IA em no máximo 1 clique a partir da lista de pacientes.
+- Class: primary-user-loop
+- Status: active
+- Description: Da lista de pacientes no dashboard, 1 clique leva o médico direto à tela com o resumo IA do paciente visível sem ação adicional.
+- Why it matters: Se o resumo IA precisa de 3+ cliques, o médico para de usar.
+- Source: user
+- Primary owning slice: M010/S02
+- Supporting slices: M010/S01
+- Validation: unmapped
+- Notes: Atualmente existe o Brain icon na PhysicianRiskTable que navega para ?tab=ai-summary. O refinamento deve tornar isso mais direto.
+
+### R093 — Interface responsiva de verdade em desktop e mobile para dashboard e detalhe do paciente.
+- Class: quality-attribute
+- Status: active
+- Description: O dashboard do médico e a tela de detalhe do paciente funcionam bem em desktop (tabela densa com informação) e mobile (cards touch-friendly, fontes legíveis, interações de toque). Não é apenas "não quebra" — é "funciona bem" nos dois.
+- Why it matters: Médico checa no celular entre consultas e usa desktop no consultório. Ambos precisam ser experiências completas.
+- Source: user
+- Primary owning slice: M010/S04
+- Supporting slices: M010/S01, M010/S02
+- Validation: unmapped
+- Notes: Envolve responsive breakpoints, mobile-first cards, tabela adaptativa desktop→cards mobile.
+
+### R094 — Remoção completa do código morto /medico/*.
+- Class: operability
+- Status: active
+- Description: MedicoDashboard.tsx, PacientesList.tsx, ProntuarioView.tsx, MedicoAuthContext.tsx, useMedicoDashboardStats.ts, e todas as rotas /medico/* exceto redirects essenciais são removidos. Zero código de dashboard/paciente morto.
+- Why it matters: Código morto confunde manutenção e gera falsos positivos em buscas.
+- Source: user
+- Primary owning slice: M010/S03
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Rotas /medico/* já redirecionam para /physician/*. MedicoLogin pode ser mantido se tiver uso real ou removido se redundante.
+
+### R095 — Dashboards admin e médico permanecem separados.
+- Class: constraint
+- Status: active
+- Description: O dashboard admin (/dashboard, DashboardPage.tsx) e o physician dashboard (/physician/dashboard, PhysicianDashboard.tsx) são telas separadas, cada uma otimizada para seu público (admin operacional vs. médico clínico).
+- Why it matters: Misturar admin e clínico num só dashboard cria ruído para ambos os públicos.
+- Source: user
+- Primary owning slice: M010/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: DashboardPage não é alterado por M010.
+
+### R100 — Endpoints hot-path do médico cacheados no Redis/Dragonfly com TTL adequado.
+- Class: quality-attribute
+- Status: active
+- Description: Os endpoints mais acessados pelo médico (physician/patients, dashboard/main) usam @cache_response com TTL adequado no Dragonfly, eliminando queries repetidas ao banco.
+- Why it matters: Sem cache, cada refresh do dashboard dispara JOINs pesados no PostgreSQL — stress desnecessário no banco.
+- Source: inferred
+- Primary owning slice: M011/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: CacheMiddleware já existe (90s auth TTL), mas os endpoints physician não usam @cache_response explícito.
+
+### R101 — Index composto em patient_flow_states para window function do physician patients.
+- Class: quality-attribute
+- Status: active
+- Description: Index composto em patient_flow_states(patient_id, started_at DESC) para que a window function ROW_NUMBER() do endpoint physician/patients use index scan em vez de seq scan.
+- Why it matters: Sem index, a window function faz sort em memória para cada paciente — escala mal com muitos flow states.
+- Source: inferred
+- Primary owning slice: M011/S01
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Criado via Alembic migration.
+
+### R102 — Frontend hooks com staleTime/gcTime consistentes e refetchInterval reduzido.
+- Class: quality-attribute
+- Status: active
+- Description: Hooks de dashboard e pacientes usam staleTime ≥ 60s, refetchInterval ≥ 120s (exceto monitoring real-time). Elimina requests redundantes que martelam o backend a cada 10-30s.
+- Why it matters: Hooks com staleTime de 10s e refetchInterval de 30s geram requests desnecessários — o dado não muda tão rápido.
+- Source: inferred
+- Primary owning slice: M011/S02
+- Supporting slices: none
+- Validation: unmapped
+- Notes: 15+ hooks precisam de ajuste. Monitoring real-time (system health) pode manter 30s.
+
 ## Validated
 
 ### R001 — The WhatsApp flow pipeline recovers from sequential-gate mismatch, outbound send failures, deferred follow-up failures, day advancement issues, and malformed day configs.
@@ -644,6 +756,28 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Deferred — o template global por médico cobre o caso principal. Override por paciente adiciona complexidade significativa.
 
+### R096 — Notificações push/realtime para alertas críticos do quiz (push browser, badge no menu).
+- Class: failure-visibility
+- Status: deferred
+- Description: Quando um alerta crítico é gerado pelo quiz do paciente, o médico recebe notificação push no browser e/ou badge visível no menu do dashboard, sem precisar estar na tela de alertas.
+- Why it matters: Alerta que depende do médico navegar até a tela de alertas pode ser visto tarde demais.
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Deferred — M010 foca em polimento da visão geral e preparo pré-consulta. Push notifications entram em milestone futuro.
+
+### R097 — Export de relatório do paciente em PDF real para levar para consulta.
+- Class: admin/support
+- Status: deferred
+- Description: O médico exporta um relatório completo do paciente (resumo IA + respostas + alertas + fluxo) em PDF formatado para impressão ou referência durante consulta.
+- Why it matters: Alguns médicos preferem ter papel ou PDF aberto durante a consulta em vez de navegar pelo dashboard.
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Deferred — o export atual gera JSON. PDF real requer formatting library. Milestone futuro.
+
 ## Out of Scope
 
 ### R030 — Staff users do not create their own accounts publicly during M002.
@@ -833,6 +967,39 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: n/a
 - Notes: Melhorias funcionais entram em milestone posterior.
 
+### R098 — M010 não muda lógica de backend de fluxos, tasks, ou processamento de mensagens.
+- Class: constraint
+- Status: out-of-scope
+- Description: M010 é UX/frontend com ajustes mínimos de API de listagem. Não altera lógica de processamento de fluxos, tasks Taskiq, envio de mensagens, ou pipeline de dados.
+- Why it matters: Misturar refactor de UX com mudanças de backend de processamento cria riscos cruzados.
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Backend changes limitados a endpoint de listagem enriquecida.
+
+### R099 — M010 não redesenha o dashboard admin (/dashboard).
+- Class: constraint
+- Status: out-of-scope
+- Description: O DashboardPage.tsx (/dashboard) para admin/operacional não é alterado por M010. Foco exclusivo no physician dashboard.
+- Why it matters: Evita escopo cruzado e mantém o milestone focado no público médico.
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Admin dashboard pode ser milestone futuro se necessário.
+
+### R103 — M011 não muda comportamento funcional — otimização pura, zero regressão.
+- Class: constraint
+- Status: out-of-scope
+- Description: M011 otimiza performance sem alterar comportamento funcional. Nenhum endpoint muda sua response shape, nenhuma feature é adicionada ou removida.
+- Why it matters: Mudanças de performance que alteram comportamento são bugs, não otimizações.
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Build green e mesma response shape são os gates.
+
 ## Traceability
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
@@ -912,10 +1079,27 @@ This file is the explicit capability and coverage contract for the project.
 | R086 | integration | validated | M009/S06 | M009/S02, M009/S03, M009/S05 | validated by S06 — 4796 tests collected (zero Celery-related errors), AST scan confirms zero deleted-module imports in tests/, all M008 pipeline test files (test_patient_onboarding_e2e, test_saga_orchestrator, test_saga_onboarding_happy_path, test_flow_recovery_retry_e2e, test_flow_tasks_hardening) use Taskiq-only imports (.kiq, messaging_taskiq, flows_taskiq). Combined with S02 runtime proof (send_scheduled_message via Taskiq worker → WuzAPI) and S03 runtime proof (process_daily_flows async-native), the full create→welcome→daily→response→transition pipeline operates via Taskiq. |
 | R087 | anti-feature | out-of-scope | none | none | n/a |
 | R088 | anti-feature | out-of-scope | none | none | n/a |
+| R089 | primary-user-loop | active | M010/S01 | none | unmapped |
+| R090 | primary-user-loop | active | M010/S02 | M010/S01 | unmapped |
+| R091 | integration | active | M010/S01 | none | unmapped |
+| R092 | primary-user-loop | active | M010/S02 | M010/S01 | unmapped |
+| R093 | quality-attribute | active | M010/S04 | M010/S01, M010/S02 | unmapped |
+| R094 | operability | active | M010/S03 | none | unmapped |
+| R095 | constraint | active | M010/S01 | none | unmapped |
+| R096 | failure-visibility | deferred | none | none | unmapped |
+| R097 | admin/support | deferred | none | none | unmapped |
+| R098 | constraint | out-of-scope | none | none | n/a |
+| R099 | constraint | out-of-scope | none | none | n/a |
+| R100 | quality-attribute | active | M011/S01 | none | unmapped |
+| R101 | quality-attribute | active | M011/S01 | none | unmapped |
+| R102 | quality-attribute | active | M011/S02 | none | unmapped |
+| R103 | constraint | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 0
-- Mapped to slices: 0
-- Validated: 50 (R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R034, R035, R036, R037, R038, R039, R047, R048, R049, R050, R051, R052, R053, R057, R058, R059, R060, R061, R062, R063, R067, R068, R069, R070, R071, R072, R073, R074, R077, R078, R079, R080, R081, R082, R083, R084, R085, R086)
+- Active requirements: 10 (R089–R095, R100, R101, R102)
+- Mapped to slices: 10
+- Validated: 50
+- Deferred: 10
+- Out of scope: 20
 - Unmapped active requirements: 0

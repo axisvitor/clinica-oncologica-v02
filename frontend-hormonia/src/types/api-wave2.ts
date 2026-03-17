@@ -334,26 +334,6 @@ export interface PerformanceIndicators {
   adherence_rate: number
 }
 
-/**
- * Response schema for GET /api/v2/medico/dashboard-stats
- */
-export interface MedicoDashboardStatsResponse {
-  /** Overview metrics */
-  overview: DashboardOverview
-  /** Patient breakdown by category */
-  patient_breakdown: PatientBreakdown
-  /** Engagement metrics */
-  engagement_metrics: EngagementMetrics
-  /** Alerts summary */
-  alerts_summary: AlertsSummary
-  /** Recent activity feed (last 10 items) */
-  recent_activity: RecentActivity[]
-  /** Performance indicators */
-  performance_indicators: PerformanceIndicators
-  /** Last update timestamp (ISO8601) */
-  last_updated: string
-}
-
 // ============================================================================
 // Error Response Types
 // ============================================================================
@@ -505,15 +485,6 @@ export interface RiskAssessmentsQueryOptions extends RiskAssessmentsParams {
 /**
  * React Query options for medico dashboard
  */
-export interface MedicoDashboardQueryOptions {
-  /** Refetch interval in milliseconds (default: 120000) */
-  refetchInterval?: number
-  /** Stale time in milliseconds (default: 100000) */
-  staleTime?: number
-  /** Enable/disable query (default: true) */
-  enabled?: boolean
-}
-
 // ============================================================================
 // Type Guards
 // ============================================================================
@@ -615,7 +586,6 @@ export const ENDPOINTS = {
   SYSTEM_STATS: '/api/v2/admin/system-stats',
   TREATMENT_DISTRIBUTION: '/api/v2/analytics/treatment-distribution',
   RISK_ASSESSMENTS: '/api/v2/physician/risk-assessments',
-  MEDICO_DASHBOARD: '/api/v2/medico/dashboard-stats',
 } as const
 
 // ============================================================================
