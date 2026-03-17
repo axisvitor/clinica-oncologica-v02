@@ -91,3 +91,12 @@ Create 3 Taskiq parallel modules for the most complex task groups: quiz_link (6 
 - `backend-hormonia/app/tasks/quiz_link_taskiq.py` — 6 Taskiq tasks, SmartRetryMiddleware-based retry for send_quiz_reminder
 - `backend-hormonia/app/tasks/quiz_flow_taskiq.py` — 8 Taskiq tasks consolidated from 4 subpackage files
 - `backend-hormonia/app/tasks/follow_up_taskiq.py` — 3 Taskiq tasks, 15+ bridges removed, cross-dispatch to alerts_taskiq
+
+## Observability Impact
+
+- **New structured log events**: 17 tasks emit `task_start`, `task_success`, `task_error` events with `task_name`, `duration_ms`, `error_type` fields via `log_task_start/success/error`
+- **Prometheus metrics preserved**: `follow_up_action_duration_seconds`, `follow_up_actions_total`, `follow_up_messages_deduplicated_total`, `follow_up_messages_sent_total`, `follow_up_pending_actions` — all compatible with async tasks
+- **Schedule inspection**: 7 schedule labels on `@broker.task()` decorators across 3 modules; `taskiq scheduler --dump` reads all at startup
+- **Failure inspection**: `grep "event.*task_error" <log>` shows all 17 task failures with error_type and error_message; SmartRetryMiddleware logs retry attempts
+- **Cross-dispatch tracing**: `quiz_flow_taskiq.send_quiz_link_reminder` → `quiz_link_taskiq.send_quiz_reminder` via `.kiq()`; `follow_up_taskiq._send_escalation_notification_async` → `alerts_taskiq.process_alert_notification` via `.kiq()`
+- **Resilience alerting**: `monitor_resilience_metrics` logs WARNING on high expiry rate (>30%) or low reminder success rate (<70%); DLQ processing logs WARNING for sessions needing intervention
