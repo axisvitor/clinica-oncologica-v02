@@ -62,3 +62,10 @@ Create a verification script that proves 1:1 schedule parity between all 47 Cele
 
 - `backend-hormonia/scripts/verify_schedule_parity.sh` — executable verification script
 - Passing verification: 47/47 schedule parity, zero unresolved external call sites
+
+## Observability Impact
+
+- **New inspection surface:** `scripts/verify_schedule_parity.sh` provides a single-command audit of schedule parity — run after any Taskiq module change to detect drift.
+- **Schedule drift detection:** Script exits 1 and reports MISSING entries if a beat_schedule entry lacks a Taskiq equivalent — CI can gate on this.
+- **Call site audit:** `rg "\.delay\(|\.apply_async\("` pattern catches unmigrated dispatch sites; TODO(S05) markers on trigger_service.py and recovery.py make remaining work visible via `grep TODO(S05)`.
+- **Failure state:** If the script fails, it lists exact Celery task names missing Taskiq counterparts — direct pointers to which module needs a schedule label added.

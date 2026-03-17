@@ -721,7 +721,7 @@ class QuizTriggerService:
 
             # Schedule reminders using Celery
             if reminder_1_time > now_sao_paulo():
-                task_1 = send_quiz_link_reminder_task.apply_async(
+                task_1 = send_quiz_link_reminder_task.apply_async(  # TODO(S05): migrate to quiz_link_taskiq.send_quiz_reminder.kiq() after Celery removal
                     args=[str(quiz_session_id), 24], eta=reminder_1_time
                 )
                 logger.info(
@@ -729,7 +729,7 @@ class QuizTriggerService:
                 )
 
             if reminder_2_time > now_sao_paulo():
-                task_2 = send_quiz_link_reminder_task.apply_async(
+                task_2 = send_quiz_link_reminder_task.apply_async(  # TODO(S05): migrate to quiz_link_taskiq.send_quiz_reminder.kiq() after Celery removal
                     args=[str(quiz_session_id), 6], eta=reminder_2_time
                 )
                 logger.info(

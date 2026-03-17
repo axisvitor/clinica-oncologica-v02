@@ -65,7 +65,7 @@
   - Verify: `python3 -c "import ast; ast.parse(open('app/tasks/quiz_link_taskiq.py').read()); ast.parse(open('app/tasks/quiz_flow_taskiq.py').read()); ast.parse(open('app/tasks/follow_up_taskiq.py').read())"` passes; 17 `@broker.task` decorators across 3 files; 7 `schedule=` entries present; cross-imports use `*_taskiq` modules; zero `async_to_sync` or `run_async` imports
   - Done when: 3 new taskiq modules with 17 tasks, 7 schedule labels, cross-module dispatch via Taskiq, no sync-async bridges
 
-- [ ] **T04: Schedule parity verification + call site audit** `est:30m`
+- [x] **T04: Schedule parity verification + call site audit** `est:30m`
   - Why: Final validation that all 47 beat_schedule entries are covered and no external call sites still use Celery dispatch. This is the proof that R082 (schedule parity) is met.
   - Files: `backend-hormonia/scripts/verify_schedule_parity.sh` (new)
   - Do: Create verification script that: (1) extracts all 47 beat_schedule task names from celery_app.py, (2) extracts all schedule labels from `*_taskiq.py` files, (3) maps Celery task names to Taskiq function names, (4) reports matched/missing/extra. Run the script and fix any gaps. Run `rg "\.delay\(|\.apply_async\(" --glob "*.py"` to audit remaining call sites — external ones should be zero (except trigger_service.py and recovery.py marked `TODO(S05)`). Count total `@broker.task` across all modules.
