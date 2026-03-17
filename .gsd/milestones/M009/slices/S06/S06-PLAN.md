@@ -75,7 +75,7 @@
 
 ## Tasks
 
-- [ ] **T01: Delete dead Celery test files** `est:10m`
+- [x] **T01: Delete dead Celery test files** `est:10m`
   - Why: 7 test files test infrastructure that was deleted in S05 (celery_app.py, celery_metrics, queue_monitor, etc). They cannot pass and have no Taskiq equivalent. Must be removed before pytest can collect without errors.
   - Files: `backend-hormonia/tests/tasks/test_celery_app_async_helper.py`, `backend-hormonia/tests/tasks/test_celery_metrics_lifecycle.py`, `backend-hormonia/tests/tasks/test_celery_schedule_alignment.py`, `backend-hormonia/tests/tasks/test_queue_monitor.py`, `backend-hormonia/tests/tasks/test_monitoring_task_registration.py`, `backend-hormonia/tests/validation/test_celery_ai_run_sync_path.py`, `backend-hormonia/tests/integration/test_celery_async_isolation.py`
   - Do: Delete all 7 files. Verify no other test files import from them.

@@ -51,6 +51,12 @@ Delete 7 test files that test Celery infrastructure deleted in S05. These files 
 - S05 deleted all Celery infrastructure: `celery_app.py`, `async_context_manager.py`, `celery_metrics.py`, `queue_monitor.py`, `monitoring.py` (task file), `base.py`, `config.py`, etc.
 - These 7 test files all import from modules that no longer exist
 
+## Observability Impact
+
+- **Signals removed:** 7 test files (~648 lines) that would always fail with `ModuleNotFoundError` since S05 deleted the Celery modules they import. Removing them eliminates noise from `pytest --collect-only` collection errors.
+- **Inspection:** `find backend-hormonia/tests -name "*celery*" -type f` returns nothing. `pytest --collect-only 2>&1 | grep ERROR` no longer shows Celery-related import failures.
+- **Failure visibility:** If any Celery test file is accidentally re-introduced, `find backend-hormonia/tests -name "*celery*"` and the AST zero-import scan in S06 verification will catch it.
+
 ## Expected Output
 
 - 7 files removed (~648 lines of dead test code)
