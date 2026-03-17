@@ -1,9 +1,10 @@
 # GSD State
 
 **Active Milestone:** M009: Substituição do Celery por Taskiq
-**Active Slice:** S05: Celery removal + bridge cleanup
+**Active Slice:** S06: Verificação integrada ponta-a-ponta
 **Phase:** executing
-**Requirements Status:** 10 active · 40 validated · 8 deferred · 17 out of scope
+**Active Task:** T01
+**Requirements Status:** 8 active · 42 validated · 8 deferred · 17 out of scope
 
 ## Milestone Registry
 - ✅ **M001:** Bulletproof Flow Pipeline
@@ -17,10 +18,10 @@
 - 🔄 **M009:** Substituição do Celery por Taskiq
 
 ## Recent Decisions
-- None recorded
+- None recorded for S06
 
 ## Blockers
 - None
 
 ## Next Action
-Execute S05/T01 (Extract pure helpers from Celery modules into shared helper package).
+Execute T01 of S06 (Delete dead Celery test files).
