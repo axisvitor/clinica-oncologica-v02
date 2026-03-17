@@ -1,8 +1,9 @@
 # GSD State
 
 **Active Milestone:** M011: Otimização de Carregamento e Redução de Stress no Banco
-**Active Slice:** S01: Backend caching + index composto
-**Phase:** executing
+**Active Slice:** S02: Frontend request discipline
+**Phase:** execution
+**Active Task:** T01
 **Requirements Status:** 10 active · 50 validated · 10 deferred · 20 out of scope
 
 ## Milestone Registry
@@ -25,4 +26,4 @@
 - None
 
 ## Next Action
-Execute S01/T01: Create Alembic migration for patient_flow_states composite index.
+Execute T01 of S02 (sweep staleTime and refetchInterval values).
