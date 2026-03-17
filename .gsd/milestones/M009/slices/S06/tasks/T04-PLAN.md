@@ -77,6 +77,12 @@ Fix 7 test files with deep Celery dependencies: `celery.exceptions.MaxRetriesExc
 - D013: Celery revoke → logged no-op (relevant for test_flow_cancel.py)
 - `celery_integration` module was deleted by S05 — `_register_task` function no longer exists
 
+## Observability Impact
+
+- **Signals changed:** None — this task only modifies test files, not runtime code.
+- **Inspection:** `pytest --collect-only` on the 7 files shows 36 tests collected, 0 errors. AST zero-import scan confirms no deleted-module imports remain.
+- **Failure visibility:** Any regression reintroducing Celery imports will fail at collection time with `ModuleNotFoundError` or `ImportError`, with exact module path and line number.
+
 ## Expected Output
 
 - 7 test files with corrected imports, zero Celery dependencies, all collecting successfully

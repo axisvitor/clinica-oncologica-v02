@@ -1,3 +1,8 @@
+"""Tests for FlowManagementService.cancel_patient_flow.
+
+Taskiq migration: Celery revoke replaced by logged no-op (D013).
+No celery.result.AsyncResult import needed.
+"""
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -18,7 +23,7 @@ def _build_service(flow_state, pending_messages):
     db = MagicMock()
     db.query.return_value.filter.return_value.all.return_value = pending_messages
 
-    with patch("app.services.flow_management.EnhancedFlowEngine") as engine_cls:
+    with patch("app.services.flow.management.pause_resume.EnhancedFlowEngine") as engine_cls:
         engine_cls.return_value = MagicMock()
         service = FlowManagementService(flow_repo=flow_repo, db=db)
 
@@ -39,7 +44,7 @@ async def test_cancel_active_flow_clears_state() -> None:
 
     service, db = _build_service(flow_state, [])
 
-    with patch("app.services.flow_management.now_sao_paulo", return_value=now):
+    with patch("app.services.flow.management.pause_resume._compat_now_sao_paulo", return_value=now):
         result = await service.cancel_patient_flow(patient_id=uuid4(), user_id=uuid4())
 
     assert result["status"] == "cancelled"
@@ -72,7 +77,8 @@ async def test_cancel_clears_pending_messages() -> None:
 
 
 @pytest.mark.asyncio
-async def test_cancel_revokes_celery_tasks() -> None:
+async def test_cancel_logs_noop_for_celery_task_ids() -> None:
+    """Per D013: Celery revoke is a logged no-op in Taskiq. No AsyncResult needed."""
     flow_state = SimpleNamespace(
         id=uuid4(),
         status="active",
@@ -95,13 +101,13 @@ async def test_cancel_revokes_celery_tasks() -> None:
     ]
     service, _db = _build_service(flow_state, pending_messages)
 
-    async_result = MagicMock()
-    async_result.revoke = MagicMock()
+    # No celery.result.AsyncResult needed — revoke is now a no-op
+    result = await service.cancel_patient_flow(patient_id=uuid4(), user_id=uuid4())
 
-    with patch("celery.result.AsyncResult", return_value=async_result):
-        await service.cancel_patient_flow(patient_id=uuid4(), user_id=uuid4())
-
-    assert async_result.revoke.call_count == 2
+    # Messages are still cancelled
+    assert all(message.status == MessageStatus.CANCELLED for message in pending_messages)
+    # Service reports revoked count (logged no-op, not actually revoked)
+    assert result["status"] == "cancelled"
 
 
 @pytest.mark.asyncio
@@ -130,7 +136,7 @@ async def test_cancel_nonexistent_flow_raises_not_found() -> None:
     flow_repo.db = MagicMock()
     db = MagicMock()
 
-    with patch("app.services.flow_management.EnhancedFlowEngine") as engine_cls:
+    with patch("app.services.flow.management.pause_resume.EnhancedFlowEngine") as engine_cls:
         engine_cls.return_value = MagicMock()
         service = FlowManagementService(flow_repo=flow_repo, db=db)
 

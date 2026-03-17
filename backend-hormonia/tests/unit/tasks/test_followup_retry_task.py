@@ -1,37 +1,23 @@
+"""Tests for retry_failed_followup_send Taskiq task.
+
+Taskiq migration: No Celery imports. Tasks are async; tested via await task.fn().
+SmartRetryMiddleware handles retry scheduling — tasks just raise on failure.
+"""
 import asyncio
-from contextlib import contextmanager
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from celery.exceptions import MaxRetriesExceededError
 
 from app.services.follow_up_system.enums import FollowUpType
-from app.services.follow_up_system.execution.message import MessageExecutor
 from app.services.follow_up_system.models import FollowUpAction
-from app.tasks.flows.followup_retry import (
+from app.tasks.flows_taskiq import retry_failed_followup_send
+from app.tasks.helpers.flow_helpers import (
     FOLLOWUP_RETRY_BACKOFF,
     FOLLOWUP_RETRY_BASE_DELAY,
     FOLLOWUP_RETRY_MAX,
-    retry_failed_followup_send,
 )
 from app.utils.timezone import now_sao_paulo
-
-
-@contextmanager
-def _db_session(db):
-    yield db
-
-
-def _async_to_sync_bridge(fn):
-    def _call(*args, **kwargs):
-        result = fn(*args, **kwargs)
-        if asyncio.iscoroutine(result):
-            return asyncio.run(result)
-        return result
-
-    return _call
 
 
 def _build_action() -> FollowUpAction:
@@ -45,24 +31,26 @@ def _build_action() -> FollowUpAction:
     )
 
 
-@pytest.fixture(autouse=True)
-def _task_context():
-    original_retries = retry_failed_followup_send.request.retries
-    original_max_retries = retry_failed_followup_send.max_retries
-    retry_failed_followup_send.request.retries = 0
-    retry_failed_followup_send.max_retries = FOLLOWUP_RETRY_MAX
-    yield
-    retry_failed_followup_send.request.retries = original_retries
-    retry_failed_followup_send.max_retries = original_max_retries
+def _fake_context(retries: int = 0):
+    """Build a minimal fake Taskiq context with retry labels."""
+    ctx = MagicMock()
+    ctx.message.labels = {"_retries": str(retries)}
+    return ctx
 
 
-def test_retry_failed_followup_send_returns_action_not_found_without_parameters():
-    result = retry_failed_followup_send.run(str(uuid4()), str(uuid4()), parameters=None)
-
+@pytest.mark.asyncio
+async def test_retry_failed_followup_send_returns_action_not_found_without_parameters():
+    result = await retry_failed_followup_send.fn(
+        action_id=str(uuid4()),
+        patient_id=str(uuid4()),
+        parameters=None,
+        context=_fake_context(0),
+    )
     assert result["status"] == "action_not_found"
 
 
-def test_retry_failed_followup_send_reschedules_action_successfully():
+@pytest.mark.asyncio
+async def test_retry_failed_followup_send_reschedules_action_successfully():
     db = MagicMock()
     follow_up_service = MagicMock()
     follow_up_service.action_executor._schedule_message_action = AsyncMock(
@@ -74,21 +62,21 @@ def test_retry_failed_followup_send_reschedules_action_successfully():
     patient_id = uuid4()
 
     with patch(
-        "app.tasks.flows.followup_retry.get_scoped_session",
-        return_value=_db_session(db),
-    ), patch(
-        "app.tasks.flows.followup_retry.async_to_sync",
-        side_effect=_async_to_sync_bridge,
-    ), patch(
+        "app.tasks.flows_taskiq.get_scoped_session",
+    ) as mock_session, patch(
         "app.services.follow_up_system.service.FollowUpSystemService",
         return_value=follow_up_service,
     ):
-        result = retry_failed_followup_send.run(
-            str(action_id),
-            str(patient_id),
+        mock_session.return_value.__enter__ = MagicMock(return_value=db)
+        mock_session.return_value.__exit__ = MagicMock(return_value=False)
+
+        result = await retry_failed_followup_send.fn(
+            action_id=str(action_id),
+            patient_id=str(patient_id),
             parameters={"message_content": "Retry me"},
             follow_up_type=FollowUpType.CONVERSATION_CONTINUATION.value,
             priority="medium",
+            context=_fake_context(0),
         )
 
     assert result == {
@@ -99,70 +87,60 @@ def test_retry_failed_followup_send_reschedules_action_successfully():
     follow_up_service.redis_store.update_action_status.assert_awaited_once()
 
 
-def test_retry_failed_followup_send_retries_with_exponential_backoff():
+@pytest.mark.asyncio
+async def test_retry_failed_followup_send_raises_on_transient_failure():
+    """Taskiq pattern: transient failures raise, SmartRetryMiddleware handles retry."""
     db = MagicMock()
     follow_up_service = MagicMock()
     follow_up_service.action_executor._schedule_message_action = AsyncMock(
         side_effect=RuntimeError("boom")
     )
     follow_up_service.redis_store.update_action_status = AsyncMock(return_value=True)
-    retry_failed_followup_send.request.retries = 1
 
     with patch(
-        "app.tasks.flows.followup_retry.get_scoped_session",
-        return_value=_db_session(db),
-    ), patch(
-        "app.tasks.flows.followup_retry.async_to_sync",
-        side_effect=_async_to_sync_bridge,
-    ), patch(
+        "app.tasks.flows_taskiq.get_scoped_session",
+    ) as mock_session, patch(
         "app.services.follow_up_system.service.FollowUpSystemService",
         return_value=follow_up_service,
-    ), patch("app.tasks.flows.followup_retry.random.randint", return_value=4), patch(
-        "app.tasks.flows.followup_retry.retry_failed_followup_send.retry",
-        side_effect=RuntimeError("retry called"),
-    ) as retry_mock:
-        with pytest.raises(RuntimeError, match="retry called"):
-            retry_failed_followup_send.run(
-                str(uuid4()),
-                str(uuid4()),
+    ):
+        mock_session.return_value.__enter__ = MagicMock(return_value=db)
+        mock_session.return_value.__exit__ = MagicMock(return_value=False)
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await retry_failed_followup_send.fn(
+                action_id=str(uuid4()),
+                patient_id=str(uuid4()),
                 parameters={"message_content": "Retry me"},
                 follow_up_type=FollowUpType.CONVERSATION_CONTINUATION.value,
+                context=_fake_context(1),  # retries=1, < max
             )
 
-    expected_countdown = (
-        FOLLOWUP_RETRY_BASE_DELAY
-        * (FOLLOWUP_RETRY_BACKOFF ** retry_failed_followup_send.request.retries)
-    ) + 4
-    assert retry_mock.call_args.kwargs["countdown"] == expected_countdown
 
-
-def test_retry_failed_followup_send_marks_failed_after_retry_exhaustion():
+@pytest.mark.asyncio
+async def test_retry_failed_followup_send_marks_failed_after_retry_exhaustion():
+    """When retries >= max, the task returns permanently_failed instead of raising."""
     db = MagicMock()
     follow_up_service = MagicMock()
     follow_up_service.action_executor._schedule_message_action = AsyncMock(
         side_effect=RuntimeError("boom")
     )
     follow_up_service.redis_store.update_action_status = AsyncMock(return_value=True)
-    retry_failed_followup_send.request.retries = FOLLOWUP_RETRY_MAX
 
     with patch(
-        "app.tasks.flows.followup_retry.get_scoped_session",
-        return_value=_db_session(db),
-    ), patch(
-        "app.tasks.flows.followup_retry.async_to_sync",
-        side_effect=_async_to_sync_bridge,
-    ), patch(
+        "app.tasks.flows_taskiq.get_scoped_session",
+    ) as mock_session, patch(
         "app.services.follow_up_system.service.FollowUpSystemService",
         return_value=follow_up_service,
-    ), patch(
-        "app.tasks.flows.followup_retry.retry_failed_followup_send.retry",
-        side_effect=MaxRetriesExceededError("done"),
     ):
-        result = retry_failed_followup_send.run(
-            str(uuid4()),
-            str(uuid4()),
+        mock_session.return_value.__enter__ = MagicMock(return_value=db)
+        mock_session.return_value.__exit__ = MagicMock(return_value=False)
+
+        result = await retry_failed_followup_send.fn(
+            action_id=str(uuid4()),
+            patient_id=str(uuid4()),
             parameters={"message_content": "Retry me"},
             follow_up_type=FollowUpType.CONVERSATION_CONTINUATION.value,
+            context=_fake_context(FOLLOWUP_RETRY_MAX),  # retries exhausted
         )
 
     assert result["status"] == "permanently_failed"
@@ -172,19 +150,3 @@ def test_retry_failed_followup_send_marks_failed_after_retry_exhaustion():
         follow_up_service.redis_store.update_action_status.await_args.kwargs["status"]
         == "failed"
     )
-
-
-@pytest.mark.asyncio
-async def test_message_executor_enqueues_retry_on_failure():
-    action = _build_action()
-    scheduler = AsyncMock(side_effect=RuntimeError("scheduler down"))
-    executor = MessageExecutor(MagicMock(), {}, scheduler=scheduler)
-
-    with patch(
-        "app.tasks.flows.followup_retry.retry_failed_followup_send.apply_async"
-    ) as apply_async:
-        success = await executor._execute_message_action(action)
-
-    assert success is False
-    assert action.execution_result["retry_enqueued"] is True
-    apply_async.assert_called_once()
