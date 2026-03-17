@@ -21,7 +21,7 @@ class TestUpdateScheduling:
     
     def test_onboarding_next_message_day(self):
         """Test scheduling for onboarding finds correct next day."""
-        from app.tasks.flows.batch_tasks import _update_scheduling
+        from app.tasks.helpers.flow_helpers import _update_scheduling
         from app.services.enhanced_flow_engine import FlowType
         
         # Mock flow_state at day 3
@@ -42,7 +42,7 @@ class TestUpdateScheduling:
     
     def test_daily_follow_up_next_message_day(self):
         """Test scheduling for daily_follow_up finds correct next day."""
-        from app.tasks.flows.batch_tasks import _update_scheduling
+        from app.tasks.helpers.flow_helpers import _update_scheduling
         
         # Create mock flow type with value
         flow_type_mock = Mock()
@@ -64,7 +64,7 @@ class TestUpdateScheduling:
     
     def test_quiz_mensal_modulo_for_step_over_30(self):
         """Treatment day 46 must map to monthly cycle day 1."""
-        from app.tasks.flows.batch_tasks import _update_scheduling
+        from app.tasks.helpers.flow_helpers import _update_scheduling
         
         flow_type_mock = Mock()
         flow_type_mock.value = "quiz_mensal"
@@ -80,7 +80,7 @@ class TestUpdateScheduling:
         fixed_now = patient_tz.localize(datetime(2026, 2, 1, 12, 0, 0))
 
         with patch(
-            "app.tasks.flows.batch_tasks.now_sao_paulo",
+            "app.tasks.helpers.flow_helpers.now_sao_paulo",
             return_value=fixed_now,
         ):
             _update_scheduling(flow_state, flow_type_mock, patient_tz, db)
@@ -92,7 +92,7 @@ class TestUpdateScheduling:
     
     def test_quiz_mensal_wrap_to_next_cycle(self):
         """Test quiz_mensal wraps to next cycle when at end."""
-        from app.tasks.flows.batch_tasks import _update_scheduling
+        from app.tasks.helpers.flow_helpers import _update_scheduling
         
         flow_type_mock = Mock()
         flow_type_mock.value = "quiz_mensal"
@@ -115,7 +115,7 @@ class TestUpdateScheduling:
     
     def test_scheduling_uses_9am_patient_timezone(self):
         """Test that scheduling sets 9 AM in patient's timezone."""
-        from app.tasks.flows.batch_tasks import _update_scheduling
+        from app.tasks.helpers.flow_helpers import _update_scheduling
         
         flow_type_mock = Mock()
         flow_type_mock.value = "onboarding"
@@ -159,7 +159,7 @@ class TestGetMessageTemplateForDay:
 
     def test_quiz_mensal_maps_day_46_to_cycle_day_1(self):
         """Absolute day 46 should load monthly template step day 1."""
-        from app.tasks.flows.batch_tasks import _get_message_template_for_day
+        from app.tasks.helpers.flow_helpers import _get_message_template_for_day
         from app.services.enhanced_flow_engine import FlowType
 
         db = self._build_db_with_steps(
@@ -187,7 +187,7 @@ class TestGetMessageTemplateForDay:
 
     def test_wait_each_prefers_first_question_message(self):
         """wait_each should choose first message that expects response."""
-        from app.tasks.flows.batch_tasks import _get_message_template_for_day
+        from app.tasks.helpers.flow_helpers import _get_message_template_for_day
         from app.services.enhanced_flow_engine import FlowType
 
         db = self._build_db_with_steps(
@@ -230,12 +230,12 @@ class TestProcessSinglePatientFlowById:
     @pytest.mark.asyncio
     async def test_returns_skipped_for_no_active_flow(self):
         """Test that function returns skipped when no active flow."""
-        from app.tasks.flows.batch_tasks import _process_single_patient_flow_by_id
+        from app.tasks.helpers.flow_helpers import _process_single_patient_flow_by_id
         
         patient_id = uuid4()
         
         # Patch where the imports are happening (inside the function)
-        with patch('app.tasks.flows.batch_tasks.get_db') as mock_get_db, \
+        with patch('app.tasks.helpers.flow_helpers.get_db') as mock_get_db, \
              patch('app.services.enhanced_flow_engine.get_enhanced_flow_engine') as mock_engine, \
              patch('app.repositories.flow.FlowStateRepository') as mock_repo_class:
             
@@ -257,11 +257,11 @@ class TestProcessSinglePatientFlowById:
     @pytest.mark.asyncio
     async def test_returns_skipped_for_paused_flow(self):
         """Test that paused flows are skipped."""
-        from app.tasks.flows.batch_tasks import _process_single_patient_flow_by_id
+        from app.tasks.helpers.flow_helpers import _process_single_patient_flow_by_id
         
         patient_id = uuid4()
         
-        with patch('app.tasks.flows.batch_tasks.get_db') as mock_get_db, \
+        with patch('app.tasks.helpers.flow_helpers.get_db') as mock_get_db, \
              patch('app.services.enhanced_flow_engine.get_enhanced_flow_engine') as mock_engine, \
              patch('app.repositories.flow.FlowStateRepository') as mock_repo_class:
             
@@ -289,7 +289,7 @@ class TestFlowTypeEnumDefinition:
     def test_flow_type_enum_defined_early(self):
         """Verify flow_type_enum is defined before skip check."""
         import inspect
-        from app.tasks.flows.batch_tasks import _process_single_patient_flow
+        from app.tasks.helpers.flow_helpers import _process_single_patient_flow
         
         source = inspect.getsource(_process_single_patient_flow)
         
@@ -357,7 +357,7 @@ class TestAwaitingResponseGuards:
     @pytest.mark.asyncio
     async def test_process_single_patient_flow_does_not_advance_or_schedule_when_awaiting_response(self):
         """Should skip without advancing flow or updating scheduling."""
-        from app.tasks.flows.batch_tasks import _process_single_patient_flow
+        from app.tasks.helpers.flow_helpers import _process_single_patient_flow
 
         patient_id = uuid4()
         flow_engine = Mock()
@@ -375,7 +375,7 @@ class TestAwaitingResponseGuards:
 
         db = Mock()
 
-        with patch("app.tasks.flows.batch_tasks._update_scheduling") as update_scheduling:
+        with patch("app.tasks.helpers.flow_helpers._update_scheduling") as update_scheduling:
             result = await _process_single_patient_flow(flow_engine, flow_state, db)
 
         assert result["status"] == "skipped"
@@ -387,7 +387,7 @@ class TestAwaitingResponseGuards:
     @pytest.mark.asyncio
     async def test_process_single_patient_flow_by_id_skips_when_awaiting_response(self):
         """Daily batch entrypoint should skip and not delegate processing."""
-        from app.tasks.flows.batch_tasks import _process_single_patient_flow_by_id
+        from app.tasks.helpers.flow_helpers import _process_single_patient_flow_by_id
 
         patient_id = uuid4()
         db = Mock()
@@ -405,7 +405,7 @@ class TestAwaitingResponseGuards:
         delegated_process = AsyncMock()
 
         with patch(
-            "app.tasks.flows.batch_tasks.get_scoped_session",
+            "app.tasks.helpers.flow_helpers.get_scoped_session",
             return_value=session_cm,
         ), patch(
             "app.services.enhanced_flow_engine.get_enhanced_flow_engine",
@@ -414,7 +414,7 @@ class TestAwaitingResponseGuards:
             "app.repositories.flow.FlowStateRepository",
             return_value=flow_repo,
         ), patch(
-            "app.tasks.flows.batch_tasks._process_single_patient_flow",
+            "app.tasks.helpers.flow_helpers._process_single_patient_flow",
             new=delegated_process,
         ):
             result = await _process_single_patient_flow_by_id(patient_id)

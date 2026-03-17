@@ -7,7 +7,7 @@ from tests.conftest import create_test_user
 
 from app.utils.timezone import now_sao_paulo
 # The suspected side-effect import
-from app.tasks.messaging import send_scheduled_message
+from app.tasks.messaging_taskiq import send_scheduled_message
 
 @pytest.mark.asyncio
 async def test_sanity_with_import(db_session):

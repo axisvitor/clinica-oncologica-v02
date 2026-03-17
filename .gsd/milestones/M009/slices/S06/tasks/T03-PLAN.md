@@ -50,3 +50,10 @@ Fix 8 test files that import from deleted flow subdirectories (`app.tasks.flows.
 ## Expected Output
 
 - 8 test files with corrected imports, all collecting successfully
+
+## Observability Impact
+
+- **Signal changed:** `pytest --collect-only` error count drops by ~8 (these 8 files no longer produce `ModuleNotFoundError`/`ImportError`)
+- **Inspection:** `grep -rn "app\.tasks\.flows\.\|app\.tasks\.flow_automation\|app\.tasks\.messaging[^_]"` on these 8 files returns empty
+- **Failure visibility:** Any regression re-introducing old imports will surface as `ModuleNotFoundError` at collection time with exact file:line
+- **AST scan:** The reusable AST zero-import scanner (see S06 verification) covers these files

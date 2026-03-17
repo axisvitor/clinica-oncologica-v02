@@ -1,35 +1,23 @@
 """Focused tests for flow monitoring task Redis key scanning behavior."""
 
-from contextlib import contextmanager
-from unittest.mock import Mock, patch
+import pytest
+from unittest.mock import AsyncMock, Mock, patch
 
 
-def _scoped_session(db):
-    @contextmanager
-    def _ctx():
-        yield db
+@pytest.mark.asyncio
+async def test_monitor_flow_task_health_uses_scan_iter_for_failed_tasks():
+    from app.tasks.flows_taskiq import monitor_flow_task_health
 
-    return _ctx()
+    # Mock async db session — monitor_flow_task_health uses await db.execute()
+    db = AsyncMock()
 
-
-def _query_with_results(rows):
-    query = Mock()
-    query.join.return_value = query
-    query.filter.return_value = query
-    query.limit.return_value = query
-    query.all.return_value = rows
-    return query
-
-
-def test_monitor_flow_task_health_uses_scan_iter_for_failed_tasks():
-    from app.tasks.flows.monitoring import monitor_flow_task_health
-
-    db = Mock()
-    db.execute.return_value = None
-    db.query.side_effect = [
-        _query_with_results([1, 2]),
-        _query_with_results([1]),
-    ]
+    # db.execute returns: SELECT 1, active flows query, pending messages query
+    select_1_result = Mock()
+    active_result = Mock()
+    active_result.all.return_value = [1, 2]
+    pending_result = Mock()
+    pending_result.all.return_value = [1]
+    db.execute.side_effect = [select_1_result, active_result, pending_result]
 
     redis_client = Mock()
     redis_client.ping.return_value = True
@@ -46,18 +34,18 @@ def test_monitor_flow_task_health_uses_scan_iter_for_failed_tasks():
     redis_manager.get_sync_client.return_value = redis_client
 
     gemini_client = Mock()
-    gemini_client.health_check.return_value = object()
+    gemini_client.health_check = AsyncMock(return_value=True)
 
     with patch(
-        "app.tasks.flows.monitoring.get_scoped_session", return_value=_scoped_session(db)
-    ), patch(
         "app.core.redis_manager.get_redis_manager", return_value=redis_manager
     ), patch(
-        "app.tasks.flows.monitoring.get_gemini_client", return_value=gemini_client
+        "app.ai.client.get_gemini_client", return_value=gemini_client
     ), patch(
-        "app.tasks.flows.monitoring.run_async_in_sync", return_value=True
+        "app.config.settings.tasks.HEALTH_CHECK_TIMEOUT", 5
+    ), patch(
+        "app.config.settings.tasks.HEALTH_ACTIVE_FLOWS_LIMIT", 100
     ):
-        result = monitor_flow_task_health.run()
+        result = await monitor_flow_task_health.fn(db=db)
 
     assert result["failed_tasks_count"] == 2
     assert result["active_flows_count"] == 2

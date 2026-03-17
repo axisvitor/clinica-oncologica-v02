@@ -8,7 +8,7 @@ from app.models.flow import PatientFlowState, FlowTemplateVersion, FlowKind
 from app.models.enums import FlowState
 from app.services.patient.crud_service import PatientCRUDService
 from app.repositories.flow import FlowStateRepository
-from app.tasks.messaging import send_scheduled_message
+from app.tasks.messaging_taskiq import send_scheduled_message
 from tests.conftest import create_test_user, create_test_patient
 
 from app.utils.timezone import now_sao_paulo

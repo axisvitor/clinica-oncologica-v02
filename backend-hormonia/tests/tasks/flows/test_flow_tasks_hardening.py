@@ -7,12 +7,12 @@ import pytest
 
 
 def _build_flow_states(count: int) -> list[SimpleNamespace]:
-    return [SimpleNamespace(patient_id=uuid4(), step_data={}) for _ in range(count)]
+    return [SimpleNamespace(patient_id=uuid4(), step_data={}, state_data={}) for _ in range(count)]
 
 
 @pytest.mark.asyncio
-async def test_process_daily_flows_async_applies_batch_stagger_and_throttle():
-    from app.tasks.flows.flow_tasks import process_daily_flows_async
+async def test_process_daily_flows_applies_batch_stagger_and_throttle():
+    from app.tasks.flows_taskiq import process_daily_flows
 
     flow_states = _build_flow_states(5)
 
@@ -33,12 +33,12 @@ async def test_process_daily_flows_async_applies_batch_stagger_and_throttle():
     )
     sleep_mock = AsyncMock()
 
-    with patch("app.tasks.flows.flow_tasks.get_scoped_session", _fake_scoped_session), patch(
-        "app.tasks.flows.flow_tasks.FlowStateRepository", return_value=repo
+    with patch("app.database.get_scoped_session", _fake_scoped_session), patch(
+        "app.repositories.flow.FlowStateRepository", return_value=repo
     ), patch(
-        "app.tasks.flows.flow_tasks._process_single_patient_flow_by_id",
+        "app.tasks.flows_taskiq._process_single_patient_flow_by_id",
         new=process_by_id,
-    ), patch("app.tasks.flows.flow_tasks.asyncio.sleep", new=sleep_mock), patch(
+    ), patch("asyncio.sleep", new=sleep_mock), patch(
         "app.config.settings.tasks.FLOW_BATCH_SIZE",
         2,
     ), patch(
@@ -48,7 +48,7 @@ async def test_process_daily_flows_async_applies_batch_stagger_and_throttle():
         "app.config.settings.tasks.FLOW_MAX_CONCURRENT",
         6,
     ):
-        result = await process_daily_flows_async(limit=100)
+        result = await process_daily_flows.fn(limit=100)
 
     assert result["processed_count"] == 5
     assert result["success_count"] == 3
@@ -60,8 +60,8 @@ async def test_process_daily_flows_async_applies_batch_stagger_and_throttle():
 
 
 @pytest.mark.asyncio
-async def test_process_daily_flows_async_handles_unexpected_result_payload_safely():
-    from app.tasks.flows.flow_tasks import process_daily_flows_async
+async def test_process_daily_flows_handles_unexpected_result_payload_safely():
+    from app.tasks.flows_taskiq import process_daily_flows
 
     flow_states = _build_flow_states(1)
 
@@ -73,10 +73,10 @@ async def test_process_daily_flows_async_handles_unexpected_result_payload_safel
     repo.get_active_flows.return_value = flow_states
     process_by_id = AsyncMock(return_value="unexpected")
 
-    with patch("app.tasks.flows.flow_tasks.get_scoped_session", _fake_scoped_session), patch(
-        "app.tasks.flows.flow_tasks.FlowStateRepository", return_value=repo
+    with patch("app.database.get_scoped_session", _fake_scoped_session), patch(
+        "app.repositories.flow.FlowStateRepository", return_value=repo
     ), patch(
-        "app.tasks.flows.flow_tasks._process_single_patient_flow_by_id",
+        "app.tasks.flows_taskiq._process_single_patient_flow_by_id",
         new=process_by_id,
     ), patch(
         "app.config.settings.tasks.FLOW_BATCH_SIZE",
@@ -88,7 +88,7 @@ async def test_process_daily_flows_async_handles_unexpected_result_payload_safel
         "app.config.settings.tasks.FLOW_MAX_CONCURRENT",
         1,
     ):
-        result = await process_daily_flows_async(limit=10)
+        result = await process_daily_flows.fn(limit=10)
 
     assert result["processed_count"] == 1
     assert result["success_count"] == 0

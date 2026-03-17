@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 
 from app.services.flow_management import FlowManagementService
-from app.tasks.flows.flow_tasks import process_daily_flows_async
+from app.tasks.flows_taskiq import process_daily_flows
 
 
 class _SessionContext:
@@ -25,13 +25,13 @@ async def _run_daily_filter(flows):
     flow_repo = MagicMock()
     flow_repo.get_active_flows.return_value = flows
 
-    with patch("app.tasks.flows.flow_tasks.get_scoped_session", return_value=_SessionContext(db)):
-        with patch("app.tasks.flows.flow_tasks.FlowStateRepository", return_value=flow_repo):
+    with patch("app.database.get_scoped_session", return_value=_SessionContext(db)):
+        with patch("app.repositories.flow.FlowStateRepository", return_value=flow_repo):
             with patch(
-                "app.tasks.flows.flow_tasks._process_single_patient_flow_by_id",
+                "app.tasks.flows_taskiq._process_single_patient_flow_by_id",
                 new=AsyncMock(return_value={"status": "success"}),
             ):
-                return await process_daily_flows_async(limit=50)
+                return await process_daily_flows.fn(limit=50)
 
 
 @pytest.mark.asyncio

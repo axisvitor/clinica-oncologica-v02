@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import event, text
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import AsyncAdaptedQueuePool, QueuePool
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.utils.logging import get_logger, log_performance_metric
@@ -192,6 +192,9 @@ def create_optimized_engine(database_url: str, **kwargs):
 
     # Create engine
     if database_url.startswith("postgresql+asyncpg://"):
+        # Swap sync QueuePool → AsyncAdaptedQueuePool for asyncpg engines
+        if engine_settings.get("poolclass") is QueuePool:
+            engine_settings["poolclass"] = AsyncAdaptedQueuePool
         engine = create_async_engine(database_url, **engine_settings)
     else:
         from sqlalchemy import create_engine
@@ -199,13 +202,16 @@ def create_optimized_engine(database_url: str, **kwargs):
         engine = create_engine(database_url, **engine_settings)
 
     # Add query logging event listener
-    @event.listens_for(engine, "before_cursor_execute")
+    # For async engines, register on sync_engine to avoid NotImplementedError
+    _listener_target = getattr(engine, "sync_engine", engine)
+
+    @event.listens_for(_listener_target, "before_cursor_execute")
     def before_cursor_execute(
         conn, cursor, statement, parameters, context, executemany
     ):
         context._query_start_time = time.time()
 
-    @event.listens_for(engine, "after_cursor_execute")
+    @event.listens_for(_listener_target, "after_cursor_execute")
     def after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
         total_time = time.time() - context._query_start_time
         total_time_ms = total_time * 1000
