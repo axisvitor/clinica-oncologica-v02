@@ -1,9 +1,8 @@
 # GSD State
 
 **Active Milestone:** M011: Otimização de Carregamento e Redução de Stress no Banco
-**Active Slice:** S02: Frontend request discipline
-**Phase:** execution
-**Active Task:** T01
+**Active Slice:** S03: Verificação integrada
+**Phase:** planning
 **Requirements Status:** 10 active · 50 validated · 10 deferred · 20 out of scope
 
 ## Milestone Registry
@@ -26,4 +25,4 @@
 - None
 
 ## Next Action
-Execute T01 of S02 (sweep staleTime and refetchInterval values).
+Execute T01 of S03 (Run integrated verification and validate R100/R101/R102).
