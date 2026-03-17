@@ -139,6 +139,7 @@ print('PASS — tasks/__init__.py clean')
 - Runtime signals: All 72 Taskiq tasks retain `log_task_start/success/error` structured logging (unchanged from S02-S04)
 - Inspection surfaces: `bash backend-hormonia/scripts/verify_schedule_parity.sh` — confirms schedule parity preserved after deletions
 - Failure visibility: AST-based import scan catches any surviving Celery references at file level, not just grep
+- Diagnostic check: If any Taskiq module fails to parse after helper extraction, `python3 -c "import ast; ast.parse(open('...').read())"` surfaces the exact `SyntaxError` with line/col. If a helper import fails at runtime, the structured `log_task_error` in each Taskiq task emits the `ImportError` traceback to stdout/Sentry.
 - Redaction constraints: none
 
 ## Integration Closure
@@ -149,7 +150,7 @@ print('PASS — tasks/__init__.py clean')
 
 ## Tasks
 
-- [ ] **T01: Extract pure helpers from Celery modules into shared helper package** `est:30m`
+- [x] **T01: Extract pure helpers from Celery modules into shared helper package** `est:30m`
   - Why: 10 Taskiq modules import ~40+ helper functions from Celery modules that will be deleted in T03. Helpers must be relocated first or all Taskiq tasks break at import time. This is the hard prerequisite for the entire slice.
   - Files: `app/tasks/helpers/__init__.py` (new), `app/tasks/helpers/messaging_helpers.py` (new), `app/tasks/helpers/alerts_helpers.py` (new), `app/tasks/helpers/lgpd_helpers.py` (new), `app/tasks/helpers/reports_helpers.py` (new), `app/tasks/helpers/saga_helpers.py` (new), `app/tasks/helpers/follow_up_helpers.py` (new), `app/tasks/helpers/quiz_link_helpers.py` (new), `app/tasks/helpers/flow_helpers.py` (new), `app/tasks/helpers/quiz_flow_helpers.py` (new), plus all 10 `*_taskiq.py` modules (import updates)
   - Do: Copy each helper function/constant from its Celery source module into the corresponding `helpers/*_helpers.py` file. Include all necessary imports for each helper. Update all 10 Taskiq modules to import from `app.tasks.helpers.*` instead of from Celery modules. Verify each Taskiq module still parses after the import change.

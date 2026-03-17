@@ -62,7 +62,7 @@ from app.tasks.taskiq_base import (
 from app.utils.timezone import now_sao_paulo
 
 # Pure helper functions — imported from Celery module (no duplication).
-from app.tasks.messaging import (
+from app.tasks.helpers.messaging_helpers import (
     _build_idempotency_key,
     _compute_next_reminder_time,
     _schedule_next_reminder,

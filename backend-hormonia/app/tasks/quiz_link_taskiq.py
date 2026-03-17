@@ -37,7 +37,7 @@ from app.domain.quizzes.resilience import FailureReason, QuizLinkResilienceServi
 from app.domain.quizzes.session.factory import generate_unique_short_code
 from app.services.monthly_quiz_message_integration import MonthlyQuizMessageIntegration
 from app.taskiq_broker import broker
-from app.tasks.quiz_link_tasks import (
+from app.tasks.helpers.quiz_link_helpers import (
     _sanitize_dlq_record,
     _sanitize_error_message,
     _sanitize_limit,

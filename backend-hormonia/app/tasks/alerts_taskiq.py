@@ -30,7 +30,7 @@ from uuid import UUID
 from app.database import get_scoped_session
 from app.taskiq_broker import broker
 from app.tasks.taskiq_base import log_task_error, log_task_start, log_task_success
-from app.tasks.alerts import (
+from app.tasks.helpers.alerts_helpers import (
     _ALERT_METADATA_REDACTED_FIELDS,
     _sanitize_alert_metadata,
     _build_patient_context,

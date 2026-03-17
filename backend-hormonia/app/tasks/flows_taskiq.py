@@ -60,9 +60,9 @@ from app.utils.timezone import now_sao_paulo
 # Cross-task dispatch — Taskiq equivalent of Celery's send_scheduled_message.delay()
 from app.tasks.messaging_taskiq import send_scheduled_message
 
-# Pure helpers from Celery modules — imported without duplication.
-from app.tasks.flows.batch_tasks import _process_single_patient_flow_by_id
-from app.tasks.flow_automation import (
+# Pure helpers extracted to shared helper package.
+from app.tasks.helpers.flow_helpers import (
+    _process_single_patient_flow_by_id,
     _determine_template_for_patient,
     _get_reminder_message,
     _is_auto_resume_due,
@@ -1509,7 +1509,7 @@ async def retry_failed_flow_send(
     from app.exceptions import ExternalServiceError
     from app.models.message import Message, MessageStatus
     from app.services.unified_whatsapp_service import UnifiedWhatsAppService
-    from app.tasks.flows.send_retry import (
+    from app.tasks.helpers.flow_helpers import (
         _TERMINAL_MESSAGE_STATUSES,
         _record_permanent_delivery_failure,
         _resolve_flow_context,
@@ -1675,7 +1675,7 @@ async def retry_failed_followup_send(
         attempt=retries + 1,
     )
 
-    from app.tasks.flows.followup_retry import _build_retry_action
+    from app.tasks.helpers.flow_helpers import _build_retry_action
 
     try:
         retry_action = _build_retry_action(
@@ -1782,3 +1782,4 @@ async def retry_failed_followup_send(
 
             # Raise to let SmartRetryMiddleware handle retry scheduling
             raise
+ise

@@ -42,10 +42,13 @@ from sqlalchemy import and_, or_
 from app.database import get_scoped_session
 from app.repositories.patient import PatientRepository
 from app.taskiq_broker import broker
-from app.tasks.quiz_flow.cleanup_tasks import _sanitize_max_age_hours
-from app.tasks.quiz_flow.helpers import _notify_providers_of_quiz_completion
-from app.tasks.quiz_flow.question_tasks import _parse_uuid
-from app.tasks.quiz_flow.trigger_tasks import _sanitize_hours_before_expiry, _sanitize_limit
+from app.tasks.helpers.quiz_flow_helpers import (
+    _sanitize_max_age_hours,
+    _notify_providers_of_quiz_completion,
+    _parse_uuid,
+    _sanitize_hours_before_expiry,
+    _sanitize_limit,
+)
 from app.tasks.taskiq_base import log_task_error, log_task_start, log_task_success
 from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
 

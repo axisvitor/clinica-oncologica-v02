@@ -28,7 +28,7 @@ from app.tasks.taskiq_base import log_task_error, log_task_start, log_task_succe
 from app.utils.timezone import now_sao_paulo
 
 # Pure helpers imported from Celery module — zero logic duplication (D007).
-from app.tasks.lgpd_tasks import (
+from app.tasks.helpers.lgpd_helpers import (
     _is_patient_context,
     _normalize_action,
     _normalize_data_category,

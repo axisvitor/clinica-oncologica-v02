@@ -53,7 +53,7 @@ from app.core.monitoring_config import capture_exception, capture_message
 from app.config import settings
 
 # Pure helper from Celery module — reused without duplication
-from app.tasks.saga_retry import (
+from app.tasks.helpers.saga_helpers import (
     _calculate_exponential_backoff,
     _alert_admin_max_retries_exceeded,
 )

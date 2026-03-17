@@ -30,7 +30,7 @@ from app.taskiq_broker import broker
 from app.tasks.taskiq_base import log_task_error, log_task_start, log_task_success
 
 # Pure helpers imported from Celery module — zero logic duplication (D007).
-from app.tasks.reports import (
+from app.tasks.helpers.reports_helpers import (
     _build_safe_report_path,
     _get_system_actor_uuid,
     _sanitize_report_type,

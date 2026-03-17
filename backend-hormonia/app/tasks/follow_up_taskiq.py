@@ -47,7 +47,7 @@ from app.monitoring.metrics import (
     follow_up_pending_actions,
 )
 from app.taskiq_broker import broker
-from app.tasks.follow_up import (
+from app.tasks.helpers.follow_up_helpers import (
     FOLLOW_UP_DEDUP_WINDOW_SECONDS,
     FOLLOW_UP_DEDUP_LOCK_SECONDS,
     _get_last_follow_up_sent_at_db,
