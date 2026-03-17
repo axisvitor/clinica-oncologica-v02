@@ -43,6 +43,13 @@ The migration must chain from the current Alembic head `m008_s01_t03_sessions_al
 - Alembic migration chain head: `backend-hormonia/alembic/versions/m008_s01_t03_sessions_align.py` — current head, our `down_revision`
 - Table schema: `patient_flow_states` has columns `patient_id` (UUID, indexed) and `started_at` (DateTime with timezone, `server_default=func.now()`)
 
+## Observability Impact
+
+- **New signal:** Index `idx_pfs_patient_started` visible via `SELECT indexname FROM pg_indexes WHERE tablename = 'patient_flow_states'` — confirms migration applied.
+- **Inspection:** `EXPLAIN ANALYZE` on the physician/patients ROW_NUMBER() query should show Index Scan on `idx_pfs_patient_started` instead of sequential scan + sort.
+- **Failure state:** If migration fails to apply, `alembic current` will show head at `m008_s01_t03_sessions_align` (not `m011_s01_patient_flow_states_index`). The endpoint still works but slower — no hard error.
+- **Idempotency:** `if_not_exists=True` means re-running `alembic upgrade head` after a partial failure won't crash on duplicate index.
+
 ## Expected Output
 
 - `backend-hormonia/alembic/versions/m011_s01_patient_flow_states_index.py` — new Alembic migration creating composite index `idx_pfs_patient_started` on `patient_flow_states(patient_id, started_at DESC)`

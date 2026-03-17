@@ -29,6 +29,7 @@
 - `grep "ttl=60" backend-hormonia/app/api/v2/routers/physicians/patients.py` confirms TTL
 - `grep "CACHE_TTL_REALTIME = 120" backend-hormonia/app/api/v2/routers/dashboard.py` confirms dashboard TTL unchanged
 - Response model `PhysicianPatientListResponse` not modified (no changes to schema file)
+- Failure-path: `python3 -c "import ast; ast.parse(open('backend-hormonia/alembic/versions/m011_s01_patient_flow_states_index.py').read())"` exits 0 (migration not corrupted); `alembic -c backend-hormonia/alembic.ini history` shows linear chain without branch splits (no fork from parallel migrations)
 
 ## Observability / Diagnostics
 
@@ -45,7 +46,7 @@
 
 ## Tasks
 
-- [ ] **T01: Create Alembic migration for patient_flow_states composite index** `est:20m`
+- [x] **T01: Create Alembic migration for patient_flow_states composite index** `est:20m`
   - Why: The ROW_NUMBER() window function in physician/patients does `PARTITION BY patient_id ORDER BY started_at DESC` — without a composite index this is a sequential scan per patient. Covers R101.
   - Files: `backend-hormonia/alembic/versions/m011_s01_patient_flow_states_index.py`
   - Do: Write Alembic migration with `revision = "m011_s01_patient_flow_states_index"`, `down_revision = "m008_s01_t03_sessions_align"`. Create index `idx_pfs_patient_started` on table `patient_flow_states` columns `(patient_id, sa.text("started_at DESC"))`. Use `if_not_exists=True` for safety. Downgrade drops the index.
