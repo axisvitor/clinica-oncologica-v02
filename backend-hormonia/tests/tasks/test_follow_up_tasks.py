@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.tasks.follow_up import execute_pending_follow_ups, process_escalation_alerts
+from app.tasks.follow_up_taskiq import execute_pending_follow_ups, process_escalation_alerts
 from app.utils.timezone import now_sao_paulo
 from app.services.follow_up_system.enums import (
     EscalationLevel,
@@ -37,7 +37,7 @@ def _build_action_dict(action: FollowUpAction) -> dict:
     }
 
 
-def test_execute_pending_follow_ups_rebuilds_actions_from_redis():
+async def test_execute_pending_follow_ups_rebuilds_actions_from_redis():
     now = now_sao_paulo()
     patient_id = uuid4()
     action_one = FollowUpAction(
@@ -77,15 +77,15 @@ def test_execute_pending_follow_ups_rebuilds_actions_from_redis():
 
     executed_actions = []
 
-    def _fake_execute(_db, _service, action):
+    async def _fake_execute(_db, _service, action):
         executed_actions.append(action)
         return {"success": True}
 
-    with patch("app.tasks.follow_up.get_db_session", _fake_db_session), patch(
+    with patch("app.tasks.follow_up_taskiq.get_scoped_session", _fake_db_session), patch(
         "app.services.follow_up_system.service.FollowUpSystemService",
         return_value=follow_up_service,
-    ), patch("app.tasks.follow_up._execute_follow_up_action", side_effect=_fake_execute):
-        result = execute_pending_follow_ups.run()
+    ), patch("app.tasks.follow_up_taskiq._execute_follow_up_action_async", side_effect=_fake_execute):
+        result = await execute_pending_follow_ups()
 
     assert result["success"] is True
     assert result["executed_count"] == 2
@@ -95,7 +95,7 @@ def test_execute_pending_follow_ups_rebuilds_actions_from_redis():
     assert executed_actions == [action_one, action_two]
 
 
-def test_process_escalation_alerts_rehydrates_from_redis():
+async def test_process_escalation_alerts_rehydrates_from_redis():
     patient_id = uuid4()
     alert = EscalationAlert(
         alert_id=uuid4(),
@@ -118,11 +118,11 @@ def test_process_escalation_alerts_rehydrates_from_redis():
 
     follow_up_service.rehydrate_from_redis = AsyncMock(side_effect=_rehydrate)
 
-    with patch("app.tasks.follow_up.get_db_session", _fake_db_session), patch(
+    with patch("app.tasks.follow_up_taskiq.get_scoped_session", _fake_db_session), patch(
         "app.services.follow_up_system.service.FollowUpSystemService",
         return_value=follow_up_service,
     ):
-        result = process_escalation_alerts.run()
+        result = await process_escalation_alerts()
 
     assert result["success"] is True
     assert result["processed_count"] == 1

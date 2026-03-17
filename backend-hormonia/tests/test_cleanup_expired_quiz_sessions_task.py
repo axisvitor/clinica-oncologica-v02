@@ -1,6 +1,6 @@
 """
-Integration tests for cleanup_expired_quiz_sessions_task.
-Tests HIGH-004: Celery task for cleaning up expired quiz sessions.
+Integration tests for cleanup_expired_quiz_sessions Taskiq task.
+Tests HIGH-004: Task for cleaning up expired quiz sessions.
 """
 
 import pytest
@@ -13,20 +13,20 @@ from app.models.patient import Patient
 from app.models.flow import PatientFlowState
 from app.models.alert import Alert, AlertSeverity
 from app.utils.timezone import now_sao_paulo
-from app.tasks.quiz_flow.cleanup_tasks import (
-    cleanup_expired_quiz_sessions_task,
+from app.tasks.quiz_flow_taskiq import (
+    cleanup_expired_quiz_sessions,
     _notify_doctor_of_expired_session,
-    _resume_patient_flow_after_expiration
+    _resume_patient_flow_after_expiration,
 )
 
 
 class TestCleanupExpiredQuizSessionsTask:
-    """Test cleanup_expired_quiz_sessions_task Celery task."""
+    """Test cleanup_expired_quiz_sessions Taskiq task."""
 
-    @patch('app.tasks.quiz_flow.cleanup_tasks.get_scoped_session')
-    @patch('app.tasks.quiz_flow.cleanup_tasks._notify_doctor_of_expired_session')
-    @patch('app.tasks.quiz_flow.cleanup_tasks._resume_patient_flow_after_expiration')
-    def test_cleanup_marks_expired_sessions(
+    @patch('app.tasks.quiz_flow_taskiq.get_scoped_session')
+    @patch('app.tasks.quiz_flow_taskiq._notify_doctor_of_expired_session')
+    @patch('app.tasks.quiz_flow_taskiq._resume_patient_flow_after_expiration')
+    async def test_cleanup_marks_expired_sessions(
         self,
         mock_resume_flow,
         mock_notify_doctor,
@@ -41,7 +41,7 @@ class TestCleanupExpiredQuizSessionsTask:
         mock_resume_flow.return_value = True
 
         # Run task
-        result = cleanup_expired_quiz_sessions_task(max_age_hours=48)
+        result = await cleanup_expired_quiz_sessions(max_age_hours=48)
 
         # Verify session was marked as expired
         db.refresh(expired_session)
@@ -50,10 +50,10 @@ class TestCleanupExpiredQuizSessionsTask:
         assert result['success'] is True
         assert result['cleaned_sessions'] >= 1
 
-    @patch('app.tasks.quiz_flow.cleanup_tasks.get_scoped_session')
-    @patch('app.tasks.quiz_flow.cleanup_tasks._notify_doctor_of_expired_session')
-    @patch('app.tasks.quiz_flow.cleanup_tasks._resume_patient_flow_after_expiration')
-    def test_cleanup_updates_session_metadata(
+    @patch('app.tasks.quiz_flow_taskiq.get_scoped_session')
+    @patch('app.tasks.quiz_flow_taskiq._notify_doctor_of_expired_session')
+    @patch('app.tasks.quiz_flow_taskiq._resume_patient_flow_after_expiration')
+    async def test_cleanup_updates_session_metadata(
         self,
         mock_resume_flow,
         mock_notify_doctor,
@@ -68,7 +68,7 @@ class TestCleanupExpiredQuizSessionsTask:
         mock_resume_flow.return_value = True
 
         # Run task
-        cleanup_expired_quiz_sessions_task(max_age_hours=48)
+        await cleanup_expired_quiz_sessions(max_age_hours=48)
 
         # Verify metadata was updated
         db.refresh(expired_session)
@@ -78,10 +78,10 @@ class TestCleanupExpiredQuizSessionsTask:
         assert 'questions_answered' in expired_session.session_metadata
         assert 'total_questions' in expired_session.session_metadata
 
-    @patch('app.tasks.quiz_flow.cleanup_tasks.get_scoped_session')
-    @patch('app.tasks.quiz_flow.cleanup_tasks._notify_doctor_of_expired_session')
-    @patch('app.tasks.quiz_flow.cleanup_tasks._resume_patient_flow_after_expiration')
-    def test_cleanup_calls_notification_function(
+    @patch('app.tasks.quiz_flow_taskiq.get_scoped_session')
+    @patch('app.tasks.quiz_flow_taskiq._notify_doctor_of_expired_session')
+    @patch('app.tasks.quiz_flow_taskiq._resume_patient_flow_after_expiration')
+    async def test_cleanup_calls_notification_function(
         self,
         mock_resume_flow,
         mock_notify_doctor,
@@ -96,16 +96,16 @@ class TestCleanupExpiredQuizSessionsTask:
         mock_resume_flow.return_value = True
 
         # Run task
-        result = cleanup_expired_quiz_sessions_task(max_age_hours=48)
+        result = await cleanup_expired_quiz_sessions(max_age_hours=48)
 
         # Verify notification function was called
         assert mock_notify_doctor.called
         assert result['notifications_sent'] >= 1
 
-    @patch('app.tasks.quiz_flow.cleanup_tasks.get_scoped_session')
-    @patch('app.tasks.quiz_flow.cleanup_tasks._notify_doctor_of_expired_session')
-    @patch('app.tasks.quiz_flow.cleanup_tasks._resume_patient_flow_after_expiration')
-    def test_cleanup_calls_flow_resumption_function(
+    @patch('app.tasks.quiz_flow_taskiq.get_scoped_session')
+    @patch('app.tasks.quiz_flow_taskiq._notify_doctor_of_expired_session')
+    @patch('app.tasks.quiz_flow_taskiq._resume_patient_flow_after_expiration')
+    async def test_cleanup_calls_flow_resumption_function(
         self,
         mock_resume_flow,
         mock_notify_doctor,
@@ -120,14 +120,14 @@ class TestCleanupExpiredQuizSessionsTask:
         mock_resume_flow.return_value = True
 
         # Run task
-        result = cleanup_expired_quiz_sessions_task(max_age_hours=48)
+        result = await cleanup_expired_quiz_sessions(max_age_hours=48)
 
         # Verify flow resumption function was called
         assert mock_resume_flow.called
         assert result['flows_resumed'] >= 1
 
-    @patch('app.tasks.quiz_flow.cleanup_tasks.get_scoped_session')
-    def test_cleanup_does_not_affect_active_sessions(
+    @patch('app.tasks.quiz_flow_taskiq.get_scoped_session')
+    async def test_cleanup_does_not_affect_active_sessions(
         self,
         mock_get_scoped_session,
         db_with_active_session
@@ -138,7 +138,7 @@ class TestCleanupExpiredQuizSessionsTask:
         mock_get_scoped_session.return_value.__exit__.return_value = False
 
         # Run task
-        result = cleanup_expired_quiz_sessions_task(max_age_hours=48)
+        result = await cleanup_expired_quiz_sessions(max_age_hours=48)
 
         # Verify session remains unchanged
         db.refresh(active_session)
@@ -146,8 +146,8 @@ class TestCleanupExpiredQuizSessionsTask:
         assert active_session.completed_at is None
         assert result['cleaned_sessions'] >= 0
 
-    @patch('app.tasks.quiz_flow.cleanup_tasks.get_scoped_session')
-    def test_cleanup_does_not_affect_completed_sessions(
+    @patch('app.tasks.quiz_flow_taskiq.get_scoped_session')
+    async def test_cleanup_does_not_affect_completed_sessions(
         self,
         mock_get_scoped_session,
         db_with_completed_session
@@ -161,7 +161,7 @@ class TestCleanupExpiredQuizSessionsTask:
         original_completed_at = completed_session.completed_at
 
         # Run task
-        result = cleanup_expired_quiz_sessions_task(max_age_hours=48)
+        result = await cleanup_expired_quiz_sessions(max_age_hours=48)
 
         # Verify session remains unchanged
         db.refresh(completed_session)
@@ -180,10 +180,10 @@ class TestCleanupExpiredQuizSessionsTask:
         assert current_naive == original_naive
         assert result['cleaned_sessions'] >= 0
 
-    @patch('app.tasks.quiz_flow.cleanup_tasks.get_scoped_session')
-    @patch('app.tasks.quiz_flow.cleanup_tasks._notify_doctor_of_expired_session')
-    @patch('app.tasks.quiz_flow.cleanup_tasks._resume_patient_flow_after_expiration')
-    def test_cleanup_handles_errors_gracefully(
+    @patch('app.tasks.quiz_flow_taskiq.get_scoped_session')
+    @patch('app.tasks.quiz_flow_taskiq._notify_doctor_of_expired_session')
+    @patch('app.tasks.quiz_flow_taskiq._resume_patient_flow_after_expiration')
+    async def test_cleanup_handles_errors_gracefully(
         self,
         mock_resume_flow,
         mock_notify_doctor,
@@ -199,7 +199,7 @@ class TestCleanupExpiredQuizSessionsTask:
         mock_resume_flow.return_value = True
 
         # Run task
-        result = cleanup_expired_quiz_sessions_task(max_age_hours=48)
+        result = await cleanup_expired_quiz_sessions(max_age_hours=48)
 
         # Verify task completes with error tracking
         assert result['success'] is True
@@ -207,10 +207,10 @@ class TestCleanupExpiredQuizSessionsTask:
         db.refresh(expired_session)
         assert expired_session.status == 'expired'
 
-    @patch('app.tasks.quiz_flow.cleanup_tasks.get_scoped_session')
-    @patch('app.tasks.quiz_flow.cleanup_tasks._notify_doctor_of_expired_session')
-    @patch('app.tasks.quiz_flow.cleanup_tasks._resume_patient_flow_after_expiration')
-    def test_cleanup_returns_detailed_results(
+    @patch('app.tasks.quiz_flow_taskiq.get_scoped_session')
+    @patch('app.tasks.quiz_flow_taskiq._notify_doctor_of_expired_session')
+    @patch('app.tasks.quiz_flow_taskiq._resume_patient_flow_after_expiration')
+    async def test_cleanup_returns_detailed_results(
         self,
         mock_resume_flow,
         mock_notify_doctor,
@@ -225,7 +225,7 @@ class TestCleanupExpiredQuizSessionsTask:
         mock_resume_flow.return_value = True
 
         # Run task
-        result = cleanup_expired_quiz_sessions_task(max_age_hours=48)
+        result = await cleanup_expired_quiz_sessions(max_age_hours=48)
 
         # Verify result structure
         assert 'success' in result
@@ -249,7 +249,7 @@ class TestCleanupExpiredQuizSessionsTask:
 class TestNotifyDoctorOfExpiredSession:
     """Test _notify_doctor_of_expired_session function."""
 
-    def test_creates_alert_with_correct_data(self, db, sample_expired_session, sample_patient):
+    async def test_creates_alert_with_correct_data(self, db, sample_expired_session, sample_patient):
         """Test notification persists alert with canonical schema fields."""
         result = _notify_doctor_of_expired_session(
             db=db,
@@ -274,7 +274,7 @@ class TestNotifyDoctorOfExpiredSession:
         assert "Quiz Session Expired" in alert.description
         assert result is True
 
-    def test_includes_completion_rate_in_alert(self, db, sample_expired_session, sample_patient):
+    async def test_includes_completion_rate_in_alert(self, db, sample_expired_session, sample_patient):
         """Test notification includes completion rate."""
         # Set some answered questions
         sample_expired_session.answered_questions = 5
@@ -303,7 +303,7 @@ class TestNotifyDoctorOfExpiredSession:
 class TestResumePatientFlowAfterExpiration:
     """Test _resume_patient_flow_after_expiration function."""
 
-    def test_updates_flow_state_correctly(self, db, sample_flow_state):
+    async def test_updates_flow_state_correctly(self, db, sample_flow_state):
         """Test flow state is updated correctly."""
         result = _resume_patient_flow_after_expiration(
             db=db,
@@ -317,7 +317,7 @@ class TestResumePatientFlowAfterExpiration:
         assert sample_flow_state.state_data['waiting_for_quiz'] is False
         assert 'flow_resumed_at' in sample_flow_state.state_data
 
-    def test_handles_missing_flow_state(self, db):
+    async def test_handles_missing_flow_state(self, db):
         """Test handles case when flow state doesn't exist."""
         result = _resume_patient_flow_after_expiration(
             db=db,

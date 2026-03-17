@@ -1,4 +1,4 @@
-"""Focused tests for alert Celery task failure semantics and payload hygiene."""
+"""Focused tests for alert Taskiq task failure semantics and payload hygiene."""
 
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -16,19 +16,19 @@ def _scoped_session(db):
     return _ctx()
 
 
-def test_check_patient_alerts_propagates_failures():
-    from app.tasks.alerts import check_patient_alerts
+async def test_check_patient_alerts_propagates_failures():
+    from app.tasks.alerts_taskiq import check_patient_alerts
 
     with patch(
-        "app.tasks.alerts.get_db_session",
+        "app.tasks.alerts_taskiq.get_scoped_session",
         side_effect=RuntimeError("db unavailable"),
     ):
         with pytest.raises(RuntimeError, match="db unavailable"):
-            check_patient_alerts.run()
+            await check_patient_alerts()
 
 
-def test_process_alert_notification_removes_patient_name_from_metadata_and_payload():
-    from app.tasks.alerts import process_alert_notification
+async def test_process_alert_notification_removes_patient_name_from_metadata_and_payload():
+    from app.tasks.alerts_taskiq import process_alert_notification
 
     alert_repo = Mock()
     alert_repo.create.return_value = SimpleNamespace(id=uuid4())
@@ -47,7 +47,7 @@ def test_process_alert_notification_removes_patient_name_from_metadata_and_paylo
     }
 
     with patch(
-        "app.tasks.alerts.get_db_session",
+        "app.tasks.alerts_taskiq.get_scoped_session",
         return_value=_scoped_session(Mock()),
     ), patch(
         "app.repositories.alert.AlertRepository", return_value=alert_repo
@@ -56,7 +56,7 @@ def test_process_alert_notification_removes_patient_name_from_metadata_and_paylo
     ), patch(
         "app.schemas.websocket.WebSocketEventType", _WebSocketEventType
     ):
-        result = process_alert_notification.run(alert_data=alert_data)
+        result = await process_alert_notification(alert_data=alert_data)
 
     assert result["success"] is True
     create_payload = alert_repo.create.call_args.args[0]
@@ -66,51 +66,43 @@ def test_process_alert_notification_removes_patient_name_from_metadata_and_paylo
         assert "patient_name" not in call.kwargs["data"]
 
 
-def test_process_alert_notification_propagates_failures():
-    from app.tasks.alerts import process_alert_notification
+async def test_process_alert_notification_propagates_failures():
+    from app.tasks.alerts_taskiq import process_alert_notification
 
     with patch(
-        "app.tasks.alerts.get_db_session",
+        "app.tasks.alerts_taskiq.get_scoped_session",
         return_value=_scoped_session(Mock()),
     ), patch(
         "app.repositories.alert.AlertRepository",
         side_effect=RuntimeError("write failed"),
     ):
         with pytest.raises(RuntimeError, match="write failed"):
-            process_alert_notification.run(
+            await process_alert_notification(
                 alert_data={"patient_id": str(uuid4()), "message": "alert"}
             )
 
 
-def test_process_alert_escalation_uses_retry_on_unexpected_failure():
-    from app.tasks.alerts import process_alert_escalation
+async def test_process_alert_escalation_propagates_on_unexpected_failure():
+    """Taskiq tasks propagate exceptions for SmartRetryMiddleware to handle."""
+    from app.tasks.alerts_taskiq import process_alert_escalation
 
     with patch(
-        "app.tasks.alerts.get_db_session",
+        "app.tasks.alerts_taskiq.get_scoped_session",
         side_effect=RuntimeError("db unavailable"),
-    ), patch.object(
-        process_alert_escalation,
-        "retry",
-        side_effect=RuntimeError("retry-called"),
-    ) as retry_mock:
-        with pytest.raises(RuntimeError, match="retry-called"):
-            process_alert_escalation.run(alert_id=str(uuid4()), escalation_level="high")
-
-    retry_mock.assert_called_once()
+    ):
+        with pytest.raises(RuntimeError, match="db unavailable"):
+            await process_alert_escalation(
+                alert_id=str(uuid4()), escalation_level="high"
+            )
 
 
-def test_periodic_escalation_check_uses_retry_on_unexpected_failure():
-    from app.tasks.alerts import periodic_escalation_check
+async def test_periodic_escalation_check_propagates_on_unexpected_failure():
+    """Taskiq tasks propagate exceptions for SmartRetryMiddleware to handle."""
+    from app.tasks.alerts_taskiq import periodic_escalation_check
 
     with patch(
-        "app.tasks.alerts.get_db_session",
+        "app.tasks.alerts_taskiq.get_scoped_session",
         side_effect=RuntimeError("db unavailable"),
-    ), patch.object(
-        periodic_escalation_check,
-        "retry",
-        side_effect=RuntimeError("retry-called"),
-    ) as retry_mock:
-        with pytest.raises(RuntimeError, match="retry-called"):
-            periodic_escalation_check.run()
-
-    retry_mock.assert_called_once()
+    ):
+        with pytest.raises(RuntimeError, match="db unavailable"):
+            await periodic_escalation_check()

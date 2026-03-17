@@ -1778,4 +1778,3 @@ async def retry_failed_followup_send(
 
             # Raise to let SmartRetryMiddleware handle retry scheduling
             raise
-ise

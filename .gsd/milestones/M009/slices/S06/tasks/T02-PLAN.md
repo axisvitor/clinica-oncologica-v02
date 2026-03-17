@@ -64,3 +64,10 @@ Fix 8 test files that import from deleted Celery task modules. Each needs import
 ## Expected Output
 
 - 8 test files with corrected imports, all collecting successfully
+
+## Observability Impact
+
+- **Signals changed:** None — this task only changes test files, not runtime code (except flows_taskiq.py bugfix).
+- **Inspection surface:** `pytest --collect-only` on the 7 files → 33 collected, 0 errors. AST zero-import scan on files → zero deleted-module imports.
+- **Failure visibility:** Import errors surface as `ModuleNotFoundError` or `ImportError` with exact module path and line number in pytest collection output.
+- **Future agent diagnosis:** Run `DATABASE_URL="..." QUIZ_TOKEN_SECRET="..." pytest tests/tasks/test_alerts_tasks.py tests/tasks/test_audit_cleanup_tasks.py tests/tasks/test_reports_tasks.py tests/tasks/test_webhook_dlq_tasks.py tests/tasks/test_follow_up_tasks.py tests/tasks/test_flow_automation_retry_config.py tests/test_cleanup_expired_quiz_sessions_task.py --collect-only` to verify health.

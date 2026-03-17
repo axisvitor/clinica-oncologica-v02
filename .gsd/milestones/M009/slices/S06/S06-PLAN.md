@@ -82,7 +82,7 @@
   - Verify: `ls` confirms files gone; `find backend-hormonia/tests -name "*celery*" -type f` returns zero results
   - Done when: 7 dead test files deleted, no dangling imports to them
 
-- [ ] **T02: Fix domain task test imports (alerts, audit, reports, webhook, follow-up, LGPD, quiz)** `est:45m`
+- [x] **T02: Fix domain task test imports (alerts, audit, reports, webhook, follow-up, LGPD, quiz)** `est:45m`
   - Why: 8 test files in `tests/tasks/` and `tests/` import from deleted Celery modules (`app.tasks.alerts`, `app.tasks.audit_cleanup`, `app.tasks.reports`, `app.tasks.webhook_dlq`, `app.tasks.follow_up`, `app.tasks.flow_automation`, `app.tasks.lgpd.reencrypt_patients`, `app.tasks.quiz_flow.cleanup_tasks`). All imports must point to the Taskiq equivalents.
   - Files: `backend-hormonia/tests/tasks/test_alerts_tasks.py`, `backend-hormonia/tests/tasks/test_audit_cleanup_tasks.py`, `backend-hormonia/tests/tasks/test_reports_tasks.py`, `backend-hormonia/tests/tasks/test_webhook_dlq_tasks.py`, `backend-hormonia/tests/tasks/test_follow_up_tasks.py`, `backend-hormonia/tests/tasks/test_flow_automation_retry_config.py`, `backend-hormonia/tests/tasks/test_reencrypt_patients.py`, `backend-hormonia/tests/test_cleanup_expired_quiz_sessions_task.py`
   - Do: For each file: (1) update `from app.tasks.X import Y` → `from app.tasks.X_taskiq import Y` (see import map in task plan); (2) if test calls `.run()`, convert to direct helper call or `asyncio.run(task.fn(...))`; (3) if test mocks `.retry()` on bound task, remove mock — Taskiq tasks don't have .retry(); (4) update `@patch` target paths from deleted module to `*_taskiq` module; (5) if test uses `.apply_async`, mock `.kiq` instead.

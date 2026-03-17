@@ -1,4 +1,4 @@
-"""Focused tests for webhook DLQ Celery tasks."""
+"""Focused tests for webhook DLQ Taskiq tasks."""
 
 import asyncio
 import json
@@ -41,8 +41,8 @@ class _FakeAsyncRedis:
         raise AssertionError("cleanup_old_dlq_events should not call KEYS")
 
 
-def test_cleanup_old_dlq_events_uses_scan_iter_and_preserves_cleanup_semantics():
-    from app.tasks.webhook_dlq import cleanup_old_dlq_events
+async def test_cleanup_old_dlq_events_uses_scan_iter_and_preserves_cleanup_semantics():
+    from app.tasks.webhook_dlq_taskiq import cleanup_old_dlq_events
 
     fixed_now = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
     old_event = json.dumps({"timestamp": (fixed_now - timedelta(days=10)).isoformat()})
@@ -59,25 +59,20 @@ def test_cleanup_old_dlq_events_uses_scan_iter_and_preserves_cleanup_semantics()
     async def _get_async_redis():
         return redis_client
 
-    def _run_async(coro, timeout=None):
-        return asyncio.run(coro)
-
     dlq_service = Mock()
     dlq_service.DLQ_KEY_PREFIX = "webhook:dlq"
 
     with patch(
-        "app.tasks.webhook_dlq.get_scoped_session",
+        "app.tasks.webhook_dlq_taskiq.get_scoped_session",
         return_value=_scoped_session(Mock()),
     ), patch(
-        "app.tasks.webhook_dlq.get_webhook_dlq", return_value=dlq_service
+        "app.tasks.webhook_dlq_taskiq.get_webhook_dlq", return_value=dlq_service
     ), patch(
         "app.core.redis_manager.get_async_redis_client", side_effect=_get_async_redis
     ), patch(
-        "app.tasks.webhook_dlq.run_async", side_effect=_run_async
-    ), patch(
-        "app.tasks.webhook_dlq.now_sao_paulo", return_value=fixed_now
+        "app.tasks.webhook_dlq_taskiq.now_sao_paulo", return_value=fixed_now
     ):
-        result = cleanup_old_dlq_events.run(days_old=7)
+        result = await cleanup_old_dlq_events(days_old=7)
 
     assert result["success"] is True
     assert result["cleaned_count"] == 3
@@ -88,15 +83,14 @@ def test_cleanup_old_dlq_events_uses_scan_iter_and_preserves_cleanup_semantics()
     assert redis_client.keys_called is False
 
 
-def test_monitor_dlq_health_uses_run_async_and_preserves_alert_shape():
-    from app.tasks.webhook_dlq import (
+async def test_monitor_dlq_health_uses_await_and_preserves_alert_shape():
+    from app.tasks.webhook_dlq_taskiq import (
         WEBHOOK_DLQ_PROCESSING_TIMEOUT,
         monitor_dlq_health,
     )
 
     fixed_now = datetime(2026, 1, 20, 9, 30, tzinfo=timezone.utc)
     dlq_service = Mock()
-    dlq_service.get_dlq_stats.return_value = "stats-coro"
 
     stats_payload = {
         "overflow_alert": True,
@@ -109,83 +103,69 @@ def test_monitor_dlq_health_uses_run_async_and_preserves_alert_shape():
             }
         },
     }
+    dlq_service.get_dlq_stats.return_value = stats_payload
 
     with patch(
-        "app.tasks.webhook_dlq.get_scoped_session",
+        "app.tasks.webhook_dlq_taskiq.get_scoped_session",
         return_value=_scoped_session(Mock()),
     ), patch(
-        "app.tasks.webhook_dlq.get_webhook_dlq", return_value=dlq_service
+        "app.tasks.webhook_dlq_taskiq.get_webhook_dlq", return_value=dlq_service
     ), patch(
-        "app.tasks.webhook_dlq.run_async", return_value=stats_payload
-    ) as run_async_mock, patch(
-        "app.tasks.webhook_dlq.now_sao_paulo", return_value=fixed_now
+        "app.tasks.webhook_dlq_taskiq.now_sao_paulo", return_value=fixed_now
     ), patch(
-        "app.tasks.webhook_dlq.logger.error"
+        "app.tasks.webhook_dlq_taskiq.logger.error"
     ), patch(
-        "app.tasks.webhook_dlq.logger.warning"
+        "app.tasks.webhook_dlq_taskiq.logger.warning"
     ):
-        result = monitor_dlq_health.run()
+        result = await monitor_dlq_health()
 
     assert result["success"] is True
     assert result["alert_count"] == 2
     assert result["stats"] == stats_payload
-    run_async_mock.assert_called_once_with(
-        "stats-coro",
-        timeout=WEBHOOK_DLQ_PROCESSING_TIMEOUT,
-    )
 
 
-def test_process_webhook_dlq_propagates_failures_for_celery_retry():
-    from app.tasks.webhook_dlq import process_webhook_dlq
+async def test_process_webhook_dlq_propagates_failures():
+    from app.tasks.webhook_dlq_taskiq import process_webhook_dlq
 
     dlq_service = Mock()
-    dlq_service.process_dlq.return_value = "process-coro"
+    dlq_service.process_dlq.side_effect = RuntimeError("dlq boom")
 
     with patch(
-        "app.tasks.webhook_dlq.get_scoped_session",
+        "app.tasks.webhook_dlq_taskiq.get_scoped_session",
         return_value=_scoped_session(Mock()),
     ), patch(
-        "app.tasks.webhook_dlq.get_webhook_dlq", return_value=dlq_service
-    ), patch(
-        "app.tasks.webhook_dlq.run_async", side_effect=RuntimeError("dlq boom")
+        "app.tasks.webhook_dlq_taskiq.get_webhook_dlq", return_value=dlq_service
     ):
         with pytest.raises(RuntimeError, match="dlq boom"):
-            process_webhook_dlq.run(batch_size=10)
+            await process_webhook_dlq(batch_size=10)
 
 
-def test_cleanup_old_dlq_events_raises_retry_instead_of_swallowing_failure():
-    from app.tasks.webhook_dlq import cleanup_old_dlq_events
+async def test_cleanup_old_dlq_events_propagates_failure():
+    """Taskiq tasks propagate exceptions for SmartRetryMiddleware to handle."""
+    from app.tasks.webhook_dlq_taskiq import cleanup_old_dlq_events
 
     with patch(
-        "app.tasks.webhook_dlq.get_scoped_session",
+        "app.tasks.webhook_dlq_taskiq.get_scoped_session",
         return_value=_scoped_session(Mock()),
     ), patch(
-        "app.tasks.webhook_dlq.get_webhook_dlq",
+        "app.tasks.webhook_dlq_taskiq.get_webhook_dlq",
         side_effect=RuntimeError("service unavailable"),
-    ), patch.object(
-        cleanup_old_dlq_events,
-        "retry",
-        side_effect=RuntimeError("retry-called"),
-    ) as retry_mock:
-        with pytest.raises(RuntimeError, match="retry-called"):
-            cleanup_old_dlq_events.run(days_old=7)
-
-    retry_mock.assert_called_once()
+    ):
+        with pytest.raises(RuntimeError, match="service unavailable"):
+            await cleanup_old_dlq_events(days_old=7)
 
 
-def test_monitor_dlq_health_propagates_failures():
-    from app.tasks.webhook_dlq import monitor_dlq_health
+async def test_monitor_dlq_health_propagates_failures():
+    from app.tasks.webhook_dlq_taskiq import monitor_dlq_health
 
     dlq_service = Mock()
-    dlq_service.get_dlq_stats.return_value = "stats-coro"
+    dlq_service.get_dlq_stats.side_effect = RuntimeError("stats failed")
 
     with patch(
-        "app.tasks.webhook_dlq.get_scoped_session",
+        "app.tasks.webhook_dlq_taskiq.get_scoped_session",
         return_value=_scoped_session(Mock()),
     ), patch(
-        "app.tasks.webhook_dlq.get_webhook_dlq", return_value=dlq_service
-    ), patch(
-        "app.tasks.webhook_dlq.run_async", side_effect=RuntimeError("stats failed")
+        "app.tasks.webhook_dlq_taskiq.get_webhook_dlq", return_value=dlq_service
     ):
         with pytest.raises(RuntimeError, match="stats failed"):
-            monitor_dlq_health.run()
+            await monitor_dlq_health()

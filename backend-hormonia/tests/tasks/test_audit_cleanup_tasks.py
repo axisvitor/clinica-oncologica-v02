@@ -1,4 +1,4 @@
-"""Focused tests for audit cleanup Celery tasks."""
+"""Focused tests for audit cleanup Taskiq tasks."""
 
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -20,8 +20,8 @@ def _scalar_result(value):
     return result
 
 
-def test_cleanup_expired_audit_logs_uses_scoped_session_and_preserves_result_shape():
-    from app.tasks.audit_cleanup import cleanup_expired_audit_logs
+async def test_cleanup_expired_logs_uses_scoped_session_and_preserves_result_shape():
+    from app.tasks.audit_taskiq import cleanup_expired_logs
 
     fixed_now = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
     db = Mock()
@@ -30,13 +30,13 @@ def test_cleanup_expired_audit_logs_uses_scoped_session_and_preserves_result_sha
     audit_service.cleanup_expired_logs.return_value = 6
 
     with patch(
-        "app.tasks.audit_cleanup.get_scoped_session", return_value=_scoped_session(db)
+        "app.tasks.audit_taskiq.get_scoped_session", return_value=_scoped_session(db)
     ) as scoped_session, patch(
-        "app.tasks.audit_cleanup.AuditService", return_value=audit_service
+        "app.tasks.audit_taskiq.AuditService", return_value=audit_service
     ), patch(
-        "app.tasks.audit_cleanup.now_sao_paulo", return_value=fixed_now
+        "app.tasks.audit_taskiq.now_sao_paulo", return_value=fixed_now
     ):
-        result = cleanup_expired_audit_logs.run()
+        result = await cleanup_expired_logs()
 
     assert result["status"] == "success"
     assert result["deleted_audit_logs"] == 6
@@ -47,18 +47,18 @@ def test_cleanup_expired_audit_logs_uses_scoped_session_and_preserves_result_sha
     db.commit.assert_called_once()
 
 
-def test_refresh_ai_performance_metrics_uses_scoped_session():
-    from app.tasks.audit_cleanup import refresh_ai_performance_metrics
+async def test_refresh_ai_performance_metrics_uses_scoped_session():
+    from app.tasks.audit_taskiq import refresh_ai_performance_metrics
 
     fixed_now = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
     db = Mock()
 
     with patch(
-        "app.tasks.audit_cleanup.get_scoped_session", return_value=_scoped_session(db)
+        "app.tasks.audit_taskiq.get_scoped_session", return_value=_scoped_session(db)
     ) as scoped_session, patch(
-        "app.tasks.audit_cleanup.now_sao_paulo", return_value=fixed_now
+        "app.tasks.audit_taskiq.now_sao_paulo", return_value=fixed_now
     ):
-        result = refresh_ai_performance_metrics.run()
+        result = await refresh_ai_performance_metrics()
 
     assert result["status"] == "success"
     assert result["duration_seconds"] == 0.0
@@ -67,8 +67,8 @@ def test_refresh_ai_performance_metrics_uses_scoped_session():
     scoped_session.assert_called_once()
 
 
-def test_generate_daily_audit_report_uses_scoped_session():
-    from app.tasks.audit_cleanup import generate_daily_audit_report
+async def test_generate_daily_report_uses_scoped_session():
+    from app.tasks.audit_taskiq import generate_daily_report
 
     fixed_now = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
     db = Mock()
@@ -83,13 +83,13 @@ def test_generate_daily_audit_report_uses_scoped_session():
     audit_service.get_ai_security_events.return_value = [security_event]
 
     with patch(
-        "app.tasks.audit_cleanup.get_scoped_session", return_value=_scoped_session(db)
+        "app.tasks.audit_taskiq.get_scoped_session", return_value=_scoped_session(db)
     ) as scoped_session, patch(
-        "app.tasks.audit_cleanup.AuditService", return_value=audit_service
+        "app.tasks.audit_taskiq.AuditService", return_value=audit_service
     ), patch(
-        "app.tasks.audit_cleanup.now_sao_paulo", return_value=fixed_now
+        "app.tasks.audit_taskiq.now_sao_paulo", return_value=fixed_now
     ):
-        result = generate_daily_audit_report.run()
+        result = await generate_daily_report()
 
     assert result["performance_metrics"]["total_requests"] == 42
     assert result["security_events_count"] == 1
@@ -97,19 +97,19 @@ def test_generate_daily_audit_report_uses_scoped_session():
     scoped_session.assert_called_once()
 
 
-def test_check_hipaa_compliance_uses_scoped_session():
-    from app.tasks.audit_cleanup import check_hipaa_compliance
+async def test_check_hipaa_compliance_uses_scoped_session():
+    from app.tasks.audit_taskiq import check_hipaa_compliance
 
     fixed_now = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
     db = Mock()
     db.execute.side_effect = [_scalar_result(0), _scalar_result(0), _scalar_result(0)]
 
     with patch(
-        "app.tasks.audit_cleanup.get_scoped_session", return_value=_scoped_session(db)
+        "app.tasks.audit_taskiq.get_scoped_session", return_value=_scoped_session(db)
     ) as scoped_session, patch(
-        "app.tasks.audit_cleanup.now_sao_paulo", return_value=fixed_now
+        "app.tasks.audit_taskiq.now_sao_paulo", return_value=fixed_now
     ):
-        result = check_hipaa_compliance.run()
+        result = await check_hipaa_compliance()
 
     assert result["compliant"] is True
     assert result["issues"]["missing_retention_dates"] == 0
