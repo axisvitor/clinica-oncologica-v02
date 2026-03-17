@@ -83,36 +83,36 @@ This file is the explicit capability and coverage contract for the project.
 
 ### R100 — Endpoints hot-path do médico cacheados no Redis/Dragonfly com TTL adequado.
 - Class: quality-attribute
-- Status: active
+- Status: validated
 - Description: Os endpoints mais acessados pelo médico (physician/patients, dashboard/main) usam @cache_response com TTL adequado no Dragonfly, eliminando queries repetidas ao banco.
 - Why it matters: Sem cache, cada refresh do dashboard dispara JOINs pesados no PostgreSQL — stress desnecessário no banco.
 - Source: inferred
 - Primary owning slice: M011/S01
 - Supporting slices: none
-- Validation: unmapped
-- Notes: CacheMiddleware já existe (90s auth TTL), mas os endpoints physician não usam @cache_response explícito.
+- Validation: validated by S01 — per-user Redis caching on physician/patients (TTL=60s, user_id in cache key) and dashboard/main (TTL=120s, per-user key). verify-m011.sh group 5 confirms TTL values and user_id presence.
+- Notes: S01 used manual redis_cache.get/set (not @cache_response decorator) to include user_id in key preventing cross-doctor data leaks. Dashboard caching was already correct — unchanged.
 
 ### R101 — Index composto em patient_flow_states para window function do physician patients.
 - Class: quality-attribute
-- Status: active
+- Status: validated
 - Description: Index composto em patient_flow_states(patient_id, started_at DESC) para que a window function ROW_NUMBER() do endpoint physician/patients use index scan em vez de seq scan.
 - Why it matters: Sem index, a window function faz sort em memória para cada paciente — escala mal com muitos flow states.
 - Source: inferred
 - Primary owning slice: M011/S01
 - Supporting slices: none
-- Validation: unmapped
-- Notes: Criado via Alembic migration.
+- Validation: validated by S01 — Alembic migration m011_s01_patient_flow_states_index creates composite index idx_pfs_patient_started on patient_flow_states(patient_id, started_at DESC) with if_not_exists=True. verify-m011.sh group 7 confirms.
+- Notes: Index accelerates ROW_NUMBER() OVER (PARTITION BY patient_id ORDER BY started_at DESC) window function in physician/patients endpoint.
 
 ### R102 — Frontend hooks com staleTime/gcTime consistentes e refetchInterval reduzido.
 - Class: quality-attribute
-- Status: active
+- Status: validated
 - Description: Hooks de dashboard e pacientes usam staleTime ≥ 60s, refetchInterval ≥ 120s (exceto monitoring real-time). Elimina requests redundantes que martelam o backend a cada 10-30s.
 - Why it matters: Hooks com staleTime de 10s e refetchInterval de 30s geram requests desnecessários — o dado não muda tão rápido.
 - Source: inferred
 - Primary owning slice: M011/S02
 - Supporting slices: none
-- Validation: unmapped
-- Notes: 15+ hooks precisam de ajuste. Monitoring real-time (system health) pode manter 30s.
+- Validation: validated by S02 — 21 frontend hooks normalized: staleTime ≥ 60s (dashboard/patient), ≥ 120s (admin), refetchInterval ≥ 120s. verify-m011.sh group 6 confirmed 58 timing values comply. Monitoring hooks verified untouched.
+- Notes: Global default staleTime bumped 30s→60s. Monitoring/real-time hooks (system health, WhatsApp, agent swarm) explicitly exempt per D020.
 
 ## Validated
 
@@ -1090,14 +1090,14 @@ This file is the explicit capability and coverage contract for the project.
 | R097 | admin/support | deferred | none | none | unmapped |
 | R098 | constraint | out-of-scope | none | none | n/a |
 | R099 | constraint | out-of-scope | none | none | n/a |
-| R100 | quality-attribute | active | M011/S01 | none | unmapped |
-| R101 | quality-attribute | active | M011/S01 | none | unmapped |
-| R102 | quality-attribute | active | M011/S02 | none | unmapped |
+| R100 | quality-attribute | validated | M011/S01 | none | validated by S01 + verify-m011.sh group 5 |
+| R101 | quality-attribute | validated | M011/S01 | none | validated by S01 + verify-m011.sh group 7 |
+| R102 | quality-attribute | validated | M011/S02 | none | validated by S02 + verify-m011.sh group 6 |
 | R103 | constraint | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 10 (R089–R095, R100, R101, R102)
+- Active requirements: 7 (R089–R095)
 - Mapped to slices: 10
 - Validated: 50
 - Deferred: 10

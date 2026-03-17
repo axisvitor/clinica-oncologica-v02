@@ -12,7 +12,7 @@ Diminuir o tempo de consulta e melhorar a qualidade do atendimento oncológico: 
 
 - M001–M009 concluídos: pipeline de fluxo, auth canônico, refactor estrutural, convergência runtime/schema, purga de código morto, refinamento de fluxos, onboarding real ponta-a-ponta, migração Celery→Taskiq.
 - M010 concluído: dashboard médico refinado — visão patient-centric com contexto de fluxo, tela de preparo pré-consulta consolidada, responsivo desktop+mobile, código morto /medico/* removido.
-- M011 em andamento: S01 (backend caching + index composto) concluído — Redis caching per-user no physician/patients (TTL=60s), composite index em patient_flow_states. S02 (frontend request discipline) concluído — 21 hooks normalizados (staleTime ≥ 60s dashboard, ≥ 120s admin; refetchInterval ≥ 120s), tsc + vite build green. S03 (verificação integrada) pendente.
+- M011 concluído: otimização de carregamento e redução de stress no banco — per-user Redis caching no physician/patients (TTL=60s) e dashboard (TTL=120s), composite index em patient_flow_states para ROW_NUMBER(), frontend request discipline em 21 hooks (staleTime ≥ 60s dashboard, ≥ 120s admin; refetchInterval ≥ 120s). Zero mudanças funcionais.
 
 ## Architecture / Key Patterns
 
@@ -20,8 +20,9 @@ Diminuir o tempo de consulta e melhorar a qualidade do atendimento oncológico: 
 - Sessão autenticada baseada em Dragonfly + cookie HttpOnly, com identidade canônica por `user_id`.
 - Frontend dashboard em React 19/Vite com `AuthContext`, `apiClient` modular, shadcn/ui + Tailwind CSS 4 + Recharts.
 - Task queue via Taskiq (async-native) com Dragonfly como broker (ListQueueBroker), 13 task modules (72 tasks).
-- Cache infrastructure: CacheMiddleware (HTTP-level, 90s auth TTL), @cache_response decorator (per-endpoint Redis), CacheManager (unified CRUD).
+- Cache infrastructure: CacheMiddleware (HTTP-level, 90s auth TTL), per-user redis_cache.get/set on physician/patients (TTL=60s) and dashboard (TTL=120s), CacheManager (unified CRUD).
 - Physician dashboard em `/physician/dashboard` com patient-centric table, `/physician/patients/:id` com pre-consultation consolidated view.
+- Frontend request discipline: staleTime ≥ 60s (dashboard/patient), ≥ 120s (admin), refetchInterval ≥ 120s. Monitoring/real-time hooks exempt.
 
 ## Capability Contract
 
@@ -39,4 +40,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M008: Onboarding Real de Pacientes
 - [x] M009: Substituição do Celery por Taskiq
 - [x] M010: Refinamento do Dashboard Médico
-- [ ] M011: Otimização de Carregamento e Redução de Stress no Banco
+- [x] M011: Otimização de Carregamento e Redução de Stress no Banco
