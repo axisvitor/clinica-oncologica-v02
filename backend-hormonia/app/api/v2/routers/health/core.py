@@ -71,7 +71,7 @@ async def readiness_probe(
     Kubernetes/Railway readiness probe (PUBLIC - no auth required).
 
     Checks if service is ready to receive traffic.
-    Tests critical dependencies: database, workers.
+    Tests critical dependencies: database, Taskiq broker.
 
     Returns:
         200: Service is ready
@@ -107,8 +107,7 @@ async def readiness_probe(
         checks["database"] = False
         ready = False
 
-    # Check workers only if critical readiness check passed.
-    # Try Taskiq first (M009), fall back to Celery for coexistence.
+    # Check Taskiq broker health
     if ready:
         try:
             from app.taskiq_broker import check_broker_health
@@ -119,40 +118,11 @@ async def readiness_probe(
             )
             taskiq_ok = taskiq_health.get("dragonfly_reachable", False)
             checks["taskiq_broker"] = taskiq_ok
-
-            # Also check Celery for coexistence period
-            try:
-                def _inspect_workers():
-                    from app.task_queue import task_queue as celery_app
-                    inspector = celery_app.control.inspect(timeout=0.5)
-                    return inspector.active()
-
-                active = await asyncio.wait_for(
-                    asyncio.to_thread(_inspect_workers),
-                    timeout=1.5,
-                )
-                checks["celery_workers"] = active is not None and len(active) > 0
-            except Exception:
-                checks["celery_workers"] = False
-
-            # Workers check passes if either Taskiq or Celery is healthy
-            checks["workers"] = taskiq_ok or checks.get("celery_workers", False)
+            checks["workers"] = taskiq_ok
 
         except Exception:
-            # Taskiq not available — fall back to Celery only
-            try:
-                def _inspect_workers():
-                    from app.task_queue import task_queue as celery_app
-                    inspector = celery_app.control.inspect(timeout=0.5)
-                    return inspector.active()
-
-                active = await asyncio.wait_for(
-                    asyncio.to_thread(_inspect_workers),
-                    timeout=1.5,
-                )
-                checks["workers"] = active is not None and len(active) > 0
-            except Exception:
-                checks["workers"] = False
+            checks["taskiq_broker"] = False
+            checks["workers"] = False
     else:
         checks["workers"] = False
 

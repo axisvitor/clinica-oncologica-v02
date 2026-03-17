@@ -91,7 +91,6 @@ def init_sentry(config: Optional[MonitoringConfig] = None) -> bool:
         from sentry_sdk.integrations.fastapi import FastApiIntegration
         from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
         from sentry_sdk.integrations.redis import RedisIntegration
-        from sentry_sdk.integrations.celery import CeleryIntegration
         from sentry_sdk.integrations.logging import LoggingIntegration
 
         # Configurar integração de logging
@@ -109,7 +108,6 @@ def init_sentry(config: Optional[MonitoringConfig] = None) -> bool:
                 FastApiIntegration(),
                 SqlalchemyIntegration(),
                 RedisIntegration(),
-                CeleryIntegration(),
                 logging_integration,
             ],
             # Performance monitoring

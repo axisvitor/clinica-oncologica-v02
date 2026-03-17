@@ -69,7 +69,7 @@ class MessageScheduler:
             )
 
             # Schedule delivery task at the desired time
-            await self.message_scheduler.task_scheduler.schedule_celery_task(
+            await self.message_scheduler.task_scheduler.schedule_task(
                 message, action.scheduled_for
             )
 

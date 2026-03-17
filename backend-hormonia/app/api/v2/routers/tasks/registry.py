@@ -70,23 +70,23 @@ def get_task_by_id(task_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def get_task_by_celery_id(celery_task_id: str) -> Optional[Dict[str, Any]]:
+def get_task_by_backend_id(backend_task_id: str) -> Optional[Dict[str, Any]]:
     """
-    Get task data by Celery task ID.
+    Get task data by backend task ID.
 
     Args:
-        celery_task_id: Celery task ID to look up
+        backend_task_id: Backend task ID to look up
 
     Returns:
         Task data dictionary if found, None otherwise
     """
-    if celery_task_id in task_registry:
-        return task_registry[celery_task_id]
+    if backend_task_id in task_registry:
+        return task_registry[backend_task_id]
 
     for stored_task in list_stored_tasks():
-        if stored_task.get("celery_task_id") != celery_task_id:
+        if stored_task.get("celery_task_id") != backend_task_id:
             continue
-        task_registry.setdefault(celery_task_id, stored_task)
+        task_registry.setdefault(backend_task_id, stored_task)
         return stored_task
     return None
 
@@ -99,7 +99,7 @@ def update_task(celery_task_id: str, updates: Dict[str, Any]) -> None:
         celery_task_id: Celery task ID
         updates: Dictionary of fields to update
     """
-    task_data = task_registry.get(celery_task_id) or get_task_by_celery_id(celery_task_id)
+    task_data = task_registry.get(celery_task_id) or get_task_by_backend_id(celery_task_id)
     if not task_data:
         return
 
@@ -121,7 +121,7 @@ def delete_task(celery_task_id: str) -> bool:
     Returns:
         True if task was deleted, False if not found
     """
-    task_data = task_registry.get(celery_task_id) or get_task_by_celery_id(celery_task_id)
+    task_data = task_registry.get(celery_task_id) or get_task_by_backend_id(celery_task_id)
     task_public_id = task_data.get("id") if task_data else None
 
     removed_local = celery_task_id in task_registry

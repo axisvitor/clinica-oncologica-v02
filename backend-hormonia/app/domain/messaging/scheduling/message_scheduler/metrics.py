@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.message import Message, MessageStatus
 from app.utils.db_retry import with_db_retry
 from app.utils.timezone import now_sao_paulo
-from .shared import ensure_message_metadata, get_celery_task_status
+from .shared import ensure_message_metadata, get_task_status
 
 logger = logging.getLogger(__name__)
 
@@ -163,4 +163,4 @@ class MetricsCollector:
         Returns:
             Task status information
         """
-        return await get_celery_task_status(task_id, logger)
+        return await get_task_status(task_id, logger)

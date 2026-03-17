@@ -24,7 +24,6 @@ from app.schemas.v2.tasks import (
 )
 from app.dependencies.auth_dependencies import get_generic_cache
 from app.utils.rate_limiter import limiter
-from app.utils.task_monitoring import get_task_monitoring_data
 from app.api.v2.routers import tasks as tasks_module
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,7 +32,7 @@ from ..dependencies import (
     _extract_user_role,
     _check_admin_role,
     _get_task_or_404,
-    _get_task_with_celery_data,
+    _get_task_with_backend_data,
 )
 from ..registry import hydrate_registry_from_store
 from ..utils import (
@@ -93,7 +92,7 @@ async def get_task_logs(
         logs = logs[:limit]
 
         # Get task data
-        merged_data = _get_task_with_celery_data(celery_task_id, task_data)
+        merged_data = _get_task_with_backend_data(celery_task_id, task_data)
         merged_data["logs"] = logs
 
         return merged_data
@@ -167,7 +166,7 @@ async def get_task_statistics(
 
             if isinstance(created_at, datetime) and start_date <= created_at <= end_date:
                 filtered_tasks.append(
-                    _get_task_with_celery_data(celery_task_id, task_data)
+                    _get_task_with_backend_data(celery_task_id, task_data)
                 )
 
         # Calculate statistics
@@ -280,7 +279,9 @@ async def get_queue_status(
             logger.debug("Cache hit for queue status")
             return [QueueStatusV2(**q) for q in cached_data]
 
-        monitoring_data = get_task_monitoring_data()
+        # Task monitoring data — Taskiq doesn't expose per-queue active task counts
+        # via an inspect API. Return empty queue status.
+        monitoring_data = {"active_tasks": []}
         queues = {}
 
         for task in monitoring_data.get("active_tasks", []):

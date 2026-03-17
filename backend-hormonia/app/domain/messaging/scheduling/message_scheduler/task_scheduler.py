@@ -1,5 +1,5 @@
 """
-Celery task scheduling for message delivery.
+Taskiq task scheduling for message delivery.
 """
 
 import logging
@@ -12,19 +12,19 @@ from app.utils.distributed_lock import (
     LockAcquisitionError,
     LockTimeoutError,
 )
-from .shared import get_celery_task_status
+from .shared import get_task_status
 
 logger = logging.getLogger(__name__)
 
 
 class TaskScheduler:
-    """Handles Celery task scheduling for message delivery."""
+    """Handles Taskiq task scheduling for message delivery."""
 
-    async def schedule_celery_task(
+    async def schedule_task(
         self, message: Message, delivery_time: datetime
     ) -> Dict[str, Any]:
         """
-        Schedule Celery task for message delivery with distributed locking.
+        Schedule Taskiq task for message delivery with distributed locking.
 
         Uses distributed locks to ensure messages are scheduled in the correct order
         and prevent race conditions in message delivery.
@@ -87,38 +87,38 @@ class TaskScheduler:
             }
         except Exception as e:
             logger.error(
-                f"Failed to schedule Celery task for message {message.id}: {e}"
+                f"Failed to schedule task for message {message.id}: {e}"
             )
             return {"task_id": None, "error": str(e), "status": "failed"}
 
     async def get_task_status(self, task_id: str) -> Dict[str, Any]:
         """
-        Get Celery task status.
+        Get task status.
 
         Args:
-            task_id: Celery task ID
+            task_id: Task ID
 
         Returns:
             Task status information
         """
-        return await get_celery_task_status(task_id, logger)
+        return await get_task_status(task_id, logger)
 
-    def cancel_celery_task(self, task_id: str) -> bool:
+    def cancel_task(self, task_id: str) -> bool:
         """
-        Cancel a Celery task.
+        Cancel a scheduled task.
+
+        Note: Taskiq doesn't support task revocation natively.
+        The task will still fire, but the flow-level pause/cancel guards
+        will prevent actual message delivery.
 
         Args:
             task_id: Task ID to cancel
 
         Returns:
-            True if cancelled successfully
+            True (logged as no-op)
         """
-        try:
-            from app.task_queue import task_queue as celery_app
-
-            celery_app.control.revoke(task_id, terminate=True)
-            logger.info(f"Cancelled Celery task {task_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to cancel Celery task {task_id}: {e}")
-            return False
+        logger.warning(
+            "Task cancellation requested but not supported in Taskiq",
+            extra={"task_id": task_id},
+        )
+        return True

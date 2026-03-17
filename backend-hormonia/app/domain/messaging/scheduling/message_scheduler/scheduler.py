@@ -127,7 +127,7 @@ class MessageScheduler:
             self.db.refresh(message)
 
             # Schedule Celery task
-            task_result = await self.task_scheduler.schedule_celery_task(
+            task_result = await self.task_scheduler.schedule_task(
                 message, delivery_time
             )
             task_id = task_result.get("task_id") if isinstance(task_result, dict) else None
@@ -240,7 +240,7 @@ class MessageScheduler:
             message_metadata = self._ensure_message_metadata(message)
             task_id = message_metadata.get("celery_task_id")
             if task_id:
-                self.task_scheduler.cancel_celery_task(task_id)
+                self.task_scheduler.cancel_task(task_id)
 
             # Update message status
             message.status = MessageStatus.CANCELLED
@@ -288,10 +288,10 @@ class MessageScheduler:
             message_metadata = self._ensure_message_metadata(message)
             old_task_id = message_metadata.get("celery_task_id")
             if old_task_id:
-                self.task_scheduler.cancel_celery_task(old_task_id)
+                self.task_scheduler.cancel_task(old_task_id)
 
             # Schedule new task
-            task_result = await self.task_scheduler.schedule_celery_task(
+            task_result = await self.task_scheduler.schedule_task(
                 message, new_delivery_time
             )
             task_id = task_result.get("task_id") if isinstance(task_result, dict) else None
@@ -461,7 +461,7 @@ class MessageScheduler:
             message_metadata["scheduled_at"] = now_sao_paulo().isoformat()
 
             # Schedule Celery task
-            task_result = await self.task_scheduler.schedule_celery_task(
+            task_result = await self.task_scheduler.schedule_task(
                 message, send_time
             )
 

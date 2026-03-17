@@ -22,7 +22,6 @@ from app.schemas.v2.tasks import (
 )
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
-from app.task_queue import task_queue as celery_app
 from app.api.v2.routers import tasks as tasks_module
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,7 +29,7 @@ from ..dependencies import (
     _get_current_user_simple,
     _extract_user_role,
     _get_task_or_404,
-    _get_task_with_celery_data,
+    _get_task_with_backend_data,
     _serialize_task,
 )
 from ..registry import update_task as update_registry_task
@@ -75,10 +74,10 @@ async def cancel_task(
                     detail="You do not have access to this task",
                 )
 
-        celery_app.control.revoke(
-            celery_task_id,
-            terminate=cancel_data.force,
-            signal="SIGKILL" if cancel_data.force else "SIGTERM",
+        # Task revocation not supported in Taskiq — log and continue
+        logger.warning(
+            "Task revocation requested but not supported in Taskiq",
+            extra={"task_id": celery_task_id, "force": cancel_data.force},
         )
 
         update_payload = {
@@ -104,7 +103,7 @@ async def cancel_task(
         )
 
         # Get updated data
-        merged_data = _get_task_with_celery_data(
+        merged_data = _get_task_with_backend_data(
             celery_task_id, tasks_module.task_registry[celery_task_id]
         )
 
@@ -188,9 +187,7 @@ async def retry_task(
                 retry_config.get("max_delay", 3600),
             )
 
-        # Retry the task
-        # Note: In a real implementation, you would requeue the original task
-        # For now, we'll update the status
+        # Update registry status (actual re-dispatch not supported via admin API)
         update_payload = {
             "status": TaskStatus.RETRY.value,
             "retry_count": retry_count + 1,

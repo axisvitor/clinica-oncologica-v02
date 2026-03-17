@@ -23,7 +23,6 @@ from app.schemas.v2.tasks import (
 )
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
-from app.task_queue import task_queue as celery_app
 from app.api.v2.routers import tasks as tasks_module
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -98,7 +97,11 @@ async def bulk_cancel_tasks(
                         errors[task_id] = "Access denied"
                         continue
 
-                celery_app.control.revoke(celery_task_id, terminate=True)
+                # Task revocation not supported in Taskiq — log and mark cancelled
+                logger.warning(
+                    "Bulk task revocation requested but not supported in Taskiq",
+                    extra={"task_id": celery_task_id},
+                )
                 cancellation_payload = {
                     "status": TaskStatus.CANCELLED.value,
                     "completed_at": now_sao_paulo(),

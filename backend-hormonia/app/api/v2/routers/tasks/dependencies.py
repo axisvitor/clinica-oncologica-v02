@@ -17,18 +17,63 @@ from app.utils.auth_helpers import extract_user_role as _extract_user_role
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .registry import (
-    get_task_by_celery_id as _registry_get_task_by_celery_id,
+    get_task_by_backend_id as _registry_get_task_by_backend_id,
     get_task_by_id as _registry_get_task_by_id,
     task_registry,
-)
-from .utils.celery_integration import (
-    _celery_status_to_task_status as _celery_status_to_task_status_impl,
-    _get_task_from_celery as _get_task_from_celery_impl,
-    _register_task as _register_task_impl,
 )
 from .utils.serializers import _serialize_task as _serialize_task_impl
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Celery integration stubs (replaced post-migration to Taskiq)
+# ---------------------------------------------------------------------------
+
+_CELERY_STATUS_MAP = {
+    "PENDING": TaskStatus.PENDING,
+    "STARTED": TaskStatus.RUNNING,
+    "SUCCESS": TaskStatus.SUCCESS,
+    "FAILURE": TaskStatus.FAILURE,
+    "RETRY": TaskStatus.RETRY,
+    "REVOKED": TaskStatus.CANCELLED,
+}
+
+
+def _backend_status_to_task_status(celery_status: str) -> TaskStatus:
+    """Convert a legacy Celery state string to TaskStatus enum."""
+    return _CELERY_STATUS_MAP.get(celery_status, TaskStatus.PENDING)
+
+
+def _get_task_from_backend(task_id: str) -> Dict[str, Any]:
+    """Get task information — returns registry data only (Celery removed)."""
+    task_data = _registry_get_task_by_backend_id(task_id)
+    return task_data or {}
+
+
+def _register_task(
+    celery_task_id: str,
+    task_name: str,
+    task_type: TaskType,
+    priority: TaskPriority,
+    user_id: Optional[UUID],
+    metadata: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Register a task in the task registry."""
+    import uuid as _uuid
+
+    task_id = str(_uuid.uuid4())
+    task_registry[celery_task_id] = {
+        "id": task_id,
+        "task_name": task_name,
+        "task_type": task_type.value if hasattr(task_type, "value") else task_type,
+        "priority": priority.value if hasattr(priority, "value") else priority,
+        "user_id": str(user_id) if user_id else None,
+        "status": TaskStatus.PENDING.value,
+        "metadata": metadata or {},
+        "celery_task_id": celery_task_id,
+    }
+    return task_id
 
 
 async def _get_current_user_simple(
@@ -62,40 +107,6 @@ def _check_admin_role(current_user: Dict[str, Any]) -> None:
         )
 
 
-def _celery_status_to_task_status(celery_status: str) -> TaskStatus:
-    """Convert Celery task state to TaskStatus enum."""
-    return _celery_status_to_task_status_impl(celery_status)
-
-
-def _get_task_from_celery(task_id: str) -> Dict[str, Any]:
-    """Get task information from Celery."""
-    return _get_task_from_celery_impl(task_id, task_registry)
-
-
-def _register_task(
-    celery_task_id: str,
-    task_name: str,
-    task_type: TaskType,
-    priority: TaskPriority,
-    user_id: Optional[UUID],
-    metadata: Optional[Dict[str, Any]] = None,
-) -> str:
-    """Register a task in the task registry."""
-    task_id = _register_task_impl(
-        celery_task_id=celery_task_id,
-        task_name=task_name,
-        task_type=task_type,
-        priority=priority,
-        user_id=user_id,
-        task_registry=task_registry,
-        metadata=metadata,
-    )
-    # Preserve existing response shape used by endpoints that serialize registry-only data.
-    if celery_task_id in task_registry:
-        task_registry[celery_task_id]["celery_task_id"] = celery_task_id
-    return task_id
-
-
 def _serialize_task(
     task_data: Dict[str, Any], fields: Optional[List[str]] = None
 ) -> Dict[str, Any]:
@@ -126,14 +137,13 @@ def _get_task_or_404(task_id: str) -> Tuple[str, Dict[str, Any]]:
     return celery_task_id, task_data
 
 
-def _get_task_with_celery_data(
+def _get_task_with_backend_data(
     celery_task_id: str, task_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
-    """Merge registry data with live Celery state for a task."""
+    """Return task data from registry (Celery removed — registry-only)."""
     base_task_data = (
         task_data
         if task_data is not None
-        else (_registry_get_task_by_celery_id(celery_task_id) or {})
+        else (_registry_get_task_by_backend_id(celery_task_id) or {})
     )
-    celery_data = _get_task_from_celery(celery_task_id)
-    return {**base_task_data, **celery_data}
+    return base_task_data

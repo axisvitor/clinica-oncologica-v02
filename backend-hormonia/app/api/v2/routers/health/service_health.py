@@ -79,28 +79,15 @@ async def check_redis_health() -> RedisHealth:
         )
 
 
-async def _read_avg_task_duration() -> float:
-    """Read rolling average task duration from Redis. Returns 0.0 on error or empty."""
-    try:
-        client = await get_redis_manager().get_async_client()
-        samples = await client.lrange("celery:metrics:avg_task_duration", 0, -1)
-        if not samples:
-            return 0.0
-        durations = [float(s) for s in samples]
-        return round(sum(durations) / len(durations), 3)
-    except Exception:
-        return 0.0
-
-
 async def check_worker_health(db: AsyncSession) -> WorkerHealth:
-    """Check background worker health (Taskiq + Celery coexistence)."""
+    """Check background worker health (Taskiq-based)."""
     active_workers = 0
     active_tasks = 0
     taskiq_status = "not_configured"
 
-    # --- Taskiq broker health (M009) ---
+    # --- Taskiq broker health ---
     try:
-        from app.taskiq_broker import check_broker_health, get_broker_status
+        from app.taskiq_broker import check_broker_health
 
         taskiq_health = await check_broker_health()
         if taskiq_health.get("dragonfly_reachable", False):
@@ -111,26 +98,6 @@ async def check_worker_health(db: AsyncSession) -> WorkerHealth:
     except Exception as e:
         logger.warning(f"Taskiq health check failed: {e}")
         taskiq_status = f"error: {e}"
-
-    # --- Celery worker health (coexistence) ---
-    celery_workers = 0
-    celery_tasks = 0
-    try:
-        from app.task_queue import task_queue as celery_app
-
-        inspect = celery_app.control.inspect(timeout=2.0)
-        active_workers_dict = inspect.active()
-
-        celery_workers = len(active_workers_dict) if active_workers_dict else 0
-        celery_tasks = (
-            sum(len(tasks) for tasks in active_workers_dict.values())
-            if active_workers_dict
-            else 0
-        )
-        active_workers += celery_workers
-        active_tasks += celery_tasks
-    except Exception as e:
-        logger.debug(f"Celery worker health check skipped: {e}")
 
     # --- DB metrics (failed + pending tasks) ---
     failed_tasks_24h = 0
@@ -169,10 +136,7 @@ async def check_worker_health(db: AsyncSession) -> WorkerHealth:
         failed_tasks_24h=failed_tasks_24h,
         pending_tasks=pending_tasks,
         queue_size=active_tasks + pending_tasks,
-        avg_task_duration_seconds=await _read_avg_task_duration(),
-        # Extra field for Taskiq visibility during coexistence
-        # Note: WorkerHealth schema may not have this field yet;
-        # it's included as metadata for the /workers JSON response.
+        avg_task_duration_seconds=0.0,
     )
 
 

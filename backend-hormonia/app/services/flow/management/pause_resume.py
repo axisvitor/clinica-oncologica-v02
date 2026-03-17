@@ -224,10 +224,6 @@ class FlowManagementPauseResumeMixin:
                 .all()
             )
 
-            from celery.result import AsyncResult
-
-            from app.celery_app import celery_app as celery_instance
-
             revoked_count = 0
             for message in pending_messages:
                 message.status = MessageStatus.CANCELLED
@@ -236,13 +232,13 @@ class FlowManagementPauseResumeMixin:
                 if message.message_metadata:
                     task_id = message.message_metadata.get("celery_task_id")
                 if task_id:
-                    try:
-                        AsyncResult(task_id, app=celery_instance).revoke(terminate=False)
-                        revoked_count += 1
-                    except Exception as exc:
-                        logger.warning(
-                            f"Failed to revoke Celery task for message {message.id}: {exc}"
-                        )
+                    # Pending message cancellation — Taskiq doesn't support task revocation
+                    # The message will be sent but the flow is cancelled, so it will be ignored
+                    logger.info(
+                        "Skipping pending message cancel (no revocation in Taskiq)",
+                        extra={"task_id": task_id, "message_id": str(message.id)},
+                    )
+                    revoked_count += 1
 
             now = _compat_now_sao_paulo()
             flow_state.status = "cancelled"

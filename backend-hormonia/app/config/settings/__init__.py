@@ -145,10 +145,6 @@ class Settings(
             "AI_ENABLE_HUMANIZATION",
             "AI_HUMANIZATION_ENABLE_SAFETY_MODE",
             "AI_HUMANIZATION_ENABLE_FALLBACK",
-            # Celery
-            "CELERY_ENABLE_TZ_NORMALIZATION",
-            "CELERY_ENABLE_TRACK_STARTED",
-            "CELERY_ENABLE_DISABLE_RATE_LIMITS",
             # Quiz
             "QUIZ_ENABLE_VIA_LINK",
             # Flow

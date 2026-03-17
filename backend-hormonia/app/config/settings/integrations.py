@@ -278,53 +278,6 @@ class IntegrationsSettings(BaseAppSettings):
     )
 
     # ============================================================================
-    # Celery Configuration (Background Tasks) - Direct ENV names
-    # ============================================================================
-    CELERY_BROKER_URL: str = Field(
-        default="redis://localhost:6379/0", description="Celery broker URL"
-    )
-    CELERY_RESULT_BACKEND: str = Field(
-        default="redis://localhost:6379/1",
-        description="Celery result backend (use different DB)",
-    )
-    CELERY_TASK_SERIALIZER: str = Field(
-        default="json", description="Celery task serializer"
-    )
-    CELERY_ACCEPT_CONTENT: List[str] = Field(
-        default=["json"], description="Celery accepted content types"
-    )
-    CELERY_RESULT_SERIALIZER: str = Field(
-        default="json", description="Celery result serializer"
-    )
-    CELERY_TIMEZONE: str = Field(default="America/Sao_Paulo", description="Celery timezone")
-    CELERY_ENABLE_TZ_NORMALIZATION: bool = Field(
-        default=True,
-        description="Enable UTC normalization while honoring CELERY_TIMEZONE for crontab scheduling",
-    )
-    CELERY_ENABLE_TRACK_STARTED: bool = Field(
-        default=True, description="Track task start events"
-    )
-    CELERY_WORKER_TIME_LIMIT_SECONDS: int = Field(
-        default=300, description="Task time limit in seconds"
-    )
-    CELERY_WORKER_SOFT_TIME_LIMIT_SECONDS: int = Field(
-        default=240, description="Task soft time limit in seconds"
-    )
-    CELERY_WORKER_MAX_TASKS_PER_CHILD: int = Field(
-        default=1000, description="Max tasks per worker child"
-    )
-    CELERY_ENABLE_DISABLE_RATE_LIMITS: bool = Field(
-        default=True, description="Disable rate limits for workers"
-    )
-    CELERY_WORKER_CONCURRENCY: int = Field(
-        default=4, description="Number of Celery worker processes"
-    )
-    CELERY_QUEUES: str = Field(
-        default="celery,flows,quiz,maintenance,monitoring",
-        description="Comma-separated list of Celery queues",
-    )
-
-    # ============================================================================
     # Helper Methods
     # ============================================================================
 

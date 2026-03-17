@@ -33,19 +33,13 @@ def ensure_message_metadata(message: Message, logger: logging.Logger) -> Dict[st
     return normalized
 
 
-async def get_celery_task_status(task_id: str, logger: logging.Logger) -> Dict[str, Any]:
-    """Fetch Celery task status in a consistent format."""
-    try:
-        from celery.result import AsyncResult
-
-        result = AsyncResult(task_id)
-        return {
-            "task_id": task_id,
-            "status": result.status,
-            "result": result.result if result.ready() else None,
-            "traceback": result.traceback if result.failed() else None,
-            "date_done": result.date_done,
-        }
-    except Exception as exc:
-        logger.error(f"Failed to get task status for {task_id}: {exc}")
-        return {"task_id": task_id, "status": "UNKNOWN", "error": str(exc)}
+async def get_task_status(task_id: str, logger: logging.Logger) -> Dict[str, Any]:
+    """Fetch task status — returns a stub since Celery AsyncResult is removed."""
+    return {
+        "task_id": task_id,
+        "status": "UNKNOWN",
+        "result": None,
+        "traceback": None,
+        "date_done": None,
+        "note": "Task status polling removed with Celery migration",
+    }

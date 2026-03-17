@@ -25,20 +25,16 @@ email-validator>=2.3.0,<3.0.0
 jsonschema>=4.23.0,<5.0.0  # JSON schema validation for patient metadata
 
 # Background tasks
-celery>=5.6.2,<6.0.0
-celery[redis]>=5.6.2,<6.0.0  # Celery with Redis broker support
 redis>=6.4.0,<8.0.0  # Redis client (7.x pulled by taskiq-redis)
 certifi>=2024.12.14,<2025.0.0  # CA certificates for Redis SSL/TLS validation
-asgiref>=3.11.0,<4.0.0  # Async utilities for Celery tasks (async_to_sync)
 
-# Taskiq (async-native task queue — Celery replacement, M009)
+# Taskiq (async-native task queue, M009)
 taskiq>=0.11.0,<1.0.0
 taskiq-redis>=1.0.0,<2.0.0
 taskiq-fastapi>=0.3.0,<1.0.0
 
-# Celery monitoring
-flower==2.0.1  # Web-based Celery monitoring UI
-prometheus-client>=0.24.1,<1.0.0  # Prometheus metrics for Celery tasks
+# Monitoring
+prometheus-client>=0.24.1,<1.0.0  # Prometheus metrics
 
 # AI (Gemini)
 # pydantic-ai-slim: Typed AI agents with Gemini support (v1.2 migration)

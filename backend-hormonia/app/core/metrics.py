@@ -67,17 +67,6 @@ app_redis_operations_total = Counter(
     "app_redis_operations_total", "Total Redis operations", ["operation"]
 )
 
-app_celery_task_duration_seconds = Histogram(
-    "app_celery_task_duration_seconds",
-    "Celery task duration in seconds",
-    ["task"],
-    buckets=[1, 5, 10, 30, 60, 300, 600],
-)
-
-app_celery_queue_size = Gauge(
-    "app_celery_queue_size", "Number of tasks in Celery queue", ["queue"]
-)
-
 # Business Metrics
 app_revenue_total = Counter("app_revenue_total", "Total revenue in USD", ["tier"])
 
@@ -214,27 +203,6 @@ def track_db_query_metrics(query_name: str):
     return decorator
 
 
-def track_celery_task_metrics(task_name: str):
-    """Decorator to track Celery task metrics"""
-
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            start_time = time.time()
-
-            try:
-                return func(*args, **kwargs)
-            finally:
-                duration = time.time() - start_time
-                app_celery_task_duration_seconds.labels(task=task_name).observe(
-                    duration
-                )
-
-        return wrapper
-
-    return decorator
-
-
 # Helper functions for common operations
 def record_patient_onboarding(status: str):
     """Record patient onboarding attempt"""
@@ -315,7 +283,3 @@ def update_sla_compliance(ratio: float):
     """Update SLA compliance ratio"""
     app_sla_compliance_ratio.set(ratio)
 
-
-def update_celery_queue_size(queue: str, size: int):
-    """Update Celery queue size"""
-    app_celery_queue_size.labels(queue=queue).set(size)

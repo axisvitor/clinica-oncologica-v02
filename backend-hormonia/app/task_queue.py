@@ -1,5 +1,8 @@
 """
-Task queue abstraction backed by Celery.
+Task store abstraction backed by Redis/Dragonfly.
+
+Provides CRUD operations for task metadata persistence.
+Taskiq broker access helpers for health checks and broker retrieval.
 """
 
 from __future__ import annotations
@@ -7,43 +10,15 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import logging
-import importlib
 from typing import Any, Dict, Optional
 
 from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
-_TASK_MODULES = [
-    "app.tasks.messaging",
-    "app.tasks.flows",
-    "app.tasks.flow_automation",
-    "app.tasks.reports",
-    "app.tasks.alerts",
-    "app.tasks.quiz_link_tasks",
-    "app.tasks.quiz_flow",
-    "app.tasks.saga_retry",
-    "app.tasks.saga_monitoring",
-    "app.tasks.follow_up",
-    "app.tasks.webhook_dlq",
-    "app.tasks.audit_cleanup",
-    "app.tasks.monitoring",
-    "app.tasks.lgpd_tasks",
-    "app.tasks.lgpd.reencrypt_patients",
-]
-_registry_loaded = False
 _TASK_STORE_PREFIX = "tasks:registry:"
 _TASK_STORE_INDEX = "tasks:registry:index"
 _TASK_STORE_TTL_SECONDS = 7 * 24 * 60 * 60
-
-
-def ensure_task_registry_loaded() -> None:
-    global _registry_loaded
-    if _registry_loaded:
-        return
-    for module_name in _TASK_MODULES:
-        importlib.import_module(module_name)
-    _registry_loaded = True
 
 
 def _get_task_store_client():
@@ -170,42 +145,8 @@ def delete_task(task_id: str) -> None:
     client.zrem(_TASK_STORE_INDEX, task_id)
 
 
-class TaskQueue:
-    """Task queue backed by Celery (with Taskiq coexistence, M009)."""
-
-    @property
-    def control(self):
-        from app.celery_app import celery_app
-        return celery_app.control
-
-    def task(self, *dargs: Any, **dkwargs: Any):
-        from app.celery_app import celery_app
-        return celery_app.task(*dargs, **dkwargs)
-
-    def send_task(self, name: str, args=None, kwargs=None, **options):
-        from app.celery_app import celery_app
-        return celery_app.send_task(name, args=args, kwargs=kwargs, **options)
-
-    def enqueue(self, task_name: str, args=None, kwargs=None, eta=None, countdown=None, **options):
-        from app.celery_app import celery_app
-        return celery_app.send_task(
-            task_name, args=args, kwargs=kwargs, eta=eta, countdown=countdown, **options
-        )
-
-
-task_queue = TaskQueue()
-
-
 # ---------------------------------------------------------------------------
-# Taskiq broker access (M009 coexistence period).
-#
-# During migration, both Celery and Taskiq may be running.
-# New tasks should use the Taskiq broker directly:
-#   from app.taskiq_broker import broker
-#   @broker.task
-#   async def my_new_task(): ...
-#
-# Legacy callers that need a unified interface can use get_taskiq_broker().
+# Taskiq broker access
 # ---------------------------------------------------------------------------
 
 def get_taskiq_broker():
@@ -213,7 +154,7 @@ def get_taskiq_broker():
     Return the Taskiq broker instance.
 
     Lazy import to avoid circular dependencies and heavy settings chain.
-    Returns None if Taskiq is not configured (should not happen after M009/S01).
+    Returns None if Taskiq is not configured.
     """
     try:
         from app.taskiq_broker import broker
@@ -227,7 +168,7 @@ async def get_taskiq_broker_health() -> dict:
     """
     Return Taskiq broker health status.
 
-    Convenience wrapper for health checks that need both Celery and Taskiq status.
+    Convenience wrapper for health checks.
     """
     try:
         from app.taskiq_broker import check_broker_health

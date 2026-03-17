@@ -15,13 +15,12 @@ help:
 	@echo "  test-unit   - Run unit tests in parallel (xdist)"
 	@echo "  test-all    - Run full test suite"
 	@echo "  clean       - Clean Python cache files"
-	@echo "  docker-up   - Start Docker services (Redis, Celery)"
+	@echo "  docker-up   - Start Docker services (Redis)"
 	@echo "  docker-down - Stop Docker services"
 	@echo "  migrate     - Run database migrations"
 	@echo "  migration   - Create new migration"
-	@echo "  celery      - Start Celery worker"
-	@echo "  beat        - Start Celery beat scheduler"
-	@echo "  flower      - Start Celery flower monitoring"
+	@echo "  taskiq-worker    - Start Taskiq worker"
+	@echo "  taskiq-scheduler - Start Taskiq scheduler"
 
 # Install dependencies
 install:
@@ -35,10 +34,10 @@ staging-api-local-evolution:
 	APP_ENVIRONMENT=staging WHATSAPP_EVOLUTION_USE_MOCK=false WHATSAPP_EVOLUTION_API_URL=http://127.0.0.1:8080 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 staging-worker-local-evolution:
-	APP_ENVIRONMENT=staging WHATSAPP_EVOLUTION_USE_MOCK=false WHATSAPP_EVOLUTION_API_URL=http://127.0.0.1:8080 celery -A app.celery_app worker --loglevel=info
+	APP_ENVIRONMENT=staging WHATSAPP_EVOLUTION_USE_MOCK=false WHATSAPP_EVOLUTION_API_URL=http://127.0.0.1:8080 taskiq worker app.taskiq_broker:broker
 
 staging-beat-local-evolution:
-	APP_ENVIRONMENT=staging WHATSAPP_EVOLUTION_USE_MOCK=false WHATSAPP_EVOLUTION_API_URL=http://127.0.0.1:8080 celery -A app.celery_app beat --loglevel=info
+	APP_ENVIRONMENT=staging WHATSAPP_EVOLUTION_USE_MOCK=false WHATSAPP_EVOLUTION_API_URL=http://127.0.0.1:8080 taskiq scheduler app.taskiq_broker:scheduler
 
 # Run tests
 test:
@@ -88,17 +87,13 @@ migrate:
 migration:
 	alembic revision --autogenerate -m "$(name)"
 
-# Start Celery worker
-celery:
-	celery -A app.celery_app worker --loglevel=info
+# Start Taskiq worker
+taskiq-worker:
+	taskiq worker app.taskiq_broker:broker
 
-# Start Celery beat scheduler
-beat:
-	celery -A app.celery_app beat --loglevel=info
-
-# Start Celery flower monitoring
-flower:
-	celery -A app.celery_app flower --port=5555
+# Start Taskiq scheduler
+taskiq-scheduler:
+	taskiq scheduler app.taskiq_broker:scheduler
 
 # Format code
 format:
@@ -179,10 +174,10 @@ setup: install docker-up migrate
 # Full development start
 start: docker-up
 	@echo "Starting all services..."
-	@echo "Starting Celery worker in background..."
-	@celery -A app.celery_app worker --loglevel=info --detach
-	@echo "Starting Celery beat in background..."
-	@celery -A app.celery_app beat --loglevel=info --detach
+	@echo "Starting Taskiq worker in background..."
+	@taskiq worker app.taskiq_broker:broker &
+	@echo "Starting Taskiq scheduler in background..."
+	@taskiq scheduler app.taskiq_broker:scheduler &
 	@echo "Starting development server..."
 	@uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 

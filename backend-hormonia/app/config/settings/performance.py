@@ -226,29 +226,6 @@ class PerformanceSettings(BaseAppSettings):
     )
 
     # ============================================================================
-    # Background Task Optimization
-    # ============================================================================
-
-    CELERY_WORKER_POOL_SIZE: int = Field(
-        default=4, ge=2, le=16, description="Celery worker pool size (CPU-bound tasks)"
-    )
-    CELERY_WORKER_PREFETCH_MULTIPLIER: int = Field(
-        default=4, ge=1, le=10, description="Tasks to prefetch per worker"
-    )
-    CELERY_TASK_SOFT_TIME_LIMIT_SECONDS: int = Field(
-        default=300,  # 5 minutes
-        ge=60,
-        le=3600,
-        description="Soft time limit for tasks (raises exception)",
-    )
-    CELERY_TASK_HARD_TIME_LIMIT_SECONDS: int = Field(
-        default=600,  # 10 minutes
-        ge=120,
-        le=7200,
-        description="Hard time limit for tasks (kills worker)",
-    )
-
-    # ============================================================================
     # Monitoring & Metrics
     # ============================================================================
 

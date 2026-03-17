@@ -31,10 +31,7 @@ from app.api.v2.dependencies import (
 )
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
-from app.task_queue import (
-    task_queue as celery_app,
-    update_task as update_stored_task,
-)
+from app.task_queue import update_task as update_stored_task
 from app.api.v2.routers import tasks as tasks_module
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,8 +39,9 @@ from ..dependencies import (
     _get_current_user_simple,
     _extract_user_role,
     _get_task_or_404,
-    _get_task_with_celery_data,
+    _get_task_with_backend_data,
     _serialize_task,
+    _register_task,
 )
 from ..registry import hydrate_registry_from_store
 from ..utils import (
@@ -112,7 +110,7 @@ async def list_tasks(
 
         raw_tasks = []
         for celery_task_id, task_data in tasks_module.task_registry.items():
-            raw_tasks.append(_get_task_with_celery_data(celery_task_id, task_data))
+            raw_tasks.append(_get_task_with_backend_data(celery_task_id, task_data))
 
         tasks = []
         for task_data in raw_tasks:
@@ -230,7 +228,6 @@ async def get_task(
     Get a specific task by ID with real-time progress tracking.
 
     Features:
-    - Real-time status from Celery
     - Progress tracking with ETA
     - Field selection for bandwidth optimization
     - Redis caching with 2-minute TTL
@@ -259,8 +256,8 @@ async def get_task(
                     detail="You do not have access to this task",
                 )
 
-        # Get fresh data from Celery
-        merged_data = _get_task_with_celery_data(celery_task_id, task_data)
+        # Get task data from registry
+        merged_data = _get_task_with_backend_data(celery_task_id, task_data)
 
         # Serialize
         data = _serialize_task(merged_data, fields)
@@ -303,42 +300,31 @@ async def create_task(
     """
     Create and schedule a new background task.
 
-    Features:
-    - Immediate or scheduled execution
-    - Custom retry configuration
-    - Task timeout support
-    - Priority queue support
-    - RBAC: All authenticated users can create tasks
+    Note: Direct task dispatch by string name is not supported after Taskiq migration.
+    Tasks are registered in the task store for tracking purposes.
 
     Rate limit: 30 requests/minute
     """
     try:
         user_id = UUID(current_user.get("id"))
 
-        # Prepare task options
-        task_options = {
-            "priority": {"low": 3, "medium": 6, "high": 9, "critical": 10}.get(
-                task_data.priority.value, 6
-            )
-        }
-
-        if task_data.timeout_seconds:
-            task_options["time_limit"] = task_data.timeout_seconds
-
-        if task_data.schedule_at:
-            task_options["eta"] = task_data.schedule_at
-
-        # Apply the task to Celery
-        celery_task = celery_app.send_task(
-            task_data.celery_task_name,
-            args=task_data.args,
-            kwargs=task_data.kwargs,
-            **task_options,
+        # Task dispatch by string name is not supported in Taskiq.
+        # Register the task for tracking and log a warning.
+        logger.warning(
+            "Task creation via admin API requested — direct dispatch by name not supported in Taskiq",
+            extra={
+                "task_name": task_data.celery_task_name,
+                "user_id": str(user_id),
+            },
         )
 
-        # Register task
-        task_id = tasks_module._register_task(
-            celery_task.id,
+        import uuid as _uuid
+
+        placeholder_task_id = str(_uuid.uuid4())
+
+        # Register task in registry for tracking
+        task_id = _register_task(
+            placeholder_task_id,
             task_data.task_name,
             task_data.task_type,
             task_data.priority,
@@ -347,7 +333,7 @@ async def create_task(
         )
 
         # Update registry with additional info
-        tasks_module.task_registry[celery_task.id].update(
+        tasks_module.task_registry[placeholder_task_id].update(
             {
                 "description": task_data.description,
                 "retry_config": task_data.retry_config.dict()
@@ -355,6 +341,7 @@ async def create_task(
                 else None,
                 "timeout_seconds": task_data.timeout_seconds,
                 "scheduled_at": task_data.schedule_at,
+                "status": TaskStatus.PENDING.value,
             }
         )
         update_stored_task(
@@ -374,12 +361,12 @@ async def create_task(
 
         # Log creation
         logger.info(
-            f"Task created: {task_id} ({task_data.task_name}) by user {user_id}"
+            f"Task registered: {task_id} ({task_data.task_name}) by user {user_id}"
         )
 
         # Get and return task data
-        task_info = tasks_module.task_registry[celery_task.id]
-        merged_data = _get_task_with_celery_data(celery_task.id, task_info)
+        task_info = tasks_module.task_registry[placeholder_task_id]
+        merged_data = _get_task_with_backend_data(placeholder_task_id, task_info)
 
         return _serialize_task(merged_data)
 

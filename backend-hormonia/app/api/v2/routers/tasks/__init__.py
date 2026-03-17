@@ -16,7 +16,7 @@ from .endpoints import (
     monitoring_router,
     bulk_router,
 )
-from .dependencies import _get_task_from_celery, _register_task, task_registry
+from .dependencies import _get_task_from_backend, _register_task, task_registry
 
 # Create main router
 router = APIRouter()
@@ -27,4 +27,4 @@ router.include_router(bulk_router, tags=["Tasks - Bulk Operations"])
 router.include_router(operations_router, tags=["Tasks - Operations"])
 router.include_router(monitoring_router, tags=["Tasks - Monitoring"])
 
-__all__ = ["router", "_get_task_from_celery", "_register_task", "task_registry"]
+__all__ = ["router", "_get_task_from_backend", "_register_task", "task_registry"]
