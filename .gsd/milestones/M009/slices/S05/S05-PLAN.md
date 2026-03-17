@@ -132,6 +132,20 @@ for node in ast.walk(tree):
                 sys.exit(1)
 print('PASS — tasks/__init__.py clean')
 "
+
+# V10: Structured error logging retained in all Taskiq modules (failure-path diagnostic)
+python3 -c "
+import glob, sys
+missing = []
+for f in glob.glob('backend-hormonia/app/tasks/*_taskiq.py'):
+    content = open(f).read()
+    if 'log_task_error' not in content and 'log_task_start' not in content:
+        missing.append(f)
+if missing:
+    print('FAIL — Missing structured logging in:', missing)
+    sys.exit(1)
+print(f'PASS — All Taskiq modules retain structured error logging')
+"
 ```
 
 ## Observability / Diagnostics
@@ -165,7 +179,7 @@ print('PASS — tasks/__init__.py clean')
   - Verify: `grep -rn "TODO(S05)" backend-hormonia/app/ --include="*.py"` returns nothing. All 3 files parse with `ast.parse()`. No `.delay()` or `.apply_async()` in trigger_service.py or recovery.py.
   - Done when: Zero TODO(S05) markers, zero Celery dispatch calls in trigger_service.py and recovery.py, all files parse cleanly
 
-- [ ] **T03: Delete all Celery task files, bridge code, and rewrite package inits** `est:30m`
+- [x] **T03: Delete all Celery task files, bridge code, and rewrite package inits** `est:30m`
   - Why: With helpers extracted (T01) and call sites resolved (T02), all Celery task files and bridge code are dead. Deleting them fulfills R084 (bridge code removal) and unblocks the infrastructure cleanup in T04.
   - Files: ~25 files deleted, `app/tasks/__init__.py` (rewrite), `app/core/__init__.py` (clean)
   - Do: (1) Delete bridge code: `celery_app.py`, `core/async_context_manager.py`, `utils/async_helpers.py`, `services/async_handler.py`, `core/event_loop_manager.py`. (2) Delete task infrastructure: `tasks/base.py`, `tasks/config.py`, `tasks/celery_metrics.py`, `tasks/queue_monitor.py`. (3) Delete all Celery task files: `tasks/messaging.py`, `tasks/alerts.py`, `tasks/monitoring.py`, `tasks/flow_automation.py`, `tasks/follow_up.py`, `tasks/lgpd_tasks.py`, `tasks/quiz_link_tasks.py`, `tasks/reports.py`, `tasks/saga_monitoring.py`, `tasks/saga_retry.py`, `tasks/webhook_dlq.py`, `tasks/audit_cleanup.py`. (4) Delete entire directories: `tasks/flows/`, `tasks/quiz_flow/`, `tasks/lgpd/`. (5) Rewrite `tasks/__init__.py` to re-export key task functions from `*_taskiq.py` modules. (6) Clean `core/__init__.py` — remove all event_loop_manager imports/exports.
