@@ -84,14 +84,6 @@ The project uses `strict: true`, `noImplicitAny: true`, `noUncheckedIndexedAcces
 - `grep -n "usePatientFlowOverrides" frontend-hormonia/src/features/patients/hooks/index.ts` — export exists
 - `grep -n "MergedDayItem" frontend-hormonia/src/features/patients/hooks/usePatientFlowOverrides.ts` — type exists
 
-## Observability Impact
-
-- **New query key**: `['patient-flow-overrides', patientId]` appears in React Query DevTools when the hook mounts. Agents can inspect cache freshness, refetch count, and error state.
-- **New network traffic**: GET and PUT to `/api/v2/patients/{id}/flow-overrides` — visible in browser Network tab. Failed requests surface as `error` on the hook return value.
-- **Failure visibility**: If the API returns 4xx/5xx, `query.error` and `mutation.error` are set. Downstream components should render these; the hook does not swallow errors.
-- **Inspection command**: `grep -rn "patient-flow-overrides" frontend-hormonia/src/` confirms all consumers of this query key.
-- **No new logging added**: The hook relies on `apiClient`'s existing debug-level request logging. No additional console output.
-
 ## Inputs
 
 - Backend schema reference: `backend-hormonia/app/schemas/v2/patient_overrides.py` — defines `MergedDayItem`, `MergedDayListResponse`, `OverrideDayInput`, `OverrideDayUpdateRequest`
@@ -99,6 +91,14 @@ The project uses `strict: true`, `noImplicitAny: true`, `noUncheckedIndexedAcces
 - React Query pattern: `frontend-hormonia/src/hooks/useFlowEngine.ts` — shows `useQuery`/`useMutation`/`useQueryClient` conventions
 - Existing barrel: `frontend-hormonia/src/features/patients/hooks/index.ts` — currently exports `usePatientActions` and `usePatientTable`
 - Import for apiClient: `import { apiClient } from '@/lib/api-client'`
+
+## Observability Impact
+
+- **New query key**: `['patient-flow-overrides', patientId]` — visible in React Query DevTools. Agents can inspect cache state, refetch timing, and error status via the devtools panel or `queryClient.getQueryState(['patient-flow-overrides', patientId])`.
+- **Mutation error propagation**: The `saveOverrides` function (from `mutateAsync`) rejects with `ApiError` which carries `status`, `userFriendlyMessage`, and `retryable`. Downstream components (T02) should surface this.
+- **No new console logging**: The hook relies on `apiClient`'s existing structured logging (`createLogger('ApiClient')`). No additional `console.log` calls.
+- **Failure visibility**: If the GET fails (404, 500), `error` in the hook return will be an `ApiError` instance. If the PUT fails, `saveOverrides` rejects. Both are inspectable via React Query DevTools or `usePatientFlowOverrides` return values.
+- **Static verification**: `tsc --noEmit` catches type drift. If backend schema changes fields, this file will fail to compile — that's the intended early warning.
 
 ## Expected Output
 

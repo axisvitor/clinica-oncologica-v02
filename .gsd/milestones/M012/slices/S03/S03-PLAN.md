@@ -26,15 +26,6 @@
 - New files parse: `usePatientFlowOverrides.ts`, `PatientFlowOverrideEditor.tsx` exist and are imported
 - `PatientDetailPage.tsx` imports and renders the editor dialog
 
-## Observability / Diagnostics
-
-- **React Query DevTools**: Query key `['patient-flow-overrides', patientId]` visible in DevTools panel — inspect cache state, stale/fresh status, and fetch timing.
-- **Network tab**: GET `/api/v2/patients/{id}/flow-overrides` and PUT same endpoint visible in browser Network tab with request/response payloads for debugging contract mismatches.
-- **Mutation error surface**: `useMutation` surfaces `error` on the returned object; the editor component should display save failures to the user via toast or inline error.
-- **Console logging**: `apiClient` already logs request/response at debug level; override requests will appear alongside existing API traffic.
-- **Build-time signals**: `tsc --noEmit` and `vite build` catch type regressions immediately — any interface drift from backend schema changes surfaces as compile errors.
-- **Redaction**: No PHI in query keys (only `patientId` UUID). Day content may contain clinical text — ensure it is not logged to console in production.
-
 ## Integration Closure
 
 - Upstream surfaces consumed: GET/PUT `/api/v2/patients/{patient_id}/flow-overrides` from S01, `apiClient.get<T>()`/`apiClient.put<T>()` from `@/lib/api-client`, `MergedDayItem`/`MergedDayListResponse` schema shape from `patient_overrides.py`
@@ -50,12 +41,21 @@
   - Verify: `cd frontend-hormonia && npx tsc --noEmit` passes with the new file
   - Done when: Hook file exists with full types, compiles without errors, exported from barrel
 
-- [ ] **T02: PatientFlowOverrideEditor component + PatientDetailPage integration + build proof** `est:45m`
+- [x] **T02: PatientFlowOverrideEditor component + PatientDetailPage integration + build proof** `est:45m`
   - Why: This is the user-facing deliverable — the editor dialog and its wiring into the page. Covers R108 completely: button, badge, future-only editing, skip toggle, add day.
   - Files: `frontend-hormonia/src/features/patients/components/PatientFlowOverrideEditor.tsx`, `frontend-hormonia/src/pages/PatientDetailPage.tsx`
   - Do: Build editor dialog following `DayConfigEditor.tsx` pattern. Source badges via Badge component (secondary="Global", default="Personalizado"). Editable gating on all inputs via `disabled={!day.editable}`. Skip toggle via Switch. Add day button. Save filters to OverrideDayInput fields only. Wire into PatientDetailPage with useState for dialog open. Run `tsc --noEmit` + `vite build`.
   - Verify: `cd frontend-hormonia && npx tsc --noEmit && npx vite build` both green
   - Done when: Editor renders in PatientDetailPage, badges visible, past days disabled, both build checks green
+
+## Observability / Diagnostics
+
+- **React Query DevTools**: `['patient-flow-overrides', patientId]` query visible in RQ devtools — shows cache state, fetch timing, staleness. No custom logging needed.
+- **Network tab**: GET/PUT to `/api/v2/patients/{id}/flow-overrides` visible in browser devtools with full request/response payloads.
+- **Mutation error surface**: `useMutation` `error` field exposes `ApiError` with `status`, `userFriendlyMessage`, and `retryable` — the editor component should surface `error.userFriendlyMessage` in a toast or inline alert.
+- **Cache invalidation**: On successful PUT, the query key `['patient-flow-overrides', patientId]` is invalidated. Verify via RQ devtools that stale data is refetched.
+- **TypeScript compile**: `tsc --noEmit` is the primary static verification — catches schema drift between backend Pydantic and frontend TS interfaces.
+- **No PHI in logs**: All patient data flows through the existing `apiClient` which handles credentials via cookies. No additional logging of patient content is added. Badge labels ("Global"/"Personalizado") are UI metadata, not PHI.
 
 ## Files Likely Touched
 

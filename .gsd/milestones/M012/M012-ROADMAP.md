@@ -60,10 +60,10 @@ This milestone is complete only when all are true:
 - [x] **S02: Injeção no pipeline de envio** `risk:high` `depends:[S01]`
   > After this: _get_day_config consulta override do paciente antes do template global. Dias com skip=true são pulados por process_daily_flows. Cache Redis com invalidação no PUT. ast.parse green.
 
-- [ ] **S03: Editor de override no PatientDetailPage** `risk:medium` `depends:[S01]`
+- [x] **S03: Editor de override no PatientDetailPage** `risk:medium` `depends:[S01]`
   > After this: Botão "Personalizar Fluxo" no PatientDetailPage abre editor com lista completa, badge visual global/custom, edição restrita a dias futuros. tsc + vite build green.
 
-- [ ] **S04: Verificação integrada** `risk:low` `depends:[S01,S02,S03]`
+- [x] **S04: Verificação integrada** `risk:low` `depends:[S01,S02,S03]`
   > After this: Script replayable prova todos os deliverables. Milestone verificado.
 
 ## Boundary Map

@@ -3,20 +3,21 @@ id: T01
 parent: S03
 milestone: M012
 provides:
-  - TypeScript interfaces mirroring backend patient override schemas
-  - React Query hook for GET/PUT patient flow overrides
+  - TypeScript interfaces matching backend patient_overrides.py Pydantic schemas
+  - usePatientFlowOverrides React Query hook wrapping GET/PUT flow-overrides endpoints
 key_files:
   - frontend-hormonia/src/features/patients/hooks/usePatientFlowOverrides.ts
   - frontend-hormonia/src/features/patients/hooks/index.ts
-key_decisions:
-  - Kept query key as flat string prefix plus patientId for easy invalidation
+key_decisions: []
 patterns_established:
-  - React Query hook with useQuery+useMutation in a single file, query key constant extracted for reuse
+  - QUERY_KEY_PREFIX constant extracted for query key consistency across query and mutation
+patterns_reused:
+  - apiClient.get<T>/put<T,TData> pattern from core.ts
+  - useQuery/useMutation/useQueryClient convention from useFlowEngine.ts
 observability_surfaces:
-  - React Query DevTools: query key ['patient-flow-overrides', patientId]
-  - Network tab: GET/PUT /api/v2/patients/{id}/flow-overrides
-  - Hook exposes error and isSaving for downstream UI error rendering
-duration: 10m
+  - React Query DevTools key ['patient-flow-overrides', patientId] for cache state inspection
+  - Mutation errors propagate ApiError with status, userFriendlyMessage, retryable
+duration: 5m
 verification_result: passed
 completed_at: 2026-03-17
 blocker_discovered: false
@@ -24,47 +25,40 @@ blocker_discovered: false
 
 # T01: TypeScript types and React Query hook for patient flow overrides
 
-**Added usePatientFlowOverrides hook with MergedDayItem/OverrideDayInput types and React Query GET/PUT wiring**
+**Defined MergedDayItem, MergedDayListResponse, OverrideDayInput, OverrideDayUpdateRequest interfaces and usePatientFlowOverrides hook with GET query + PUT mutation, exported from barrel**
 
 ## What Happened
 
-Created the data layer for the patient flow override editor. Defined four TypeScript interfaces (`MergedDayItem`, `MergedDayListResponse`, `OverrideDayInput`, `OverrideDayUpdateRequest`) that mirror the backend Pydantic schemas in `patient_overrides.py`. The hook wraps GET with `useQuery` (staleTime 60s, enabled guard) and PUT with `useMutation` (invalidates cache on success). All types are exported from the patients hooks barrel. `tsc --noEmit` passes with zero errors.
+The hook file and barrel export were already present from the T02 implementation pass. Verified that all four interfaces exactly mirror the backend `patient_overrides.py` schemas: `MergedDayItem` has `source: 'global' | 'override'` and `editable: boolean`; `OverrideDayInput` correctly omits those read-only fields. The hook uses `useQuery` with `enabled: !!patientId`, `staleTime: 60_000`, and `useMutation` with `onSuccess` cache invalidation. The barrel re-exports the hook and three type interfaces (`MergedDayItem`, `MergedDayListResponse`, `OverrideDayInput`).
 
 ## Verification
 
-- `npx tsc --noEmit` — zero errors, confirming all types are correct under strict mode
-- `grep` confirmed barrel exports for hook and type re-exports
-- File existence verified on disk
+- `tsc --noEmit` passed with zero errors (40.6s)
+- `grep` confirmed `usePatientFlowOverrides` export in `index.ts` (lines 7, 12)
+- `grep` confirmed `MergedDayItem` interface at line 16 of hook file
+- `grep` confirmed `source: 'global' | 'override'` literal union type at line 23
+- `grep` confirmed query key `patient-flow-overrides` at lines 7, 51
+- Inspected `OverrideDayInput` — confirmed it has only `day_number`, `content`, `message_type`, `expects_response`, `skip` (no `source`/`editable`)
 
 ## Verification Evidence
 
 | # | Command | Exit Code | Verdict | Duration |
 |---|---------|-----------|---------|----------|
-| 1 | `npx tsc --noEmit` | 0 | ✅ pass | 38.8s |
-| 2 | `ls usePatientFlowOverrides.ts` | 0 | ✅ pass | <1s |
-| 3 | `grep usePatientFlowOverrides index.ts` | 0 | ✅ pass | <1s |
-| 4 | `grep MergedDayItem usePatientFlowOverrides.ts` | 0 | ✅ pass | <1s |
-
-### Slice-Level Checks (partial — T01 is intermediate)
-
-| # | Check | Result | Notes |
-|---|-------|--------|-------|
-| 1 | `tsc --noEmit` | ✅ pass | Zero errors |
-| 2 | `vite build` | ⏳ deferred | Will run after T02 adds component |
-| 3 | `usePatientFlowOverrides.ts` exists | ✅ pass | — |
-| 4 | `PatientFlowOverrideEditor.tsx` exists | ⏳ T02 | — |
-| 5 | `PatientDetailPage` imports editor | ⏳ T02 | — |
+| 1 | `cd frontend-hormonia && npx tsc --noEmit` | 0 | ✅ pass | 40.6s |
+| 2 | `grep -n "usePatientFlowOverrides" frontend-hormonia/src/features/patients/hooks/index.ts` | 0 | ✅ pass | <1s |
+| 3 | `grep -n "MergedDayItem" frontend-hormonia/src/features/patients/hooks/usePatientFlowOverrides.ts` | 0 | ✅ pass | <1s |
+| 4 | `grep -n "source: 'global' | 'override'" ...usePatientFlowOverrides.ts` | 0 | ✅ pass | <1s |
 
 ## Diagnostics
 
-- **React Query DevTools**: Look for `['patient-flow-overrides', <uuid>]` query key when the editor mounts (T02).
-- **Network tab**: GET/PUT to `/api/v2/patients/{id}/flow-overrides` — inspect payloads for contract alignment.
-- **Error surface**: `error` property on hook return exposes fetch/save failures; `isSaving` tracks mutation state.
-- **Grep for consumers**: `grep -rn "patient-flow-overrides" frontend-hormonia/src/` lists all query key references.
+- **React Query DevTools**: Query key `['patient-flow-overrides', patientId]` visible for cache state, staleness, fetch timing.
+- **Mutation errors**: `saveOverrides` (from `mutateAsync`) rejects with `ApiError` carrying `status`, `userFriendlyMessage`, `retryable`. Downstream T02 editor component should surface these.
+- **Cache invalidation**: On PUT success, the query key is invalidated via `queryClient.invalidateQueries`.
+- **Static verification**: `tsc --noEmit` catches schema drift if backend changes field names/types.
 
 ## Deviations
 
-None.
+None. The implementation was already in place from the T02 pass — T01 was a verification-only execution confirming all must-haves are met.
 
 ## Known Issues
 
@@ -72,7 +66,5 @@ None.
 
 ## Files Created/Modified
 
-- `frontend-hormonia/src/features/patients/hooks/usePatientFlowOverrides.ts` — new: 4 interfaces + usePatientFlowOverrides hook
-- `frontend-hormonia/src/features/patients/hooks/index.ts` — modified: added hook and type re-exports
-- `.gsd/milestones/M012/slices/S03/S03-PLAN.md` — modified: added Observability section, marked T01 done
-- `.gsd/milestones/M012/slices/S03/tasks/T01-PLAN.md` — modified: added Observability Impact section
+- `frontend-hormonia/src/features/patients/hooks/usePatientFlowOverrides.ts` — 4 exported interfaces + usePatientFlowOverrides hook (already existed)
+- `frontend-hormonia/src/features/patients/hooks/index.ts` — barrel re-export of hook + types (already existed)

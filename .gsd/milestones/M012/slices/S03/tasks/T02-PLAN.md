@@ -142,3 +142,11 @@ Build the `PatientFlowOverrideEditor` dialog component and wire it into `Patient
 - `frontend-hormonia/src/features/patients/components/PatientFlowOverrideEditor.tsx` — new ~250-line dialog component
 - `frontend-hormonia/src/pages/PatientDetailPage.tsx` — modified with button + dialog wiring (~15 lines added)
 - `tsc --noEmit` and `vite build` both passing green
+
+## Observability Impact
+
+- **React Query DevTools**: Query key `['patient-flow-overrides', patientId]` appears when the dialog opens. Inspect cache state, stale/fresh status, and fetch timing.
+- **Network tab**: GET `/api/v2/patients/{id}/flow-overrides` fires on dialog open; PUT on save. Check request/response payloads for contract alignment.
+- **Toast notifications**: Save success shows "Personalização salva" with count; save failures show "Erro ao salvar" with destructive variant.
+- **Mutation error state**: `isSaving` and `error` from the hook surface save progress/failures in the component.
+- **Build-time signals**: `tsc --noEmit` and `vite build` catch type regressions from interface drift immediately.

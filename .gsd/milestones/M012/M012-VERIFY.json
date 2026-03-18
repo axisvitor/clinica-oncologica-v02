@@ -1,0 +1,61 @@
+{
+  "milestone": "M012",
+  "verified_at": "2026-03-17T23:38:00Z",
+  "phases": {
+    "ast_parse_backend": {
+      "status": "passed",
+      "command": "python3 -c 'import ast; ast.parse(...)' on 9 backend files",
+      "summary": "All 9 M012 backend files parse cleanly: migration, model, schemas, router, __init__, state.py, _flow_message_flow.py, _flow_response_flow.py, flow_helpers.py"
+    },
+    "migration_structure": {
+      "status": "passed",
+      "command": "grep patient_flow_overrides + down_revision in migration file",
+      "summary": "Migration file exists with patient_flow_overrides table and correct down_revision = m011_s01_patient_flow_states_index"
+    },
+    "get_merge_source": {
+      "status": "passed",
+      "command": "grep source: Literal in schema + _build_merged_days in router",
+      "summary": "GET endpoint returns merged days with source: Literal['global', 'override'] indicator via _build_merged_days"
+    },
+    "put_cache_invalidation": {
+      "status": "passed",
+      "command": "grep delete_pattern(f\"flow_override: in router",
+      "summary": "PUT endpoint saves overrides and invalidates Redis cache via delete_pattern(f\"flow_override:{flow_state.id}:*\")"
+    },
+    "get_day_config_override": {
+      "status": "passed",
+      "command": "grep patient_flow_state_id (count>=3) + flow_override: cache key in state.py",
+      "summary": "_get_day_config accepts patient_flow_state_id (8 occurrences) and checks flow_override: cache before global template"
+    },
+    "skip_logic": {
+      "status": "passed",
+      "command": "grep skip in state.py + skipped in flow_helpers.py",
+      "summary": "Skip logic present in state.py override block and flow_helpers.py with 'skipped' status handling"
+    },
+    "override_immutability": {
+      "status": "passed",
+      "command": "verify separate migration table + _build_merged_days merge-at-read",
+      "summary": "Overrides stored in separate patient_flow_overrides table (D021), merged at read-time via _build_merged_days — global template never mutated"
+    },
+    "frontend_editor": {
+      "status": "passed",
+      "command": "grep PatientFlowOverrideEditor + 'Personalizar Fluxo' in PatientDetailPage.tsx",
+      "summary": "PatientDetailPage imports PatientFlowOverrideEditor and renders 'Personalizar Fluxo' button"
+    },
+    "future_day_restriction": {
+      "status": "passed",
+      "command": "grep current_flow_day in router + editable in schema + disabled={!day.editable} in editor",
+      "summary": "Future-day restriction enforced: router computes current_flow_day, schema has editable field, editor disables past-day inputs"
+    },
+    "tsc_no_emit": {
+      "status": "passed",
+      "command": "cd frontend-hormonia && npx tsc --noEmit",
+      "summary": "TypeScript compilation succeeds with no errors"
+    },
+    "vite_build": {
+      "status": "passed",
+      "command": "cd frontend-hormonia && npx vite build",
+      "summary": "Vite production build succeeds — 4744 modules transformed, all chunks emitted"
+    }
+  }
+}
