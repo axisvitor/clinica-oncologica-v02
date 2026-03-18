@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections.abc import Mapping
 from datetime import datetime
@@ -17,7 +18,7 @@ from app.config.settings.tasks import (
     RETRY_BACKOFF_FACTOR,
 )
 from app.database import get_scoped_session
-from app.models.flow import PatientFlowState
+from app.models.flow import PatientFlowOverride, PatientFlowState
 from app.models.message import (
     Message,
     MessageDirection,
@@ -161,6 +162,72 @@ def _normalize_template_day(flow_type: FlowType, day: int) -> int:
     return normalized_day
 
 
+def _check_patient_override_for_day(
+    flow_state_id: UUID, day: int, db: Session
+) -> Optional[dict]:
+    """Check for per-patient override, using Redis cache with DB fallback.
+
+    Returns override dict {content, message_type, expects_response, skip}
+    for the given day, or None if no override exists.
+    Cache key: flow_override:{flow_state_id}:days — matches S01 invalidation.
+    """
+    cache_key = f"flow_override:{flow_state_id}:days"
+    day_key = str(day)
+    overrides_dict: Optional[dict] = None
+
+    # Try Redis cache first
+    try:
+        from app.core.redis_manager import get_sync_redis_client
+
+        redis_client = get_sync_redis_client()
+        cached = redis_client.get(cache_key)
+        if cached is not None:
+            logger.debug(
+                "Override cache hit for flow_state %s day %s",
+                flow_state_id, day,
+            )
+            overrides_dict = json.loads(cached)
+        else:
+            logger.debug(
+                "Override cache miss for flow_state %s day %s, querying DB",
+                flow_state_id, day,
+            )
+    except Exception:
+        logger.warning("Redis override cache error in batch path (falling back to DB)")
+
+    # DB fallback when cache missed
+    if overrides_dict is None:
+        try:
+            rows = (
+                db.query(PatientFlowOverride)
+                .filter(PatientFlowOverride.patient_flow_state_id == flow_state_id)
+                .all()
+            )
+            overrides_dict = {}
+            for row in rows:
+                overrides_dict[str(row.day_number)] = {
+                    "content": row.content,
+                    "message_type": row.message_type,
+                    "expects_response": row.expects_response,
+                    "skip": row.skip,
+                }
+            # Cache the result (including empty dict as miss sentinel)
+            try:
+                from app.core.redis_manager import get_sync_redis_client
+
+                redis_client = get_sync_redis_client()
+                redis_client.set(cache_key, json.dumps(overrides_dict), ex=3600)
+            except Exception:
+                logger.warning("Redis cache write error in batch path (non-fatal)")
+        except Exception:
+            logger.warning(
+                "Failed to query patient overrides in batch path (falling back to global)"
+            )
+            return None
+
+    return overrides_dict.get(day_key) if overrides_dict else None
+
+
 async def _process_single_patient_flow_by_id(patient_id) -> dict[str, Any]:
     """Process flow for a single patient with FULLY ISOLATED session."""
     from app.services.enhanced_flow_engine import get_enhanced_flow_engine
@@ -287,6 +354,81 @@ async def _process_single_patient_flow(
                 "patient_id": str(patient_id),
                 "current_day": current_day,
             }
+
+        # ── Patient override check (before template lookup / AI) ──────────
+        template_day = _normalize_template_day(flow_type_enum, current_day)
+        override = _check_patient_override_for_day(flow_state.id, template_day, db)
+
+        if override and override.get("skip"):
+            logger.info(
+                "Day %s skipped by patient override for patient %s",
+                template_day, patient_id,
+                extra={"flow_state_id": str(flow_state.id), "current_day": current_day},
+            )
+            _update_scheduling(flow_state, flow_type_enum, tz, db)
+            db.commit()
+            return {
+                "status": "skipped",
+                "patient_id": str(patient_id),
+                "current_day": current_day,
+                "reason": "Day skipped by patient override",
+            }
+
+        if override:
+            logger.info(
+                "Using patient override content for day %s patient %s",
+                template_day, patient_id,
+                extra={"flow_state_id": str(flow_state.id)},
+            )
+            personalized_content = override["content"]
+            step_data = flow_state.step_data or {}
+            message_metadata = {
+                "generated_at": now_sao_paulo().isoformat(),
+                "template_intent": "patient_override",
+                "flow_context": {
+                    "flow_day": current_day,
+                    "flow_type": flow_type_enum.value,
+                    "flow_kind": step_data.get("flow_kind", flow_type_enum.value),
+                    "template_id": f"override_{flow_type_enum.value}_day_{template_day}",
+                    "personalized": False,
+                    "override": True,
+                },
+            }
+            message = Message(
+                patient_id=patient_id,
+                direction=MessageDirection.OUTBOUND,
+                type=MessageType.TEXT,
+                content=personalized_content,
+                status=MessageStatus.PENDING,
+                scheduled_for=now_sao_paulo(),
+                message_metadata=message_metadata,
+            )
+            db.add(message)
+            db.flush()
+
+            now_iso = now_sao_paulo().isoformat()
+            flow_state.step_data = flow_state.step_data or {}
+            flow_state.step_data["last_message_sent"] = now_iso
+            _update_scheduling(flow_state, flow_type_enum, tz, db)
+            db.commit()
+
+            from app.tasks.messaging_taskiq import send_scheduled_message
+
+            send_task_result = send_scheduled_message.kiq(str(message.id))
+            task_id = str(getattr(send_task_result, "task_id", "unknown"))
+            flow_state.step_data["last_task_id"] = task_id
+            db.commit()
+
+            return {
+                "status": "success",
+                "patient_id": str(patient_id),
+                "current_day": current_day,
+                "flow_type": flow_type_enum.value,
+                "message_scheduled": True,
+                "task_id": task_id,
+                "override": True,
+            }
+        # ── End override check — fall through to template + AI path ───────
 
         advancement_result = await flow_engine.advance_patient_flow(patient_id)
         flow_type_enum = normalize_flow_type(flow_state.flow_type)

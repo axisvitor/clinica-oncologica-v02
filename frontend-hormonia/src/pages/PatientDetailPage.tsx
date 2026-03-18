@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Calendar, Send, MessageSquare } from 'lucide-react'
+import { ArrowLeft, Calendar, Send, MessageSquare, Settings2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import { MessagesList } from '@/features/messages/MessagesList'
 import { MessageComposer } from '@/features/messages/MessageComposer'
 import { QuickActions } from '@/features/patients/QuickActions'
 import { SendQuizLinkModal } from '@/features/quiz/SendQuizLinkModal'
+import { PatientFlowOverrideEditor } from '@/features/patients/components/PatientFlowOverrideEditor'
 import { PatientAISummary } from '@/features/ai/PatientAISummary'
 import { QuizResponseViewer } from '@/features/patients/QuizResponseViewer'
 import { QuizResponseTimeline } from '@/features/patients/QuizResponseTimeline'
@@ -30,6 +31,7 @@ export function PatientDetailPage() {
   const [searchParams] = useSearchParams()
   const defaultTab = searchParams.get('tab') || 'timeline'
   const [showSendQuizModal, setShowSendQuizModal] = useState(false)
+  const [showOverrideEditor, setShowOverrideEditor] = useState(false)
   const { hasRole } = useAuth()
   const { useQuizLinkStatus, useQuizLinkHistory, resendQuizLink, cancelQuizLink } =
     useMonthlyQuizAdmin()
@@ -141,6 +143,14 @@ export function PatientDetailPage() {
           {id && (
             <>
               <FlowStatus patientId={id} />
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setShowOverrideEditor(true)}
+              >
+                <Settings2 className="mr-2 h-4 w-4" />
+                Personalizar Fluxo
+              </Button>
               <QuickActions patientId={id} />
             </>
           )}
@@ -244,6 +254,15 @@ export function PatientDetailPage() {
           onOpenChange={setShowSendQuizModal}
           patientId={id}
           patientName={patient?.name || ''}
+        />
+      )}
+
+      {/* Patient Flow Override Editor */}
+      {id && (
+        <PatientFlowOverrideEditor
+          open={showOverrideEditor}
+          onOpenChange={setShowOverrideEditor}
+          patientId={id}
         />
       )}
     </div>

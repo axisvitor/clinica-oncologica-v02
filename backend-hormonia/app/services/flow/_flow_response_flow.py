@@ -71,7 +71,7 @@ async def load_response_context(
         ):
             return {"result": {"status": "day_complete", "day": current_day}}
 
-        day_config = await handler._get_day_config(flow_kind, current_day)
+        day_config = await handler._get_day_config(flow_kind, current_day, patient_flow_state_id=getattr(flow_state, "id", None))
         if not day_config:
             return {"result": {"status": "no_config"}}
         if not isinstance(day_config, dict):

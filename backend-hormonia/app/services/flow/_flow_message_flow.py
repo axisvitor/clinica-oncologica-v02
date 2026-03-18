@@ -58,7 +58,16 @@ async def load_flow_context(
         if not patient:
             return {"result": {"status": "error", "message": "Patient not found"}}
 
-        day_config = await handler._get_day_config(flow_kind, day_number)
+        flow_state = await handler._get_or_create_flow_state(patient_id, flow_kind)
+        if not flow_state:
+            return {
+                "result": {
+                    "status": "error",
+                    "message": f"No active flow template for flow_kind={flow_kind}",
+                },
+            }
+
+        day_config = await handler._get_day_config(flow_kind, day_number, patient_flow_state_id=flow_state.id)
         if not day_config:
             logger.info(
                 "No config for day %s in %s - skipping",
@@ -122,14 +131,6 @@ async def load_flow_context(
                 },
             }
 
-        flow_state = await handler._get_or_create_flow_state(patient_id, flow_kind)
-        if not flow_state:
-            return {
-                "result": {
-                    "status": "error",
-                    "message": f"No active flow template for flow_kind={flow_kind}",
-                },
-            }
         step_data_raw = flow_state.step_data or {}
         if not isinstance(step_data_raw, dict):
             raise TypeError("Flow state step_data must be a dict.")

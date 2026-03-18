@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import select, text
 
-from app.models.flow import PatientFlowState
+from app.models.flow import PatientFlowOverride, PatientFlowState
 from app.services.flow.sequential_message_handler_pkg.delivery import (
     build_flow_idempotency_key,
 )
@@ -14,9 +14,14 @@ logger = logging.getLogger(__name__)
 
 
 class StateMixin:
-    async def _get_day_config(self, flow_kind: str, day: int) -> Optional[Dict]:
+    async def _get_day_config(self, flow_kind: str, day: int, patient_flow_state_id: Optional[UUID] = None) -> Optional[Dict]:
         """
         Get the configuration for a specific day in a flow.
+
+        When *patient_flow_state_id* is supplied the method first checks for
+        per-patient overrides (Redis cache → DB fallback) before consulting the
+        global template.  Override with ``skip=True`` returns ``None`` so the
+        caller's existing skip-handling fires.
 
         Uses Redis cache to reduce database load with multiple patients.
         Cache TTL: 1 hour (templates rarely change)
@@ -24,6 +29,80 @@ class StateMixin:
         import json
 
         from app.core.redis_manager import get_sync_redis_client
+
+        # ------------------------------------------------------------------
+        # Per-patient override lookup (early return when override exists)
+        # ------------------------------------------------------------------
+        if patient_flow_state_id is not None:
+            override_cache_key = f"flow_override:{patient_flow_state_id}:days"
+            overrides_dict: Optional[Dict] = None
+
+            try:
+                redis_client = get_sync_redis_client()
+                if redis_client:
+                    cached_overrides = redis_client.get(override_cache_key)
+                    if cached_overrides is not None:
+                        logger.debug("Override cache hit for flow_state %s", patient_flow_state_id)
+                        overrides_dict = json.loads(cached_overrides)
+            except Exception as exc:
+                logger.warning("Redis override cache error (falling back to DB): %s", exc)
+
+            if overrides_dict is None:
+                logger.debug("Override cache miss for flow_state %s, querying DB", patient_flow_state_id)
+                try:
+                    result_proxy = await self.db.execute(
+                        select(PatientFlowOverride).filter(
+                            PatientFlowOverride.patient_flow_state_id == patient_flow_state_id
+                        )
+                    )
+                    rows = result_proxy.scalars().all()
+                    overrides_dict = {}
+                    for row in rows:
+                        overrides_dict[str(row.day_number)] = {
+                            "content": row.content,
+                            "message_type": row.message_type,
+                            "expects_response": row.expects_response,
+                            "skip": row.skip,
+                        }
+                except Exception as exc:
+                    logger.warning("Failed to query patient overrides (falling back to global): %s", exc)
+                    overrides_dict = None
+
+                if overrides_dict is not None:
+                    try:
+                        redis_client = get_sync_redis_client()
+                        if redis_client:
+                            redis_client.setex(
+                                override_cache_key,
+                                3600,
+                                json.dumps(overrides_dict, ensure_ascii=False),
+                            )
+                    except Exception as exc:
+                        logger.warning("Failed to cache patient overrides: %s", exc)
+
+            if overrides_dict is not None:
+                day_key = str(day)
+                override = overrides_dict.get(day_key)
+                if override is not None:
+                    if override.get("skip"):
+                        logger.info(
+                            "Day %s skipped by patient override for flow_state %s",
+                            day,
+                            patient_flow_state_id,
+                        )
+                        return None
+                    return {
+                        "day": day,
+                        "send_mode": "single",
+                        "messages": [
+                            {
+                                "content": override["content"],
+                                "message_type": override.get("message_type", "question"),
+                                "expects_response": override.get("expects_response", False),
+                            }
+                        ],
+                    }
+                # No override for this specific day — fall through to global template
 
         cache_key = f"flow_template:{flow_kind}:steps"
         cache_ttl = 3600

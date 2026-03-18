@@ -392,3 +392,43 @@ class PatientFlowState(BaseModel):
 
     def __repr__(self):
         return f"<PatientFlowState(patient='{self.patient_id}', step={self.current_step})>"
+
+
+class PatientFlowOverride(BaseModel):
+    """
+    Per-patient day-level override for a flow template.
+
+    Stores customised content/config for a single day that takes precedence
+    over the global template when merged at query time.
+
+    Table: patient_flow_overrides
+    """
+    __tablename__ = "patient_flow_overrides"
+
+    patient_flow_state_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("patient_flow_states.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    day_number = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+    message_type = Column(String(50), nullable=False, default="question", server_default="question")
+    expects_response = Column(Boolean, nullable=False, default=False, server_default="false")
+    skip = Column(Boolean, nullable=False, default=False, server_default="false")
+    created_by = Column(UUID(as_uuid=True), nullable=True)
+
+    # Relationships
+    flow_state = relationship("PatientFlowState", backref="overrides")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "patient_flow_state_id", "day_number", name="uq_pfo_state_day"
+        ),
+    )
+
+    def __repr__(self):
+        return (
+            f"<PatientFlowOverride(state='{self.patient_flow_state_id}', "
+            f"day={self.day_number})>"
+        )

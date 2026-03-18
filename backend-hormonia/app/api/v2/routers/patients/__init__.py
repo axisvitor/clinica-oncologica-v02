@@ -21,6 +21,7 @@ from app.api.v2.routers.patients.crud import create_patient
 from app.api.v2.routers.patients.crud import list_patients
 from app.api.v2.routers.patients.crud import router as crud_router
 from app.api.v2.routers.patients.flow import router as flow_router
+from app.api.v2.routers.patients.flow_overrides import router as flow_overrides_router
 from app.api.v2.routers.patients.flow_responses import router as flow_responses_router
 from app.api.v2.routers.patients.import_export import router as import_export_router
 from app.api.v2.routers.patients.integrity import router as integrity_router
@@ -35,6 +36,7 @@ router.include_router(import_export_router, prefix="", tags=["patients-import-ex
 router.include_router(integrity_router, prefix="", tags=["patients-integrity"])
 router.include_router(flow_router, prefix="", tags=["patients-flow"])
 router.include_router(flow_responses_router, prefix="", tags=["patients-flow-responses"])
+router.include_router(flow_overrides_router, prefix="", tags=["patient-flow-overrides"])
 router.include_router(crud_router, prefix="", tags=["patients-crud"])
 
 # Backward-compatible aliases without trailing slash.
