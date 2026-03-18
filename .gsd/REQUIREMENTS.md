@@ -2,184 +2,6 @@
 
 This file is the explicit capability and coverage contract for the project.
 
-## Active
-
-### R104 — Tabela patient_flow_overrides persiste overrides por paciente/dia.
-- Class: core-capability
-- Status: active
-- Description: Tabela `patient_flow_overrides` persiste overrides por paciente/dia com conteúdo, tipo, expects_response, e flag skip. FK para patient_flow_states.
-- Why it matters: Sem persistência estruturada, overrides ficariam perdidos em JSONB misturado com estado runtime.
-- Source: inferred
-- Primary owning slice: M012/S01
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Tabela separada do step_data para ser queryável e auditável.
-
-### R105 — API GET/PUT para overrides por paciente com merge (global + overrides).
-- Class: integration
-- Status: active
-- Description: API GET retorna lista completa de dias do paciente (global + overrides mergeados) com indicador de origem (source: "global" | "override"). PUT salva overrides.
-- Why it matters: Frontend precisa de uma única chamada para mostrar todos os dias com herança visual.
-- Source: inferred
-- Primary owning slice: M012/S01
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Segue padrão do GET/PUT /flows/{template_id}/days existente.
-
-### R106 — _get_day_config consulta override do paciente antes do template global.
-- Class: core-capability
-- Status: active
-- Description: `_get_day_config` consulta override do paciente antes do template global, com fallback transparente e cache Redis.
-- Why it matters: Sem injeção no pipeline, overrides existiriam no banco mas não seriam usados no envio diário.
-- Source: user
-- Primary owning slice: M012/S02
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Ponto de injeção: sequential_message_handler_pkg/state.py.
-
-### R107 — Dias com override skip=true são pulados pelo process_daily_flows.
-- Class: core-capability
-- Status: active
-- Description: Dias com override `skip=true` são pulados pelo pipeline — paciente não recebe mensagem nesse dia.
-- Why it matters: Médico precisa poder desabilitar dias específicos sem deletar o dia do template.
-- Source: inferred
-- Primary owning slice: M012/S02
-- Supporting slices: none
-- Validation: unmapped
-- Notes: load_flow_context já retorna status: "skip" quando _get_day_config retorna None.
-
-### R108 — Editor de override no PatientDetailPage com badge visual e edição restrita a dias futuros.
-- Class: primary-user-loop
-- Status: active
-- Description: PatientDetailPage tem botão "Personalizar Fluxo" que abre editor de override com lista completa de dias, badge visual para dias customizados vs. globais, e edição apenas de dias futuros.
-- Why it matters: Sem interface, o médico não tem como criar overrides — a feature não existe para ele.
-- Source: user
-- Primary owning slice: M012/S03
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Reutiliza padrão visual do DayConfigEditor existente (243 linhas).
-
-### R109 — Override é fixo — mudanças no template global não sobrescrevem overrides existentes.
-- Class: continuity
-- Status: active
-- Description: Override é fixo — mudanças no template global não sobrescrevem overrides existentes. Dias sem override herdam normalmente do global atualizado.
-- Why it matters: Médico que customizou fluxo de um paciente não quer perder seu trabalho quando o template global é atualizado.
-- Source: user
-- Primary owning slice: M012/S01
-- Supporting slices: none
-- Validation: unmapped
-- Notes: Implementação natural — override é tabela separada, merge é no read-time.
-
-### R089 — Visão geral patient-centric com contexto clínico por paciente como tela principal do physician dashboard.
-- Class: primary-user-loop
-- Status: validated
-- Description: O physician dashboard mostra todos os pacientes do médico com fase do fluxo (onboarding/follow-up/quiz), dia atual, último contato, e flags de atenção (alertas não reconhecidos, sem resposta há dias, fluxo parado) visíveis diretamente na lista, sem precisar clicar.
-- Why it matters: O médico precisa de um relance para decidir quem precisa de atenção. A tela atual é analytics-heavy e não mostra contexto clínico por paciente.
-- Source: user
-- Primary owning slice: M010/S01
-- Supporting slices: none
-- Validation: validated by M010/S01 — PhysicianDashboard rewritten as patient-centric table with flow_phase, current_day, last_contact, unacknowledged_alerts per patient. PhysicianPatientTable (314 lines) with search, phase filter, status filter. tsc + vite build green.
-- Notes: PhysicianPatientTable uses desktop table + mobile cards pattern (hidden md:block / md:hidden).
-
-### R090 — Tela de preparo pré-consulta consolidada: resumo IA + respostas livres + alertas + status fluxo num clique.
-- Class: primary-user-loop
-- Status: validated
-- Description: Ao clicar num paciente no dashboard, o médico vê numa tela consolidada o resumo IA do mês, as respostas livres recentes, alertas do quiz, e o status atual do fluxo — tudo visível sem navegar por tabs.
-- Why it matters: O médico prepara a consulta em 5 minutos. Se precisa navegar por 4 tabs para juntar informação, perde tempo e perde contexto.
-- Source: user
-- Primary owning slice: M010/S02
-- Supporting slices: M010/S01
-- Validation: validated by M010/S02 — PatientDetailPage refactored as pre-consultation screen with AI Summary, FlowStatus, QuizSection as primary visible content. Tabs reduced to 3 (Timeline, Quiz Responses, Messages). tsc + vite build green.
-- Notes: Reuses PatientAISummary, FlowStatus, QuizResponseViewer components.
-
-### R091 — API backend enriquecida para lista de pacientes do médico com dados de fluxo.
-- Class: integration
-- Status: validated
-- Description: A API de listagem de pacientes do physician dashboard retorna, para cada paciente, a fase do fluxo (onboarding/daily_follow_up/quiz_mensal), o dia atual do fluxo, a data do último contato, e contagem de alertas não reconhecidos — num único endpoint, sem N+1.
-- Why it matters: Sem dados de fluxo na listagem, o frontend faria N+1 requests para buscar status de cada paciente individualmente.
-- Source: inferred
-- Primary owning slice: M010/S01
-- Supporting slices: none
-- Validation: validated by M010/S01 — GET /api/v2/physicians/patients returns flow_phase, current_day, last_contact, unacknowledged_alerts_count per patient via JOINs + window function. Single endpoint, no N+1.
-- Notes: Endpoint uses ROW_NUMBER() window function optimized by M011's composite index.
-
-### R092 — Acesso ao resumo IA em no máximo 1 clique a partir da lista de pacientes.
-- Class: primary-user-loop
-- Status: validated
-- Description: Da lista de pacientes no dashboard, 1 clique leva o médico direto à tela com o resumo IA do paciente visível sem ação adicional.
-- Why it matters: Se o resumo IA precisa de 3+ cliques, o médico para de usar.
-- Source: user
-- Primary owning slice: M010/S02
-- Supporting slices: M010/S01
-- Validation: validated by M010/S01+S02 — Brain icon in PhysicianPatientTable navigates to /physician/patients/{id}?tab=ai-summary. PatientDetailPage renders AI Summary as primary content on that tab.
-- Notes: 1-click from patient list to AI summary via Brain icon in both desktop table and mobile card.
-
-### R093 — Interface responsiva de verdade em desktop e mobile para dashboard e detalhe do paciente.
-- Class: quality-attribute
-- Status: validated
-- Description: O dashboard do médico e a tela de detalhe do paciente funcionam bem em desktop (tabela densa com informação) e mobile (cards touch-friendly, fontes legíveis, interações de toque). Não é apenas "não quebra" — é "funciona bem" nos dois.
-- Why it matters: Médico checa no celular entre consultas e usa desktop no consultório. Ambos precisam ser experiências completas.
-- Source: user
-- Primary owning slice: M010/S04
-- Supporting slices: M010/S01, M010/S02
-- Validation: validated by M010/S04 — PhysicianPatientTable uses hidden md:block (desktop table) + md:hidden (mobile PatientCard). PatientDetailPage uses grid-cols-1 lg:grid-cols-3. PhysicianDashboard uses flex-col sm:flex-row filters. tsc + vite build green.
-- Notes: md breakpoint (768px) for table→cards switch. Mobile cards have touch-friendly tap targets for alerts, AI summary, navigation.
-
-### R094 — Remoção completa do código morto /medico/*.
-- Class: operability
-- Status: validated
-- Description: MedicoDashboard.tsx, PacientesList.tsx, ProntuarioView.tsx, MedicoAuthContext.tsx, useMedicoDashboardStats.ts, e todas as rotas /medico/* exceto redirects essenciais são removidos. Zero código de dashboard/paciente morto.
-- Why it matters: Código morto confunde manutenção e gera falsos positivos em buscas.
-- Source: user
-- Primary owning slice: M010/S03
-- Supporting slices: none
-- Validation: validated by M010/S03 — 8 dead files deleted (MedicoDashboard, PacientesList, ProntuarioView, MedicoAuthContext, MedicoRoutes, useMedicoDashboardStats, types/medico). MedicoLogin.tsx retained as 7-line redirect wrapper (delegates to LoginPage, actively used in routes).
-- Notes: MedicoLogin.tsx is not dead code — it's a thin redirect used by routeDefinitions.tsx. Retained per R094 notes ("MedicoLogin pode ser mantido se tiver uso real").
-
-### R095 — Dashboards admin e médico permanecem separados.
-- Class: constraint
-- Status: validated
-- Description: O dashboard admin (/dashboard, DashboardPage.tsx) e o physician dashboard (/physician/dashboard, PhysicianDashboard.tsx) são telas separadas, cada uma otimizada para seu público (admin operacional vs. médico clínico).
-- Why it matters: Misturar admin e clínico num só dashboard cria ruído para ambos os públicos.
-- Source: user
-- Primary owning slice: M010/S01
-- Supporting slices: none
-- Validation: validated by M010 — DashboardPage.tsx (admin) was explicitly unchanged during M010 and M011. PhysicianDashboard.tsx exists as separate page at /physician/dashboard. Separate routes confirmed in routeDefinitions.tsx.
-- Notes: M011 optimized both dashboards' timing independently, confirming separation.
-
-### R100 — Endpoints hot-path do médico cacheados no Redis/Dragonfly com TTL adequado.
-- Class: quality-attribute
-- Status: validated
-- Description: Os endpoints mais acessados pelo médico (physician/patients, dashboard/main) usam @cache_response com TTL adequado no Dragonfly, eliminando queries repetidas ao banco.
-- Why it matters: Sem cache, cada refresh do dashboard dispara JOINs pesados no PostgreSQL — stress desnecessário no banco.
-- Source: inferred
-- Primary owning slice: M011/S01
-- Supporting slices: none
-- Validation: validated by S01 — per-user Redis caching on physician/patients (TTL=60s, user_id in cache key) and dashboard/main (TTL=120s, per-user key). verify-m011.sh group 5 confirms TTL values and user_id presence.
-- Notes: S01 used manual redis_cache.get/set (not @cache_response decorator) to include user_id in key preventing cross-doctor data leaks. Dashboard caching was already correct — unchanged.
-
-### R101 — Index composto em patient_flow_states para window function do physician patients.
-- Class: quality-attribute
-- Status: validated
-- Description: Index composto em patient_flow_states(patient_id, started_at DESC) para que a window function ROW_NUMBER() do endpoint physician/patients use index scan em vez de seq scan.
-- Why it matters: Sem index, a window function faz sort em memória para cada paciente — escala mal com muitos flow states.
-- Source: inferred
-- Primary owning slice: M011/S01
-- Supporting slices: none
-- Validation: validated by S01 — Alembic migration m011_s01_patient_flow_states_index creates composite index idx_pfs_patient_started on patient_flow_states(patient_id, started_at DESC) with if_not_exists=True. verify-m011.sh group 7 confirms.
-- Notes: Index accelerates ROW_NUMBER() OVER (PARTITION BY patient_id ORDER BY started_at DESC) window function in physician/patients endpoint.
-
-### R102 — Frontend hooks com staleTime/gcTime consistentes e refetchInterval reduzido.
-- Class: quality-attribute
-- Status: validated
-- Description: Hooks de dashboard e pacientes usam staleTime ≥ 60s, refetchInterval ≥ 120s (exceto monitoring real-time). Elimina requests redundantes que martelam o backend a cada 10-30s.
-- Why it matters: Hooks com staleTime de 10s e refetchInterval de 30s geram requests desnecessários — o dado não muda tão rápido.
-- Source: inferred
-- Primary owning slice: M011/S02
-- Supporting slices: none
-- Validation: validated by S02 — 21 frontend hooks normalized: staleTime ≥ 60s (dashboard/patient), ≥ 120s (admin), refetchInterval ≥ 120s. verify-m011.sh group 6 confirmed 58 timing values comply. Monitoring hooks verified untouched.
-- Notes: Global default staleTime bumped 30s→60s. Monitoring/real-time hooks (system health, WhatsApp, agent swarm) explicitly exempt per D020.
-
 ## Validated
 
 ### R001 — The WhatsApp flow pipeline recovers from sequential-gate mismatch, outbound send failures, deferred follow-up failures, day advancement issues, and malformed day configs.
@@ -534,6 +356,17 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: validated by S06 — SummaryDataAggregator wired to patient_flow_responses + enriched alerts (description + recommendation from JSONB), prompt template with {flow_responses} section, Brain icon quick-access in PhysicianDashboard navigating to ?tab=ai-summary, 13 focused tests proving aggregator integration + 0 regressions across 181 flow tests, frontend typecheck green
 - Notes: `PatientSummaryService` (Gemini 2.5 Flash) was not modified — only its data aggregator was enhanced. Subjective AI summary quality for clinical use requires ongoing human evaluation.
 
+### R064 — Possibilidade de ajustar dias específicos do fluxo para um paciente individual, em cima do template global do médico.
+- Class: admin/support
+- Status: validated
+- Description: Possibilidade de ajustar dias específicos do fluxo para um paciente individual, em cima do template global do médico.
+- Why it matters: Pacientes oncológicos têm situações únicas — efeitos colaterais diferentes, preocupações específicas, velocidades de recuperação distintas. O médico precisa de controle fino.
+- Source: user
+- Primary owning slice: M012/S01
+- Supporting slices: M012/S02, M012/S03
+- Validation: Validated by milestone M012 closeout: S01 delivered persistence and merge API, S02 injected override-first + skip logic into both pipeline paths, S03 delivered the PatientDetailPage editor, and S04 re-ran verify-m012.sh green (11/11).
+- Notes: Umbrella requirement decomposed into R104-R109; all leaf requirements are now validated and milestone validation passed.
+
 ### R067 — O stack completo (Postgres + Dragonfly + backend + Celery worker + WuzAPI) sobe localmente e se comunica. Health checks verdes, worker conectado ao broker, schema atualizado.
 - Class: operability
 - Status: validated
@@ -732,6 +565,182 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: validated by S06 — 4796 tests collected (zero Celery-related errors), AST scan confirms zero deleted-module imports in tests/, all M008 pipeline test files (test_patient_onboarding_e2e, test_saga_orchestrator, test_saga_onboarding_happy_path, test_flow_recovery_retry_e2e, test_flow_tasks_hardening) use Taskiq-only imports (.kiq, messaging_taskiq, flows_taskiq). Combined with S02 runtime proof (send_scheduled_message via Taskiq worker → WuzAPI) and S03 runtime proof (process_daily_flows async-native), the full create→welcome→daily→response→transition pipeline operates via Taskiq.
 - Notes: Terminal verification — S06 closed the test-suite gap, S02/S03/S05 provided implementation+runtime proof. Milestone M009 complete.
 
+### R089 — O physician dashboard mostra todos os pacientes do médico com fase do fluxo (onboarding/follow-up/quiz), dia atual, último contato, e flags de atenção (alertas não reconhecidos, sem resposta há dias, fluxo parado) visíveis diretamente na lista, sem precisar clicar.
+- Class: primary-user-loop
+- Status: validated
+- Description: O physician dashboard mostra todos os pacientes do médico com fase do fluxo (onboarding/follow-up/quiz), dia atual, último contato, e flags de atenção (alertas não reconhecidos, sem resposta há dias, fluxo parado) visíveis diretamente na lista, sem precisar clicar.
+- Why it matters: O médico precisa de um relance para decidir quem precisa de atenção. A tela atual é analytics-heavy e não mostra contexto clínico por paciente.
+- Source: user
+- Primary owning slice: M010/S01
+- Supporting slices: none
+- Validation: validated by M010/S01 — PhysicianDashboard rewritten as patient-centric table with flow_phase, current_day, last_contact, unacknowledged_alerts per patient. PhysicianPatientTable (314 lines) with search, phase filter, status filter. tsc + vite build green.
+- Notes: PhysicianPatientTable uses desktop table + mobile cards pattern (hidden md:block / md:hidden).
+
+### R090 — Ao clicar num paciente no dashboard, o médico vê numa tela consolidada o resumo IA do mês, as respostas livres recentes, alertas do quiz, e o status atual do fluxo — tudo visível sem navegar por tabs.
+- Class: primary-user-loop
+- Status: validated
+- Description: Ao clicar num paciente no dashboard, o médico vê numa tela consolidada o resumo IA do mês, as respostas livres recentes, alertas do quiz, e o status atual do fluxo — tudo visível sem navegar por tabs.
+- Why it matters: O médico prepara a consulta em 5 minutos. Se precisa navegar por 4 tabs para juntar informação, perde tempo e perde contexto.
+- Source: user
+- Primary owning slice: M010/S02
+- Supporting slices: M010/S01
+- Validation: validated by M010/S02 — PatientDetailPage refactored as pre-consultation screen with AI Summary, FlowStatus, QuizSection as primary visible content. Tabs reduced to 3 (Timeline, Quiz Responses, Messages). tsc + vite build green.
+- Notes: Reuses PatientAISummary, FlowStatus, QuizResponseViewer components.
+
+### R091 — A API de listagem de pacientes do physician dashboard retorna, para cada paciente, a fase do fluxo (onboarding/daily_follow_up/quiz_mensal), o dia atual do fluxo, a data do último contato, e contagem de alertas não reconhecidos — num único endpoint, sem N+1.
+- Class: integration
+- Status: validated
+- Description: A API de listagem de pacientes do physician dashboard retorna, para cada paciente, a fase do fluxo (onboarding/daily_follow_up/quiz_mensal), o dia atual do fluxo, a data do último contato, e contagem de alertas não reconhecidos — num único endpoint, sem N+1.
+- Why it matters: Sem dados de fluxo na listagem, o frontend faria N+1 requests para buscar status de cada paciente individualmente.
+- Source: inferred
+- Primary owning slice: M010/S01
+- Supporting slices: none
+- Validation: validated by M010/S01 — GET /api/v2/physicians/patients returns flow_phase, current_day, last_contact, unacknowledged_alerts_count per patient via JOINs + window function. Single endpoint, no N+1.
+- Notes: Endpoint uses ROW_NUMBER() window function optimized by M011's composite index.
+
+### R092 — Da lista de pacientes no dashboard, 1 clique leva o médico direto à tela com o resumo IA do paciente visível sem ação adicional.
+- Class: primary-user-loop
+- Status: validated
+- Description: Da lista de pacientes no dashboard, 1 clique leva o médico direto à tela com o resumo IA do paciente visível sem ação adicional.
+- Why it matters: Se o resumo IA precisa de 3+ cliques, o médico para de usar.
+- Source: user
+- Primary owning slice: M010/S02
+- Supporting slices: M010/S01
+- Validation: validated by M010/S01+S02 — Brain icon in PhysicianPatientTable navigates to /physician/patients/{id}?tab=ai-summary. PatientDetailPage renders AI Summary as primary content on that tab.
+- Notes: 1-click from patient list to AI summary via Brain icon in both desktop table and mobile card.
+
+### R093 — O dashboard do médico e a tela de detalhe do paciente funcionam bem em desktop (tabela densa com informação) e mobile (cards touch-friendly, fontes legíveis, interações de toque). Não é apenas "não quebra" — é "funciona bem" nos dois.
+- Class: quality-attribute
+- Status: validated
+- Description: O dashboard do médico e a tela de detalhe do paciente funcionam bem em desktop (tabela densa com informação) e mobile (cards touch-friendly, fontes legíveis, interações de toque). Não é apenas "não quebra" — é "funciona bem" nos dois.
+- Why it matters: Médico checa no celular entre consultas e usa desktop no consultório. Ambos precisam ser experiências completas.
+- Source: user
+- Primary owning slice: M010/S04
+- Supporting slices: M010/S01, M010/S02
+- Validation: validated by M010/S04 — PhysicianPatientTable uses hidden md:block (desktop table) + md:hidden (mobile PatientCard). PatientDetailPage uses grid-cols-1 lg:grid-cols-3. PhysicianDashboard uses flex-col sm:flex-row filters. tsc + vite build green.
+- Notes: md breakpoint (768px) for table→cards switch. Mobile cards have touch-friendly tap targets for alerts, AI summary, navigation.
+
+### R094 — MedicoDashboard.tsx, PacientesList.tsx, ProntuarioView.tsx, MedicoAuthContext.tsx, useMedicoDashboardStats.ts, e todas as rotas /medico/* exceto redirects essenciais são removidos. Zero código de dashboard/paciente morto.
+- Class: operability
+- Status: validated
+- Description: MedicoDashboard.tsx, PacientesList.tsx, ProntuarioView.tsx, MedicoAuthContext.tsx, useMedicoDashboardStats.ts, e todas as rotas /medico/* exceto redirects essenciais são removidos. Zero código de dashboard/paciente morto.
+- Why it matters: Código morto confunde manutenção e gera falsos positivos em buscas.
+- Source: user
+- Primary owning slice: M010/S03
+- Supporting slices: none
+- Validation: validated by M010/S03 — 8 dead files deleted (MedicoDashboard, PacientesList, ProntuarioView, MedicoAuthContext, MedicoRoutes, useMedicoDashboardStats, types/medico). MedicoLogin.tsx retained as 7-line redirect wrapper (delegates to LoginPage, actively used in routes).
+- Notes: MedicoLogin.tsx is not dead code — it's a thin redirect used by routeDefinitions.tsx. Retained per R094 notes ("MedicoLogin pode ser mantido se tiver uso real").
+
+### R095 — O dashboard admin (/dashboard, DashboardPage.tsx) e o physician dashboard (/physician/dashboard, PhysicianDashboard.tsx) são telas separadas, cada uma otimizada para seu público (admin operacional vs. médico clínico).
+- Class: constraint
+- Status: validated
+- Description: O dashboard admin (/dashboard, DashboardPage.tsx) e o physician dashboard (/physician/dashboard, PhysicianDashboard.tsx) são telas separadas, cada uma otimizada para seu público (admin operacional vs. médico clínico).
+- Why it matters: Misturar admin e clínico num só dashboard cria ruído para ambos os públicos.
+- Source: user
+- Primary owning slice: M010/S01
+- Supporting slices: none
+- Validation: validated by M010 — DashboardPage.tsx (admin) was explicitly unchanged during M010 and M011. PhysicianDashboard.tsx exists as separate page at /physician/dashboard. Separate routes confirmed in routeDefinitions.tsx.
+- Notes: M011 optimized both dashboards' timing independently, confirming separation.
+
+### R100 — Os endpoints mais acessados pelo médico (physician/patients, dashboard/main) usam @cache_response com TTL adequado no Dragonfly, eliminando queries repetidas ao banco.
+- Class: quality-attribute
+- Status: validated
+- Description: Os endpoints mais acessados pelo médico (physician/patients, dashboard/main) usam @cache_response com TTL adequado no Dragonfly, eliminando queries repetidas ao banco.
+- Why it matters: Sem cache, cada refresh do dashboard dispara JOINs pesados no PostgreSQL — stress desnecessário no banco.
+- Source: inferred
+- Primary owning slice: M011/S01
+- Supporting slices: none
+- Validation: validated by S01 — per-user Redis caching on physician/patients (TTL=60s, user_id in cache key) and dashboard/main (TTL=120s, per-user key). verify-m011.sh group 5 confirms TTL values and user_id presence.
+- Notes: S01 used manual redis_cache.get/set (not @cache_response decorator) to include user_id in key preventing cross-doctor data leaks. Dashboard caching was already correct — unchanged.
+
+### R101 — Index composto em patient_flow_states(patient_id, started_at DESC) para que a window function ROW_NUMBER() do endpoint physician/patients use index scan em vez de seq scan.
+- Class: quality-attribute
+- Status: validated
+- Description: Index composto em patient_flow_states(patient_id, started_at DESC) para que a window function ROW_NUMBER() do endpoint physician/patients use index scan em vez de seq scan.
+- Why it matters: Sem index, a window function faz sort em memória para cada paciente — escala mal com muitos flow states.
+- Source: inferred
+- Primary owning slice: M011/S01
+- Supporting slices: none
+- Validation: validated by S01 — Alembic migration m011_s01_patient_flow_states_index creates composite index idx_pfs_patient_started on patient_flow_states(patient_id, started_at DESC) with if_not_exists=True. verify-m011.sh group 7 confirms.
+- Notes: Index accelerates ROW_NUMBER() OVER (PARTITION BY patient_id ORDER BY started_at DESC) window function in physician/patients endpoint.
+
+### R102 — Hooks de dashboard e pacientes usam staleTime ≥ 60s, refetchInterval ≥ 120s (exceto monitoring real-time). Elimina requests redundantes que martelam o backend a cada 10-30s.
+- Class: quality-attribute
+- Status: validated
+- Description: Hooks de dashboard e pacientes usam staleTime ≥ 60s, refetchInterval ≥ 120s (exceto monitoring real-time). Elimina requests redundantes que martelam o backend a cada 10-30s.
+- Why it matters: Hooks com staleTime de 10s e refetchInterval de 30s geram requests desnecessários — o dado não muda tão rápido.
+- Source: inferred
+- Primary owning slice: M011/S02
+- Supporting slices: none
+- Validation: validated by S02 — 21 frontend hooks normalized: staleTime ≥ 60s (dashboard/patient), ≥ 120s (admin), refetchInterval ≥ 120s. verify-m011.sh group 6 confirmed 58 timing values comply. Monitoring hooks verified untouched.
+- Notes: Global default staleTime bumped 30s→60s. Monitoring/real-time hooks (system health, WhatsApp, agent swarm) explicitly exempt per D020.
+
+### R104 — Tabela `patient_flow_overrides` persiste overrides por paciente/dia com conteúdo, tipo, expects_response, e flag skip. FK para patient_flow_states.
+- Class: core-capability
+- Status: validated
+- Description: Tabela `patient_flow_overrides` persiste overrides por paciente/dia com conteúdo, tipo, expects_response, e flag skip. FK para patient_flow_states.
+- Why it matters: Sem persistência estruturada, overrides ficariam perdidos em JSONB misturado com estado runtime.
+- Source: inferred
+- Primary owning slice: M012/S01
+- Supporting slices: none
+- Validation: Verified by the patient_flow_overrides migration/model proof chain and verify-m012.sh phases 1-2 (ast.parse + migration structure).
+- Notes: Tabela separada do step_data para ser queryável e auditável.
+
+### R105 — API GET retorna lista completa de dias do paciente (global + overrides mergeados) com indicador de origem (source: "global" | "override"). PUT salva overrides.
+- Class: integration
+- Status: validated
+- Description: API GET retorna lista completa de dias do paciente (global + overrides mergeados) com indicador de origem (source: "global" | "override"). PUT salva overrides.
+- Why it matters: Frontend precisa de uma única chamada para mostrar todos os dias com herança visual.
+- Source: inferred
+- Primary owning slice: M012/S01
+- Supporting slices: none
+- Validation: Verified by the merged GET contract, PUT save path, and Redis invalidation checks in verify-m012.sh phases 3-4.
+- Notes: Segue padrão do GET/PUT /flows/{template_id}/days existente.
+
+### R106 — `_get_day_config` consulta override do paciente antes do template global, com fallback transparente e cache Redis.
+- Class: core-capability
+- Status: validated
+- Description: `_get_day_config` consulta override do paciente antes do template global, com fallback transparente e cache Redis.
+- Why it matters: Sem injeção no pipeline, overrides existiriam no banco mas não seriam usados no envio diário.
+- Source: user
+- Primary owning slice: M012/S02
+- Supporting slices: none
+- Validation: Validated by S02 override-first lookup in _get_day_config and re-confirmed by verify-m012.sh phase 5.
+- Notes: Shared Redis key flow_override:{state_id}:days with transparent fallback to the unchanged global-template path when no override exists.
+
+### R107 — Dias com override `skip=true` são pulados pelo pipeline — paciente não recebe mensagem nesse dia.
+- Class: core-capability
+- Status: validated
+- Description: Dias com override `skip=true` são pulados pelo pipeline — paciente não recebe mensagem nesse dia.
+- Why it matters: Médico precisa poder desabilitar dias específicos sem deletar o dia do template.
+- Source: inferred
+- Primary owning slice: M012/S02
+- Supporting slices: none
+- Validation: Validated by S02 skip handling in both pipeline paths and re-confirmed by verify-m012.sh phase 6.
+- Notes: Both on-demand and batch pipeline paths honor skip=true and avoid sending the day.
+
+### R108 — PatientDetailPage tem botão "Personalizar Fluxo" que abre editor de override com lista completa de dias, badge visual para dias customizados vs. globais, e edição apenas de dias futuros.
+- Class: primary-user-loop
+- Status: validated
+- Description: PatientDetailPage tem botão "Personalizar Fluxo" que abre editor de override com lista completa de dias, badge visual para dias customizados vs. globais, e edição apenas de dias futuros.
+- Why it matters: Sem interface, o médico não tem como criar overrides — a feature não existe para ele.
+- Source: user
+- Primary owning slice: M012/S03
+- Supporting slices: none
+- Validation: Validated by S03 editor delivery plus verify-m012.sh phases 8-11 (button wiring, future-day gating, tsc --noEmit, vite build).
+- Notes: S03 delivered the editor component with badges (Global/Personalizado/Pulado), future-day gating, skip toggles, add-day, and the PatientDetailPage entry point; S04 replayable verification confirmed the assembled UI/build proof.
+
+### R109 — Override é fixo — mudanças no template global não sobrescrevem overrides existentes. Dias sem override herdam normalmente do global atualizado.
+- Class: continuity
+- Status: validated
+- Description: Override é fixo — mudanças no template global não sobrescrevem overrides existentes. Dias sem override herdam normalmente do global atualizado.
+- Why it matters: Médico que customizou fluxo de um paciente não quer perder seu trabalho quando o template global é atualizado.
+- Source: user
+- Primary owning slice: M012/S01
+- Supporting slices: none
+- Validation: Validated by the separate-table + merge-at-read implementation and verify-m012.sh phase 7.
+- Notes: Override persistence stays separate from the global template; merge happens at read-time so later template edits do not overwrite existing patient-specific overrides.
+
 ## Deferred
 
 ### R020 — Add a second factor for high-privilege staff authentication.
@@ -811,18 +820,7 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Deferred to avoid turning the current milestone into a repo-wide churn event.
 
-### R064 — Possibilidade de ajustar dias específicos do fluxo para um paciente individual, em cima do template global do médico.
-- Class: admin/support
-- Status: active
-- Description: Possibilidade de ajustar dias específicos do fluxo para um paciente individual, em cima do template global do médico.
-- Why it matters: Pacientes oncológicos têm situações únicas — efeitos colaterais diferentes, preocupações específicas, velocidades de recuperação distintas. O médico precisa de controle fino.
-- Source: user
-- Primary owning slice: M012/S01
-- Supporting slices: M012/S02, M012/S03
-- Validation: unmapped
-- Notes: Undeferred for M012. Covers full override capability: edit content, add extra days, skip days. Decomposed into R104-R109.
-
-### R096 — Notificações push/realtime para alertas críticos do quiz (push browser, badge no menu).
+### R096 — Quando um alerta crítico é gerado pelo quiz do paciente, o médico recebe notificação push no browser e/ou badge visível no menu do dashboard, sem precisar estar na tela de alertas.
 - Class: failure-visibility
 - Status: deferred
 - Description: Quando um alerta crítico é gerado pelo quiz do paciente, o médico recebe notificação push no browser e/ou badge visível no menu do dashboard, sem precisar estar na tela de alertas.
@@ -833,7 +831,7 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: unmapped
 - Notes: Deferred — M010 foca em polimento da visão geral e preparo pré-consulta. Push notifications entram em milestone futuro.
 
-### R097 — Export de relatório do paciente em PDF real para levar para consulta.
+### R097 — O médico exporta um relatório completo do paciente (resumo IA + respostas + alertas + fluxo) em PDF formatado para impressão ou referência durante consulta.
 - Class: admin/support
 - Status: deferred
 - Description: O médico exporta um relatório completo do paciente (resumo IA + respostas + alertas + fluxo) em PDF formatado para impressão ou referência durante consulta.
@@ -1033,7 +1031,7 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: n/a
 - Notes: Melhorias funcionais entram em milestone posterior.
 
-### R098 — M010 não muda lógica de backend de fluxos, tasks, ou processamento de mensagens.
+### R098 — M010 é UX/frontend com ajustes mínimos de API de listagem. Não altera lógica de processamento de fluxos, tasks Taskiq, envio de mensagens, ou pipeline de dados.
 - Class: constraint
 - Status: out-of-scope
 - Description: M010 é UX/frontend com ajustes mínimos de API de listagem. Não altera lógica de processamento de fluxos, tasks Taskiq, envio de mensagens, ou pipeline de dados.
@@ -1044,7 +1042,7 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: n/a
 - Notes: Backend changes limitados a endpoint de listagem enriquecida.
 
-### R099 — M010 não redesenha o dashboard admin (/dashboard).
+### R099 — O DashboardPage.tsx (/dashboard) para admin/operacional não é alterado por M010. Foco exclusivo no physician dashboard.
 - Class: constraint
 - Status: out-of-scope
 - Description: O DashboardPage.tsx (/dashboard) para admin/operacional não é alterado por M010. Foco exclusivo no physician dashboard.
@@ -1055,7 +1053,7 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: n/a
 - Notes: Admin dashboard pode ser milestone futuro se necessário.
 
-### R103 — M011 não muda comportamento funcional — otimização pura, zero regressão.
+### R103 — M011 otimiza performance sem alterar comportamento funcional. Nenhum endpoint muda sua response shape, nenhuma feature é adicionada ou removida.
 - Class: constraint
 - Status: out-of-scope
 - Description: M011 otimiza performance sem alterar comportamento funcional. Nenhum endpoint muda sua response shape, nenhuma feature é adicionada ou removida.
@@ -1066,7 +1064,7 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: n/a
 - Notes: Build green e mesma response shape são os gates.
 
-### R110 — Zero mudança no pipeline funcional existente — pacientes sem overrides continuam funcionando exatamente como antes.
+### R110 — M012 não altera o comportamento do pipeline para pacientes sem overrides. process_daily_flows, response handling, e template loading continuam idênticos.
 - Class: constraint
 - Status: out-of-scope
 - Description: M012 não altera o comportamento do pipeline para pacientes sem overrides. process_daily_flows, response handling, e template loading continuam idênticos.
@@ -1077,7 +1075,7 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: n/a
 - Notes: Fallback transparente no _get_day_config garante isso.
 
-### R111 — M012 não implementa bulk overrides (aplicar mesmo override a vários pacientes de uma vez).
+### R111 — Bulk overrides (aplicar mesmo override a vários pacientes simultaneamente) não está no escopo de M012.
 - Class: anti-feature
 - Status: out-of-scope
 - Description: Bulk overrides (aplicar mesmo override a vários pacientes simultaneamente) não está no escopo de M012.
@@ -1142,7 +1140,7 @@ This file is the explicit capability and coverage contract for the project.
 | R061 | core-capability | validated | M007/S04 | M007/S01 | validated by S04 — PatientFlowResponse model + Alembic migration, dual-write in process_patient_response() persisting to patient_flow_responses alongside step_data JSONB in same transaction, GET /api/v2/patients/{id}/flow-responses with date-range filtering, 14 integration tests proving write-through and query paths, 0 regressions across 154 flow tests |
 | R062 | failure-visibility | validated | M007/S05 | M007/S04 | validated by S05 — QuizResponseEvaluator wired into complete_quiz_session(), Notification records created for patient's doctor on triggered alerts, duplicate alert guard, _serialize_alert() returns title/message/recommendation, PhysicianDashboard renders recommendation text. Proven by 14 focused tests covering full chain + 42 API tests with 0 regressions. |
 | R063 | differentiator | validated | M007/S06 | M007/S04, M007/S05 | validated by S06 — SummaryDataAggregator wired to patient_flow_responses + enriched alerts (description + recommendation from JSONB), prompt template with {flow_responses} section, Brain icon quick-access in PhysicianDashboard navigating to ?tab=ai-summary, 13 focused tests proving aggregator integration + 0 regressions across 181 flow tests, frontend typecheck green |
-| R064 | admin/support | deferred | none | none | unmapped |
+| R064 | admin/support | validated | M012/S01 | M012/S02, M012/S03 | Validated by milestone M012 closeout: S01 delivered persistence and merge API, S02 injected override-first + skip logic into both pipeline paths, S03 delivered the PatientDetailPage editor, and S04 re-ran verify-m012.sh green (11/11). |
 | R065 | anti-feature | out-of-scope | none | none | n/a |
 | R066 | anti-feature | out-of-scope | none | none | n/a |
 | R067 | operability | validated | M008/S01 | none | validated by S01 — backend health checks green (both /health and /api/v2/health), Celery worker connected to Dragonfly broker (inspect ping → pong), PostgreSQL hormonia_dev at Alembic head (m008_s01_t03_sessions_align), admin user seeded with functional login and session persistence in Dragonfly, .env configured with all required secrets and infra URLs. WuzAPI in mock mode for S01 — real connection validated by S02. |
@@ -1167,36 +1165,33 @@ This file is the explicit capability and coverage contract for the project.
 | R086 | integration | validated | M009/S06 | M009/S02, M009/S03, M009/S05 | validated by S06 — 4796 tests collected (zero Celery-related errors), AST scan confirms zero deleted-module imports in tests/, all M008 pipeline test files (test_patient_onboarding_e2e, test_saga_orchestrator, test_saga_onboarding_happy_path, test_flow_recovery_retry_e2e, test_flow_tasks_hardening) use Taskiq-only imports (.kiq, messaging_taskiq, flows_taskiq). Combined with S02 runtime proof (send_scheduled_message via Taskiq worker → WuzAPI) and S03 runtime proof (process_daily_flows async-native), the full create→welcome→daily→response→transition pipeline operates via Taskiq. |
 | R087 | anti-feature | out-of-scope | none | none | n/a |
 | R088 | anti-feature | out-of-scope | none | none | n/a |
-| R089 | primary-user-loop | validated | M010/S01 | none | validated by M010/S01 |
-| R090 | primary-user-loop | validated | M010/S02 | M010/S01 | validated by M010/S02 |
-| R091 | integration | validated | M010/S01 | none | validated by M010/S01 |
-| R092 | primary-user-loop | validated | M010/S02 | M010/S01 | validated by M010/S01+S02 |
-| R093 | quality-attribute | validated | M010/S04 | M010/S01, M010/S02 | validated by M010/S04 |
-| R094 | operability | validated | M010/S03 | none | validated by M010/S03 |
-| R095 | constraint | validated | M010/S01 | none | validated by M010 |
+| R089 | primary-user-loop | validated | M010/S01 | none | validated by M010/S01 — PhysicianDashboard rewritten as patient-centric table with flow_phase, current_day, last_contact, unacknowledged_alerts per patient. PhysicianPatientTable (314 lines) with search, phase filter, status filter. tsc + vite build green. |
+| R090 | primary-user-loop | validated | M010/S02 | M010/S01 | validated by M010/S02 — PatientDetailPage refactored as pre-consultation screen with AI Summary, FlowStatus, QuizSection as primary visible content. Tabs reduced to 3 (Timeline, Quiz Responses, Messages). tsc + vite build green. |
+| R091 | integration | validated | M010/S01 | none | validated by M010/S01 — GET /api/v2/physicians/patients returns flow_phase, current_day, last_contact, unacknowledged_alerts_count per patient via JOINs + window function. Single endpoint, no N+1. |
+| R092 | primary-user-loop | validated | M010/S02 | M010/S01 | validated by M010/S01+S02 — Brain icon in PhysicianPatientTable navigates to /physician/patients/{id}?tab=ai-summary. PatientDetailPage renders AI Summary as primary content on that tab. |
+| R093 | quality-attribute | validated | M010/S04 | M010/S01, M010/S02 | validated by M010/S04 — PhysicianPatientTable uses hidden md:block (desktop table) + md:hidden (mobile PatientCard). PatientDetailPage uses grid-cols-1 lg:grid-cols-3. PhysicianDashboard uses flex-col sm:flex-row filters. tsc + vite build green. |
+| R094 | operability | validated | M010/S03 | none | validated by M010/S03 — 8 dead files deleted (MedicoDashboard, PacientesList, ProntuarioView, MedicoAuthContext, MedicoRoutes, useMedicoDashboardStats, types/medico). MedicoLogin.tsx retained as 7-line redirect wrapper (delegates to LoginPage, actively used in routes). |
+| R095 | constraint | validated | M010/S01 | none | validated by M010 — DashboardPage.tsx (admin) was explicitly unchanged during M010 and M011. PhysicianDashboard.tsx exists as separate page at /physician/dashboard. Separate routes confirmed in routeDefinitions.tsx. |
 | R096 | failure-visibility | deferred | none | none | unmapped |
 | R097 | admin/support | deferred | none | none | unmapped |
 | R098 | constraint | out-of-scope | none | none | n/a |
 | R099 | constraint | out-of-scope | none | none | n/a |
-| R100 | quality-attribute | validated | M011/S01 | none | validated by S01 + verify-m011.sh group 5 |
-| R101 | quality-attribute | validated | M011/S01 | none | validated by S01 + verify-m011.sh group 7 |
-| R102 | quality-attribute | validated | M011/S02 | none | validated by S02 + verify-m011.sh group 6 |
+| R100 | quality-attribute | validated | M011/S01 | none | validated by S01 — per-user Redis caching on physician/patients (TTL=60s, user_id in cache key) and dashboard/main (TTL=120s, per-user key). verify-m011.sh group 5 confirms TTL values and user_id presence. |
+| R101 | quality-attribute | validated | M011/S01 | none | validated by S01 — Alembic migration m011_s01_patient_flow_states_index creates composite index idx_pfs_patient_started on patient_flow_states(patient_id, started_at DESC) with if_not_exists=True. verify-m011.sh group 7 confirms. |
+| R102 | quality-attribute | validated | M011/S02 | none | validated by S02 — 21 frontend hooks normalized: staleTime ≥ 60s (dashboard/patient), ≥ 120s (admin), refetchInterval ≥ 120s. verify-m011.sh group 6 confirmed 58 timing values comply. Monitoring hooks verified untouched. |
 | R103 | constraint | out-of-scope | none | none | n/a |
-| R104 | core-capability | active | M012/S01 | none | unmapped |
-| R105 | integration | active | M012/S01 | none | unmapped |
-| R106 | core-capability | active | M012/S02 | none | unmapped |
-| R107 | core-capability | active | M012/S02 | none | unmapped |
-| R108 | primary-user-loop | active | M012/S03 | none | unmapped |
-| R109 | continuity | active | M012/S01 | none | unmapped |
-| R064 | admin/support | active | M012/S01 | M012/S02, M012/S03 | unmapped |
+| R104 | core-capability | validated | M012/S01 | none | Verified by the patient_flow_overrides migration/model proof chain and verify-m012.sh phases 1-2 (ast.parse + migration structure). |
+| R105 | integration | validated | M012/S01 | none | Verified by the merged GET contract, PUT save path, and Redis invalidation checks in verify-m012.sh phases 3-4. |
+| R106 | core-capability | validated | M012/S02 | none | Validated by S02 override-first lookup in _get_day_config and re-confirmed by verify-m012.sh phase 5. |
+| R107 | core-capability | validated | M012/S02 | none | Validated by S02 skip handling in both pipeline paths and re-confirmed by verify-m012.sh phase 6. |
+| R108 | primary-user-loop | validated | M012/S03 | none | Validated by S03 editor delivery plus verify-m012.sh phases 8-11 (button wiring, future-day gating, tsc --noEmit, vite build). |
+| R109 | continuity | validated | M012/S01 | none | Validated by the separate-table + merge-at-read implementation and verify-m012.sh phase 7. |
 | R110 | constraint | out-of-scope | none | none | n/a |
 | R111 | anti-feature | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 7 (R064, R104–R109)
-- Mapped to slices: 7
-- Validated: 60
-- Deferred: 9
-- Out of scope: 22
+- Active requirements: 0
+- Mapped to slices: 0
+- Validated: 67 (R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R034, R035, R036, R037, R038, R039, R047, R048, R049, R050, R051, R052, R053, R057, R058, R059, R060, R061, R062, R063, R064, R067, R068, R069, R070, R071, R072, R073, R074, R077, R078, R079, R080, R081, R082, R083, R084, R085, R086, R089, R090, R091, R092, R093, R094, R095, R100, R101, R102, R104, R105, R106, R107, R108, R109)
 - Unmapped active requirements: 0

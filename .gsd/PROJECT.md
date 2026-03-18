@@ -13,7 +13,7 @@ Diminuir o tempo de consulta e melhorar a qualidade do atendimento oncológico: 
 - M001–M009 concluídos: pipeline de fluxo, auth canônico, refactor estrutural, convergência runtime/schema, purga de código morto, refinamento de fluxos, onboarding real ponta-a-ponta, migração Celery→Taskiq.
 - M010 concluído: dashboard médico refinado — visão patient-centric com contexto de fluxo, tela de preparo pré-consulta consolidada, responsivo desktop+mobile, código morto /medico/* removido.
 - M011 concluído: otimização de carregamento e redução de stress no banco — per-user Redis caching no physician/patients (TTL=60s) e dashboard (TTL=120s), composite index em patient_flow_states para ROW_NUMBER(), frontend request discipline em 21 hooks (staleTime ≥ 60s dashboard, ≥ 120s admin; refetchInterval ≥ 120s). Zero mudanças funcionais.
-- M012 em andamento: override de template por paciente — médico pode personalizar dias do fluxo para pacientes individuais (editar conteúdo, adicionar dias extras, pular dias) sobre o template global.
+- M012 concluído: override de template por paciente — tabela `patient_flow_overrides` + GET/PUT mergeado, lookup override-first com cache Redis compartilhado e skip handling nos dois caminhos do pipeline, editor `PatientFlowOverrideEditor` no PatientDetailPage com badges Global/Personalizado/Pulado e editabilidade restrita a dias futuros, e verificador replayable `verify-m012.sh` green (11/11 incluindo ast.parse, tsc --noEmit e vite build).
 
 ## Architecture / Key Patterns
 
@@ -42,4 +42,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 - [x] M009: Substituição do Celery por Taskiq
 - [x] M010: Refinamento do Dashboard Médico
 - [x] M011: Otimização de Carregamento e Redução de Stress no Banco
-- [ ] M012: Override de Template por Paciente
+- [x] M012: Override de Template por Paciente
