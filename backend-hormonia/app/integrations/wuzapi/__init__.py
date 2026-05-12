@@ -5,7 +5,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - interim during incremental setup
     WuzAPIClient = None
     normalize_session_status = None
-from app.integrations.wuzapi.errors import MediaTooLargeError, WuzAPIError
+from app.integrations.wuzapi.errors import MediaTooLargeError, UnsafeMediaUrlError, WuzAPIError
 from app.integrations.wuzapi.extractor import (
     RECEIPT_TYPE_TO_STATUS,
     WuzAPIInboundMessage,
@@ -35,6 +35,7 @@ __all__ = [
     "normalize_session_status",
     "WuzAPIError",
     "MediaTooLargeError",
+    "UnsafeMediaUrlError",
     "WuzAPISendResponse",
     "fetch_and_encode_media",
     "WuzAPIMessageExtractor",
