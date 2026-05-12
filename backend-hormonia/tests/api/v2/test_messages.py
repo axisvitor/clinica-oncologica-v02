@@ -514,13 +514,13 @@ class TestMessageStatusTracking:
 # ============================================================================
 
 @pytest.fixture
-def test_patient(db_session, test_user: User) -> Patient:
+def test_patient(db_session, test_doctor_user: User) -> Patient:
     """Create a test patient for message tests."""
     patient = Patient(
         id=uuid4(),
         name="Test Patient",
         phone="5511999999999",
-        doctor_id=test_user.id,
+        doctor_id=test_doctor_user.id,
         created_at=now_sao_paulo_naive()
     )
     db_session.add(patient)

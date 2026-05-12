@@ -7,7 +7,7 @@ import hashlib
 import os
 import threading
 import time
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, BackgroundTasks, Body, status
 from sqlalchemy import and_, func, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -17,6 +17,13 @@ from app.core.database.async_engine import get_async_db
 from app.database import get_async_session_factory
 from app.models.message import Message, MessageStatus, MessageType, MessageDirection
 from app.models.patient import Patient
+from app.models.user import UserRole
+from app.api.v2.patients_shared_helpers import (
+    assert_admin_or_assigned_doctor,
+    ensure_uuid_sync,
+    extract_user_context_sync,
+    load_patient_with_access,
+)
 # from app.domain.messaging.delivery import MessageSender
 from app.schemas.v2.messages import (
     MessageV2Response,
@@ -148,6 +155,55 @@ def _generate_cache_key(prefix: str, **kwargs) -> str:
     return f"v2:{prefix}:{hash_obj.hexdigest()[:16]}"
 
 
+def _message_actor_scope(current_user: Any) -> Dict[str, str]:
+    """Return a non-PHI actor scope for patient-bound message cache keys."""
+    actor_role, actor_id = extract_user_context_sync(current_user)
+    actor_uuid = ensure_uuid_sync(actor_id)
+    return {
+        "actor_role": actor_role.value if actor_role else "invalid",
+        "actor_id": str(actor_uuid) if actor_uuid else "invalid",
+    }
+
+
+def _get_message_actor_role_and_uuid(current_user: Any) -> tuple[UserRole, UUID]:
+    """Extract the authenticated message actor, failing closed on malformed contexts."""
+    actor_role, actor_id = extract_user_context_sync(current_user)
+    actor_uuid = ensure_uuid_sync(actor_id)
+    # Reuse the shared helper so malformed global message contexts emit the same
+    # ID-only structured deny diagnostics as patient-specific ownership failures.
+    assert_admin_or_assigned_doctor(
+        current_user=current_user,
+        patient_doctor_id=actor_uuid,
+        patient_id=None,
+    )
+    if actor_role not in (UserRole.ADMIN, UserRole.DOCTOR) or actor_uuid is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to access this patient",
+        )
+    return actor_role, actor_uuid
+
+
+def _apply_global_message_ownership_scope(stmt, current_user: Any):
+    """Scope non-patient-specific message queries to admin-all or assigned-doctor patients."""
+    actor_role, actor_uuid = _get_message_actor_role_and_uuid(current_user)
+    if actor_role == UserRole.ADMIN:
+        return stmt
+    return stmt.join(Patient, Message.patient_id == Patient.id).where(
+        Patient.doctor_id == actor_uuid
+    )
+
+
+def _assert_message_patient_access(message: Message, current_user: Any) -> None:
+    """Enforce the shared ownership boundary for a loaded patient-bound message."""
+    patient = getattr(message, "patient", None)
+    assert_admin_or_assigned_doctor(
+        current_user=current_user,
+        patient_doctor_id=getattr(patient, "doctor_id", None),
+        patient_id=getattr(message, "patient_id", None),
+    )
+
+
 def _map_status_to_v1(status_v2: MessageStatusV2) -> MessageStatus:
     mapping = {
         MessageStatusV2.PENDING: MessageStatus.PENDING,
@@ -236,24 +292,6 @@ async def list_messages(
     redis_cache=Depends(get_redis_cache),
 ):
     try:
-        cache_key = _generate_cache_key(
-            "messages_list",
-            cursor=cursor,
-            limit=limit,
-            patient_id=patient_id,
-            status=status,
-            message_type=message_type,
-            direction=direction,
-            start=start_date,
-            end=end_date,
-        )
-        try:
-            cached = await redis_cache.get(cache_key)
-            if cached:
-                return MessageV2List(**json.loads(cached))
-        except Exception as cache_err:
-            logger.debug(f"Cache read failed (non-critical): {cache_err}")
-
         cursor_data = None
         if cursor:
             try:
@@ -270,6 +308,7 @@ async def list_messages(
             include_sender = "sender" in includes
 
         criteria = []
+        parsed_patient_id = None
         if status:
             criteria.append(Message.status == _map_status_to_v1(status))
         if message_type:
@@ -281,11 +320,38 @@ async def list_messages(
 
         if patient_id:
             try:
-                criteria.append(Message.patient_id == UUID(patient_id))
+                parsed_patient_id = UUID(patient_id)
             except (ValueError, TypeError):
                 raise HTTPException(
                     status_code=400, detail="Invalid patient_id UUID format"
                 )
+            # Prove ownership before any patient-bound cache lookup.
+            await load_patient_with_access(db, parsed_patient_id, current_user)
+            criteria.append(Message.patient_id == parsed_patient_id)
+        else:
+            # Fail closed for malformed global user contexts before cache access.
+            _get_message_actor_role_and_uuid(current_user)
+
+        actor_scope = _message_actor_scope(current_user)
+        cache_key = _generate_cache_key(
+            "messages_list",
+            actor_role=actor_scope["actor_role"],
+            actor_id=actor_scope["actor_id"],
+            cursor=cursor,
+            limit=limit,
+            patient_id=patient_id,
+            status=status,
+            message_type=message_type,
+            direction=direction,
+            start=start_date,
+            end=end_date,
+        )
+        try:
+            cached = await redis_cache.get(cache_key)
+            if cached:
+                return MessageV2List(**json.loads(cached))
+        except Exception as cache_err:
+            logger.debug(f"Cache read failed (non-critical): {cache_err}")
 
         if direction:
             if direction.lower() == "inbound":
@@ -308,6 +374,8 @@ async def list_messages(
         stmt = select(Message)
         if include_patient:
             stmt = stmt.options(selectinload(Message.patient))
+        if parsed_patient_id is None:
+            stmt = _apply_global_message_ownership_scope(stmt, current_user)
         if criteria:
             stmt = stmt.where(and_(*criteria))
         stmt = stmt.order_by(Message.created_at.desc(), Message.id.desc()).limit(limit + 1)
@@ -380,6 +448,7 @@ async def get_patient_message_stats(
     current_user: dict = Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
 ):
+    await load_patient_with_access(db, patient_id, current_user)
     return MessageStatsV2Response(
         patient_id=str(patient_id),
         total_messages=0,
@@ -555,19 +624,23 @@ async def list_conversations(
     db: AsyncSession = Depends(get_async_db),
     current_user: dict = Depends(get_current_user_from_session),
 ):
-    total_result = await db.execute(
-        select(func.count(func.distinct(Message.patient_id))).where(
-            Message.patient_id.isnot(None)
-        )
+    count_stmt = select(func.count(func.distinct(Message.patient_id))).where(
+        Message.patient_id.isnot(None)
     )
+    count_stmt = _apply_global_message_ownership_scope(count_stmt, current_user)
+    total_result = await db.execute(count_stmt)
     total = total_result.scalar_one() or 0
 
-    latest_result = await db.execute(
+    latest_stmt = (
         select(Message)
         .where(Message.patient_id.isnot(None))
         .options(selectinload(Message.patient))
-        .order_by(Message.created_at.desc(), Message.id.desc())
-        .limit(max(limit * 8, limit))
+    )
+    latest_stmt = _apply_global_message_ownership_scope(latest_stmt, current_user)
+    latest_result = await db.execute(
+        latest_stmt.order_by(Message.created_at.desc(), Message.id.desc()).limit(
+            max(limit * 8, limit)
+        )
     )
     latest_messages = latest_result.scalars().all()
 
@@ -639,6 +712,8 @@ async def get_conversation_unread_count(
         pid = UUID(patient_id)
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid patient_id UUID format")
+
+    await load_patient_with_access(db, pid, current_user)
 
     result = await db.execute(
         select(func.count(Message.id)).where(
@@ -721,24 +796,31 @@ async def get_message(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid message ID UUID format")
 
-    cache_key = _generate_cache_key("message_single", id=id, include=include)
+    include_patient = bool(include and "patient" in include.lower())
+    result = await db.execute(
+        select(Message).where(Message.id == mid).options(selectinload(Message.patient))
+    )
+    message = result.scalar_one_or_none()
+    if not message:
+        raise HTTPException(status_code=404)
+
+    # Prove ownership before any patient-bound direct-message cache lookup.
+    _assert_message_patient_access(message, current_user)
+
+    actor_scope = _message_actor_scope(current_user)
+    cache_key = _generate_cache_key(
+        "message_single",
+        actor_role=actor_scope["actor_role"],
+        actor_id=actor_scope["actor_id"],
+        id=id,
+        include=include,
+    )
     try:
         cached = await redis_cache.get(cache_key)
         if cached:
             return MessageV2Response(**json.loads(cached))
     except Exception as cache_err:
         logger.debug(f"Cache read failed (non-critical): {cache_err}")
-
-    stmt = select(Message).where(Message.id == mid)
-    include_patient = False
-    if include and "patient" in include.lower():
-        include_patient = True
-        stmt = stmt.options(selectinload(Message.patient))
-
-    result = await db.execute(stmt)
-    message = result.scalar_one_or_none()
-    if not message:
-        raise HTTPException(status_code=404)
 
     data = _serialize_message(message, include_patient=include_patient)
     response = MessageV2Response(**data)
@@ -907,15 +989,8 @@ async def get_patient_conversation(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid patient_id UUID format")
 
-    cache_key = _generate_cache_key(
-        "conversation", pid=patient_id, cursor=cursor, limit=limit
-    )
-    try:
-        cached = await redis_cache.get(cache_key)
-        if cached:
-            return MessageV2List(**json.loads(cached))
-    except Exception as cache_err:
-        logger.debug(f"Cache read failed (non-critical): {cache_err}")
+    # Prove ownership before any patient-bound conversation cache lookup.
+    await load_patient_with_access(db, pid, current_user)
 
     cursor_data = None
     if cursor:
@@ -924,6 +999,22 @@ async def get_patient_conversation(
         except ValueError as e:
             logger.warning(f"Invalid cursor format: {e}")
             raise HTTPException(status_code=400, detail="Invalid cursor format")
+
+    actor_scope = _message_actor_scope(current_user)
+    cache_key = _generate_cache_key(
+        "conversation",
+        actor_role=actor_scope["actor_role"],
+        actor_id=actor_scope["actor_id"],
+        pid=patient_id,
+        cursor=cursor,
+        limit=limit,
+    )
+    try:
+        cached = await redis_cache.get(cache_key)
+        if cached:
+            return MessageV2List(**json.loads(cached))
+    except Exception as cache_err:
+        logger.debug(f"Cache read failed (non-critical): {cache_err}")
 
     criteria = [Message.patient_id == pid]
 
