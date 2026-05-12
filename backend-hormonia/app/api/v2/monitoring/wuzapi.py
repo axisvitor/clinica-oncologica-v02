@@ -3,15 +3,16 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.config import settings
+from app.dependencies.auth_dependencies import get_admin_user
 from app.integrations.wuzapi import get_wuzapi_client
 from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_admin_user)])
 
 
 @router.get("/session/status")

@@ -7,6 +7,7 @@ import pytest
 from fastapi import FastAPI
 
 from app.api.v2.monitoring.wuzapi import router
+from app.dependencies.auth_dependencies import get_admin_user
 from app.integrations.wuzapi.mock import MockWuzAPIClient
 
 
@@ -18,6 +19,11 @@ def mock_client():
 @pytest.fixture
 def app():
     app = FastAPI()
+
+    async def _admin_override():
+        return {"role": "admin"}
+
+    app.dependency_overrides[get_admin_user] = _admin_override
     app.include_router(router, prefix="/monitoring/wuzapi")
     return app
 
