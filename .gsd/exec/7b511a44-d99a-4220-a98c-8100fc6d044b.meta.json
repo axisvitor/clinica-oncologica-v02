@@ -1,0 +1,18 @@
+{
+  "id": "7b511a44-d99a-4220-a98c-8100fc6d044b",
+  "runtime": "python",
+  "purpose": "find WuzAPI media URL call sites limited",
+  "script_chars": 619,
+  "started_at": "2026-05-12T17:28:03.832Z",
+  "finished_at": "2026-05-12T17:28:14.639Z",
+  "exit_code": null,
+  "signal": "SIGKILL",
+  "timed_out": true,
+  "duration_ms": 10807,
+  "stdout_bytes": 0,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/7b511a44-d99a-4220-a98c-8100fc6d044b.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/7b511a44-d99a-4220-a98c-8100fc6d044b.stderr"
+}

@@ -1,0 +1,13 @@
+## backend-hormonia/app/api/v2/routers/patients.py exists=False
+## backend-hormonia/app/api/v2/routers/patients/__init__.py exists=True
+18: from fastapi import APIRouter
+24: from app.api.v2.routers.patients.flow_overrides import router as flow_overrides_router
+25: from app.api.v2.routers.patients.flow_responses import router as flow_responses_router
+30: router = APIRouter(prefix="/patients")
+35: router.include_router(import_export_router, prefix="", tags=["patients-import-export"])
+36: router.include_router(integrity_router, prefix="", tags=["patients-integrity"])
+37: router.include_router(flow_router, prefix="", tags=["patients-flow"])
+38: router.include_router(flow_responses_router, prefix="", tags=["patients-flow-responses"])
+39: router.include_router(flow_overrides_router, prefix="", tags=["patient-flow-overrides"])
+40: router.include_router(crud_router, prefix="", tags=["patients-crud"])
+## backend-hormonia/app/api/v2/routers/patients/router.py exists=False

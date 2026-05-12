@@ -1,0 +1,18 @@
+{
+  "id": "bcf113ac-1273-42b6-b0e0-d95c47c52dda",
+  "runtime": "bash",
+  "purpose": "rerun T02 authoritative pytest after formatting tidy",
+  "script_chars": 144,
+  "started_at": "2026-05-12T17:39:47.198Z",
+  "finished_at": "2026-05-12T17:40:13.951Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 26753,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/bcf113ac-1273-42b6-b0e0-d95c47c52dda.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/bcf113ac-1273-42b6-b0e0-d95c47c52dda.stderr"
+}

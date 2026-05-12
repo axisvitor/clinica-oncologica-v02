@@ -1,7 +1,7 @@
 # Codebase Map
 
-Generated: 2026-05-12T16:59:13Z | Files: 500 | Described: 0/500
-<!-- gsd:codebase-meta {"generatedAt":"2026-05-12T16:59:13Z","fingerprint":"bbda06d10604b56ea2432e5679560bd85ec0cdde","fileCount":500,"truncated":true} -->
+Generated: 2026-05-12T18:12:28Z | Files: 500 | Described: 0/500
+<!-- gsd:codebase-meta {"generatedAt":"2026-05-12T18:12:28Z","fingerprint":"30e44b32911ebd753f12d48119c4b761fddbceea","fileCount":500,"truncated":true} -->
 Note: Truncated to first 500 files. Run with higher --max-files to include all.
 
 ### (root)/
@@ -14,6 +14,7 @@ Note: Truncated to first 500 files. Run with higher --max-files to include all.
 - `.codex/AGENTS.override.md`
 - `.codex/config.toml`
 - `.codex/gsd-file-manifest.json`
+- `.codex/hooks.json`
 
 ### .codex/agents/
 - *(24 files: 12 .md, 12 .toml)*
@@ -73,6 +74,14 @@ Note: Truncated to first 500 files. Run with higher --max-files to include all.
 
 ### .codex/get-shit-done/workflows/
 - *(34 files: 34 .md)*
+
+### .codex/hooks/
+- `.codex/hooks/gsd-check-update.js`
+- `.codex/hooks/gsd-context-monitor.js`
+- `.codex/hooks/gsd-statusline.js`
+- `.codex/hooks/precompact-session-digest.js`
+- `.codex/hooks/README.md`
+- `.codex/hooks/synapse-engine.js`
 
 ### .codex/skills/gsd-add-phase/
 - `.codex/skills/gsd-add-phase/SKILL.md`
@@ -344,7 +353,24 @@ Note: Truncated to first 500 files. Run with higher --max-files to include all.
 - `.opencode/get-shit-done/references/verification-patterns.md`
 
 ### .opencode/get-shit-done/templates/
-- *(24 files: 23 .md, 1 .json)*
+- `.opencode/get-shit-done/templates/config.json`
+- `.opencode/get-shit-done/templates/context.md`
+- `.opencode/get-shit-done/templates/continue-here.md`
+- `.opencode/get-shit-done/templates/debug-subagent-prompt.md`
+- `.opencode/get-shit-done/templates/DEBUG.md`
+- `.opencode/get-shit-done/templates/discovery.md`
+- `.opencode/get-shit-done/templates/milestone-archive.md`
+- `.opencode/get-shit-done/templates/milestone.md`
+- `.opencode/get-shit-done/templates/phase-prompt.md`
+- `.opencode/get-shit-done/templates/planner-subagent-prompt.md`
+- `.opencode/get-shit-done/templates/project.md`
+- `.opencode/get-shit-done/templates/requirements.md`
+- `.opencode/get-shit-done/templates/research.md`
+- `.opencode/get-shit-done/templates/retrospective.md`
+- `.opencode/get-shit-done/templates/roadmap.md`
+- `.opencode/get-shit-done/templates/state.md`
+- `.opencode/get-shit-done/templates/UAT.md`
+- `.opencode/get-shit-done/templates/VALIDATION.md`
 
 ### .opencode/get-shit-done/templates/codebase/
 - `.opencode/get-shit-done/templates/codebase/architecture.md`
@@ -361,6 +387,3 @@ Note: Truncated to first 500 files. Run with higher --max-files to include all.
 - `.opencode/get-shit-done/templates/research-project/PITFALLS.md`
 - `.opencode/get-shit-done/templates/research-project/STACK.md`
 - `.opencode/get-shit-done/templates/research-project/SUMMARY.md`
-
-### .opencode/get-shit-done/workflows/
-- `.opencode/get-shit-done/workflows/add-phase.md`

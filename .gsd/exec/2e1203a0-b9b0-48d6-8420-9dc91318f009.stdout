@@ -1,0 +1,37 @@
+backend-hormonia/tests/integrations/wuzapi/test_wuzapi_media.py:8:from app.integrations.wuzapi.media import fetch_and_encode_media
+backend-hormonia/tests/integrations/wuzapi/test_wuzapi_media.py:71:    result = await fetch_and_encode_media("https://example.com/file.jpg")
+backend-hormonia/tests/integrations/wuzapi/test_wuzapi_media.py:83:    result = await fetch_and_encode_media("https://example.com/file.png")
+backend-hormonia/tests/integrations/wuzapi/test_wuzapi_media.py:95:        await fetch_and_encode_media("https://example.com/huge.pdf")
+backend-hormonia/tests/integrations/wuzapi/test_wuzapi_media.py:105:    result = await fetch_and_encode_media("https://example.com/blob")
+backend-hormonia/app/integrations/wuzapi/__init__.py:15:from app.integrations.wuzapi.media import fetch_and_encode_media
+backend-hormonia/app/integrations/wuzapi/__init__.py:39:    "fetch_and_encode_media",
+backend-hormonia/app/integrations/wuzapi/media.py:13:async def fetch_and_encode_media(url: str, timeout: int = 30) -> str:
+backend-hormonia/app/schemas/v2/messages.py:600:                "message_metadata": {"from_name": "João Silva", "media_url": None},
+backend-hormonia/tests/services/test_unified_whatsapp_service.py:212:            'media_url': 'https://example.com/image.jpg',
+backend-hormonia/tests/services/test_unified_whatsapp_service.py:223:        assert queue_request.media_url == 'https://example.com/image.jpg'
+backend-hormonia/app/integrations/whatsapp/services/message_service.py:29:from app.integrations.wuzapi.media import fetch_and_encode_media
+backend-hormonia/app/integrations/whatsapp/services/message_service.py:334:            media_url=request.media_url,
+backend-hormonia/app/integrations/whatsapp/services/message_service.py:588:            data_uri = await fetch_and_encode_media(request.media_url or "")
+backend-hormonia/app/integrations/whatsapp/queue/schemas.py:32:    media_url: Optional[str] = Field(None, description="URL for media messages")
+backend-hormonia/app/integrations/whatsapp/models/message.py:53:    media_url = Column(String)
+backend-hormonia/app/integrations/whatsapp/models/message.py:114:    media_url: Optional[str] = None
+backend-hormonia/app/integrations/whatsapp/api/routes.py:38:        "media_url": msg.media_url,
+backend-hormonia/app/models/template.py:19:        media_url (str): Optional URL for media messages.
+backend-hormonia/app/models/template.py:29:    media_url = Column(String, nullable=True)
+backend-hormonia/app/services/unified_whatsapp_service.py:27:from app.integrations.wuzapi.media import fetch_and_encode_media
+backend-hormonia/app/services/unified_whatsapp_service.py:529:                media_url = metadata.get("media_url", "")
+backend-hormonia/app/services/unified_whatsapp_service.py:531:                if not media_url:
+backend-hormonia/app/services/unified_whatsapp_service.py:532:                    raise ExternalServiceError("media_url is required for media send")
+backend-hormonia/app/services/unified_whatsapp_service.py:533:                data_uri = await fetch_and_encode_media(media_url)
+backend-hormonia/app/services/unified_whatsapp_service.py:606:        media_url = None
+backend-hormonia/app/services/unified_whatsapp_service.py:613:            media_url = metadata.get("media_url")
+backend-hormonia/app/services/unified_whatsapp_service.py:633:            media_url=media_url,
+backend-hormonia/app/services/response_processor/validators.py:159:                    media_url = inbound_message.metadata.get("media_url") or inbound_message.metadata.get("url")
+backend-hormonia/app/services/response_processor/validators.py:160:                    if not media_url:
+backend-hormonia/app/services/response_processor/validators.py:199:                media_url = inbound_message.metadata.get("media_url") or inbound_message.metadata.get("url")
+backend-hormonia/app/services/response_processor/validators.py:200:                if not media_url and "Mensagem de midia sem arquivo" not in errors:
+backend-hormonia/app/services/response_processor/processor.py:524:            media_url = metadata.get("media_url") or metadata.get("url") or ""
+backend-hormonia/app/services/response_processor/processor.py:527:                f"{patient_id}:{message_type}:{content}:{media_url}:{inbound_message.whatsapp_id or ''}"
+backend-hormonia/app/services/response_processor/extractors.py:371:                media_url = inbound_message.metadata.get("media_url") or inbound_message.metadata.get("url", "")
+backend-hormonia/app/services/response_processor/extractors.py:375:                        "media_url": media_url or "",
+backend-hormonia/app/services/flow/event_broadcaster.py:189:                    "has_media": bool(metadata.get("media_url") or metadata.get("url")),

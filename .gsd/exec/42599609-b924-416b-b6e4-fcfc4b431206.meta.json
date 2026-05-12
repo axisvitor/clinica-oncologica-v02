@@ -1,0 +1,18 @@
+{
+  "id": "42599609-b924-416b-b6e4-fcfc4b431206",
+  "runtime": "bash",
+  "purpose": "rerun T02 authoritative pytest after port-zero guard",
+  "script_chars": 144,
+  "started_at": "2026-05-12T17:41:53.179Z",
+  "finished_at": "2026-05-12T17:42:18.416Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 25237,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/42599609-b924-416b-b6e4-fcfc4b431206.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/42599609-b924-416b-b6e4-fcfc4b431206.stderr"
+}

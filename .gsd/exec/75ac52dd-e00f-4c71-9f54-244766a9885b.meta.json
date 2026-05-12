@@ -1,0 +1,18 @@
+{
+  "id": "75ac52dd-e00f-4c71-9f54-244766a9885b",
+  "runtime": "bash",
+  "purpose": "M013 S01 final slice pytest check for WhatsApp auth plus WuzAPI SSRF/media targets",
+  "script_chars": 424,
+  "started_at": "2026-05-12T17:56:39.754Z",
+  "finished_at": "2026-05-12T17:57:06.775Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 27021,
+  "stdout_bytes": 106,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/75ac52dd-e00f-4c71-9f54-244766a9885b.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/75ac52dd-e00f-4c71-9f54-244766a9885b.stderr"
+}

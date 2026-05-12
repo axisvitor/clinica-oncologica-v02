@@ -4,28 +4,6 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Active
 
-### R001 — A API de gestão WhatsApp deve exigir autenticação e autorização antes de permitir envio, leitura, histórico, contatos, filas ou instâncias.
-- Class: compliance/security
-- Status: active
-- Description: A API de gestão WhatsApp deve exigir autenticação e autorização antes de permitir envio, leitura, histórico, contatos, filas ou instâncias.
-- Why it matters: A API controla mensagens e dados PHI; acesso anônimo permite controle externo do canal clínico.
-- Source: report
-- Primary owning slice: M013/S01
-- Supporting slices: M013/S06
-- Validation: mapped
-- Notes: Cobre F-01. Operações de gestão/queue/instance devem ser restritas a admin ou principal de serviço apropriado; nenhum handler sensível deve executar anonimamente.
-
-### R002 — O fetch de mídia WhatsApp/WuzAPI deve bloquear SSRF por esquema, host, DNS/IP privado, loopback, link-local, metadados cloud, redirects suspeitos e timeout.
-- Class: compliance/security
-- Status: active
-- Description: O fetch de mídia WhatsApp/WuzAPI deve bloquear SSRF por esquema, host, DNS/IP privado, loopback, link-local, metadados cloud, redirects suspeitos e timeout.
-- Why it matters: Media URLs são entrada controlada por atacante e podem forçar o servidor a acessar rede interna ou metadata services.
-- Source: report
-- Primary owning slice: M013/S01
-- Supporting slices: M013/S06
-- Validation: mapped
-- Notes: Cobre F-02. O limite de tamanho continua, mas não substitui validação de destino. Logs não devem incluir URL sensível completa.
-
 ### R003 — Rotas de mensagens devem impedir leitura ou mutação cross-patient/cross-doctor por filtros, IDs diretos, read-state ou conversation endpoints.
 - Class: compliance/security
 - Status: active
@@ -123,9 +101,31 @@ This file is the explicit capability and coverage contract for the project.
 - Primary owning slice: M013/S06
 - Supporting slices: M013/S01, M013/S02, M013/S03, M013/S04, M013/S05
 - Validation: mapped
-- Notes: Códigos esperados: 401 para auth ausente/inválida; 403 ou 404 anti-enumeração para ownership; erros SSRF/quiz/arquivo privados sem dados parciais.
+- Notes: M013/S01 advanced failure visibility for WhatsApp auth and WuzAPI SSRF by failing closed and sanitizing unsafe/oversize media diagnostics; full R011 validation remains owned by M013/S06 across auth, authorization, private files and quiz boundaries.
 
 ## Validated
+
+### R001 — A API de gestão WhatsApp deve exigir autenticação e autorização antes de permitir envio, leitura, histórico, contatos, filas ou instâncias.
+- Class: compliance/security
+- Status: validated
+- Description: A API de gestão WhatsApp deve exigir autenticação e autorização antes de permitir envio, leitura, histórico, contatos, filas ou instâncias.
+- Why it matters: A API controla mensagens e dados PHI; acesso anônimo permite controle externo do canal clínico.
+- Source: report
+- Primary owning slice: M013/S01
+- Supporting slices: M013/S06
+- Validation: M013/S01 verified WhatsApp management API auth with focused and final pytest evidence: gsd_exec af1fd56e-266a-44f6-91f3-f4b4fb948c14 and 75ac52dd-e00f-4c71-9f54-244766a9885b passed. Tests cover anonymous/non-admin rejection before service/queue/DB execution, public /api/v2/whatsapp/health, and an authorized admin mocked send operation.
+- Notes: Validated by S01; downstream S06 should include this proof in the consolidated security evidence matrix.
+
+### R002 — O fetch de mídia WhatsApp/WuzAPI deve bloquear SSRF por esquema, host, DNS/IP privado, loopback, link-local, metadados cloud, redirects suspeitos e timeout.
+- Class: compliance/security
+- Status: validated
+- Description: O fetch de mídia WhatsApp/WuzAPI deve bloquear SSRF por esquema, host, DNS/IP privado, loopback, link-local, metadados cloud, redirects suspeitos e timeout.
+- Why it matters: Media URLs são entrada controlada por atacante e podem forçar o servidor a acessar rede interna ou metadata services.
+- Source: report
+- Primary owning slice: M013/S01
+- Supporting slices: M013/S06
+- Validation: M013/S01 verified WuzAPI media SSRF protections with focused and final pytest evidence: gsd_exec 5c8857c7-87d3-4d91-8853-b038a4d5c49f and 75ac52dd-e00f-4c71-9f54-244766a9885b passed. Tests cover blocked schemes, malformed/missing hosts, userinfo, invalid/zero ports, localhost/private/loopback/link-local/multicast/unspecified/reserved/CGNAT/metadata IPs, DNS failure/mixed answers, no GET before validation, manual redirect validation with allow_redirects=False, safe redirects, data-URI behavior, and sanitized unsafe/oversize messages.
+- Notes: Validated by S01; downstream S06 should include this proof in the consolidated security evidence matrix.
 
 ## Deferred
 
@@ -212,8 +212,8 @@ This file is the explicit capability and coverage contract for the project.
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
 |---|---|---|---|---|---|
-| R001 | compliance/security | active | M013/S01 | M013/S06 | mapped |
-| R002 | compliance/security | active | M013/S01 | M013/S06 | mapped |
+| R001 | compliance/security | validated | M013/S01 | M013/S06 | M013/S01 verified WhatsApp management API auth with focused and final pytest evidence: gsd_exec af1fd56e-266a-44f6-91f3-f4b4fb948c14 and 75ac52dd-e00f-4c71-9f54-244766a9885b passed. Tests cover anonymous/non-admin rejection before service/queue/DB execution, public /api/v2/whatsapp/health, and an authorized admin mocked send operation. |
+| R002 | compliance/security | validated | M013/S01 | M013/S06 | M013/S01 verified WuzAPI media SSRF protections with focused and final pytest evidence: gsd_exec 5c8857c7-87d3-4d91-8853-b038a4d5c49f and 75ac52dd-e00f-4c71-9f54-244766a9885b passed. Tests cover blocked schemes, malformed/missing hosts, userinfo, invalid/zero ports, localhost/private/loopback/link-local/multicast/unspecified/reserved/CGNAT/metadata IPs, DNS failure/mixed answers, no GET before validation, manual redirect validation with allow_redirects=False, safe redirects, data-URI behavior, and sanitized unsafe/oversize messages. |
 | R003 | compliance/security | active | M013/S02 | M013/S06 | mapped |
 | R004 | compliance/security | active | M013/S03 | M013/S06 | mapped |
 | R005 | compliance/security | active | M013/S03 | M013/S06 | mapped |
@@ -233,7 +233,7 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Coverage Summary
 
-- Active requirements: 11
-- Mapped to slices: 11
-- Validated: 0
+- Active requirements: 9
+- Mapped to slices: 9
+- Validated: 2 (R001, R002)
 - Unmapped active requirements: 0

@@ -46,7 +46,7 @@ Upstream surfaces consumed: canonical session/admin dependencies in `backend-hor
   - Files: `backend-hormonia/app/integrations/whatsapp/api/routes.py`, `backend-hormonia/tests/integration/whatsapp/test_whatsapp_management_auth.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/integration/whatsapp/test_whatsapp_management_auth.py -q
 
-- [ ] **T02: Add reusable SSRF validation for WuzAPI media URLs** `est:1h45m`
+- [x] **T02: Add reusable SSRF validation for WuzAPI media URLs** `est:1h45m`
   Executor metadata:
   - estimated_steps: 9
   - estimated_files: 4
@@ -54,7 +54,7 @@ Upstream surfaces consumed: canonical session/admin dependencies in `backend-hor
   - Files: `backend-hormonia/app/integrations/wuzapi/ssrf_guard.py`, `backend-hormonia/app/integrations/wuzapi/errors.py`, `backend-hormonia/app/integrations/wuzapi/__init__.py`, `backend-hormonia/tests/integrations/wuzapi/test_ssrf_guard.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/integrations/wuzapi/test_ssrf_guard.py -q
 
-- [ ] **T03: Wire SSRF guard into media fetch and redirect handling** `est:1h45m`
+- [x] **T03: Wire SSRF guard into media fetch and redirect handling** `est:1h45m`
   Executor metadata:
   - estimated_steps: 10
   - estimated_files: 2

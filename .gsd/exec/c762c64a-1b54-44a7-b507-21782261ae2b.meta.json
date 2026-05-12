@@ -1,0 +1,18 @@
+{
+  "id": "c762c64a-1b54-44a7-b507-21782261ae2b",
+  "runtime": "bash",
+  "purpose": "reproduce verification shell python error",
+  "script_chars": 242,
+  "started_at": "2026-05-12T17:26:39.844Z",
+  "finished_at": "2026-05-12T17:26:40.420Z",
+  "exit_code": 127,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 576,
+  "stdout_bytes": 9,
+  "stderr_bytes": 76,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/c762c64a-1b54-44a7-b507-21782261ae2b.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/c762c64a-1b54-44a7-b507-21782261ae2b.stderr"
+}

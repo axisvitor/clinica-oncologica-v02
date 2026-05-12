@@ -1,0 +1,18 @@
+{
+  "id": "dfb8c5fe-65be-4ac8-b993-5cb6c93d5113",
+  "runtime": "python",
+  "purpose": "S02 planning verify regression file existence",
+  "script_chars": 252,
+  "started_at": "2026-05-12T18:19:38.316Z",
+  "finished_at": "2026-05-12T18:19:38.367Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 51,
+  "stdout_bytes": 185,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/dfb8c5fe-65be-4ac8-b993-5cb6c93d5113.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/dfb8c5fe-65be-4ac8-b993-5cb6c93d5113.stderr"
+}

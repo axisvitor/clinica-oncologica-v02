@@ -7,16 +7,29 @@ an async session helper to avoid duplicated get_current_user logic.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 
-from app.models.patient import FlowState
+from app.models.patient import FlowState, Patient
 from app.models.user import UserRole
 from app.api.v2.auth_session_shared import resolve_session_id, get_user_data_from_session
-from app.utils.auth_helpers import extract_user_context
+from app.utils.auth_helpers import (
+    ensure_uuid as auth_ensure_uuid,
+    extract_user_context,
+    extract_user_role_and_uuid,
+    get_user_uuid,
+)
+
+logger = logging.getLogger(__name__)
+
+_PATIENT_ACCESS_DENIED_DETAIL = "Not enough permissions to access this patient"
+_PATIENT_NOT_FOUND_DETAIL = "Patient not found"
+_INVALID_PATIENT_ID_DETAIL = "Invalid patient ID format"
 
 
 async def get_current_user_simple_shared(
@@ -59,14 +72,156 @@ def is_admin_sync(current_user: Any, allow_dict_role_shortcut: bool = False) -> 
     return role_enum == UserRole.ADMIN
 
 
-def ensure_uuid_sync(value: Optional[str]) -> Optional[UUID]:
-    """Convert string to UUID safely; return None on invalid values."""
-    if value is None:
-        return None
+def ensure_uuid_sync(value: Optional[str | UUID]) -> Optional[UUID]:
+    """Convert string/UUID to UUID safely; return None on invalid values."""
+    return auth_ensure_uuid(value)
+
+
+def _safe_log_patient_access_denied(
+    *,
+    actor_id: Optional[UUID],
+    actor_role: Optional[UserRole],
+    patient_id: Optional[Any],
+    reason: str,
+) -> None:
+    """Emit patient ownership denial diagnostics without PHI payloads."""
     try:
-        return UUID(str(value))
-    except (TypeError, ValueError):
-        return None
+        logger.warning(
+            "Patient access denied",
+            extra={
+                "actor_id": str(actor_id) if actor_id else None,
+                "actor_role": actor_role.value if actor_role else None,
+                "patient_id": str(patient_id) if patient_id is not None else None,
+                "resource_id": str(patient_id) if patient_id is not None else None,
+                "reason": reason,
+            },
+        )
+    except Exception:
+        # Observability must never change the authorization result.
+        return
+
+
+def _raise_patient_access_denied(
+    *,
+    actor_id: Optional[UUID],
+    actor_role: Optional[UserRole],
+    patient_id: Optional[Any],
+    reason: str,
+) -> None:
+    _safe_log_patient_access_denied(
+        actor_id=actor_id,
+        actor_role=actor_role,
+        patient_id=patient_id,
+        reason=reason,
+    )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=_PATIENT_ACCESS_DENIED_DETAIL,
+    )
+
+
+def _extract_patient_access_actor(
+    current_user: Any,
+) -> Tuple[Optional[UserRole], Optional[UUID]]:
+    """Extract a strict role and UUID for patient ownership checks."""
+    role_enum, _ = extract_user_context(current_user)
+    user_uuid = get_user_uuid(current_user)
+    if role_enum is None:
+        return None, user_uuid
+
+    resolved_role, resolved_uuid = extract_user_role_and_uuid(
+        current_user,
+        default_role=role_enum,
+    )
+    return resolved_role, resolved_uuid
+
+
+def assert_admin_or_assigned_doctor(
+    current_user: Any,
+    patient_doctor_id: Optional[str | UUID],
+    patient_id: Optional[Any] = None,
+) -> None:
+    """
+    Ensure the actor is an admin or the doctor assigned to the patient.
+
+    Admins may access any patient record. Doctors may access only patients whose
+    ``Patient.doctor_id`` matches their authenticated user UUID. Missing,
+    malformed, or unsupported user contexts fail closed with a generic 403.
+    """
+    actor_role, actor_uuid = _extract_patient_access_actor(current_user)
+
+    if actor_role is None:
+        _raise_patient_access_denied(
+            actor_id=actor_uuid,
+            actor_role=None,
+            patient_id=patient_id,
+            reason="invalid_user_context",
+        )
+
+    if actor_uuid is None:
+        _raise_patient_access_denied(
+            actor_id=None,
+            actor_role=actor_role,
+            patient_id=patient_id,
+            reason="invalid_user_id",
+        )
+
+    if actor_role == UserRole.ADMIN:
+        return
+
+    if actor_role != UserRole.DOCTOR:
+        _raise_patient_access_denied(
+            actor_id=actor_uuid,
+            actor_role=actor_role,
+            patient_id=patient_id,
+            reason="unsupported_role",
+        )
+
+    assigned_doctor_uuid = auth_ensure_uuid(patient_doctor_id)
+    if assigned_doctor_uuid is None:
+        _raise_patient_access_denied(
+            actor_id=actor_uuid,
+            actor_role=actor_role,
+            patient_id=patient_id,
+            reason="patient_unassigned",
+        )
+
+    if assigned_doctor_uuid != actor_uuid:
+        _raise_patient_access_denied(
+            actor_id=actor_uuid,
+            actor_role=actor_role,
+            patient_id=patient_id,
+            reason="foreign_patient",
+        )
+
+
+async def load_patient_with_access(
+    db: Any,
+    patient_id: str | UUID,
+    current_user: Any,
+) -> Patient:
+    """Load one patient by ID and enforce the shared ownership boundary."""
+    patient_uuid = auth_ensure_uuid(patient_id)
+    if patient_uuid is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=_INVALID_PATIENT_ID_DETAIL,
+        )
+
+    result = await db.execute(select(Patient).where(Patient.id == patient_uuid))
+    patient = result.scalar_one_or_none()
+    if patient is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=_PATIENT_NOT_FOUND_DETAIL,
+        )
+
+    assert_admin_or_assigned_doctor(
+        current_user=current_user,
+        patient_doctor_id=getattr(patient, "doctor_id", None),
+        patient_id=getattr(patient, "id", patient_uuid),
+    )
+    return patient
 
 
 def normalize_cpf_sync(cpf: Optional[str]) -> Optional[str]:

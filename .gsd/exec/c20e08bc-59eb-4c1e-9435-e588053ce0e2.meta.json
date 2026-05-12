@@ -1,0 +1,18 @@
+{
+  "id": "c20e08bc-59eb-4c1e-9435-e588053ce0e2",
+  "runtime": "bash",
+  "purpose": "run slice WuzAPI guard and media focused verification",
+  "script_chars": 208,
+  "started_at": "2026-05-12T17:37:00.772Z",
+  "finished_at": "2026-05-12T17:37:27.063Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 26291,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/c20e08bc-59eb-4c1e-9435-e588053ce0e2.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/c20e08bc-59eb-4c1e-9435-e588053ce0e2.stderr"
+}

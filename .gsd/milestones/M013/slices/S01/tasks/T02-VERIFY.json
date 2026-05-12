@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T02",
+  "unitId": "M013/S01/T02",
+  "timestamp": 1778607884330,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/integrations/wuzapi/test_ssrf_guard.py -q",
+      "exitCode": 0,
+      "durationMs": 24989,
+      "verdict": "pass"
+    }
+  ]
+}

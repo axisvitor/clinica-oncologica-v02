@@ -1,0 +1,37 @@
+tests/unit/services/flow/test_patient_flow_responses.py
+  5: - process_patient_response() dual-writes PatientFlowResponse with correct attrs
+  24: from app.models.patient_flow_response import PatientFlowResponse
+  42: ) -> PatientFlowResponse:
+  43: """Build a PatientFlowResponse with sensible defaults."""
+  44: obj = PatientFlowResponse(
+  115: # 2. Dual-write: process_patient_response creates PatientFlowResponse
+  124: db.add() receives a PatientFlowResponse with correct attributes.
+  131: # Build a PatientFlowResponse the way response_processing does
+  132: flow_response = PatientFlowResponse(
+  153: When flow_state is None, PatientFlowResponse is still created
+  158: flow_response = PatientFlowResponse(
+  177: a PatientFlowResponse bearing the expected attributes.
+  185: flow_response = PatientFlowResponse(
+  200: assert isinstance(added, PatientFlowResponse)
+  211: db.add() receives PatientFlowResponse with flow_state_id=None.
+  217: flow_response = PatientFlowResponse(
+  230: assert isinstance(added, PatientFlowResponse)
+tests/unit/services/test_flow_advance_awaiting_response_block.py
+tests/unit/services/flow/test_patient_flow_responses.py
+  5: - process_patient_response() dual-writes PatientFlowResponse with correct attrs
+  24: from app.models.patient_flow_response import PatientFlowResponse
+  42: ) -> PatientFlowResponse:
+  43: """Build a PatientFlowResponse with sensible defaults."""
+  44: obj = PatientFlowResponse(
+  115: # 2. Dual-write: process_patient_response creates PatientFlowResponse
+  124: db.add() receives a PatientFlowResponse with correct attributes.
+  131: # Build a PatientFlowResponse the way response_processing does
+  132: flow_response = PatientFlowResponse(
+  153: When flow_state is None, PatientFlowResponse is still created
+  158: flow_response = PatientFlowResponse(
+  177: a PatientFlowResponse bearing the expected attributes.
+  185: flow_response = PatientFlowResponse(
+  200: assert isinstance(added, PatientFlowResponse)
+  211: db.add() receives PatientFlowResponse with flow_state_id=None.
+  217: flow_response = PatientFlowResponse(
+  230: assert isinstance(added, PatientFlowResponse)

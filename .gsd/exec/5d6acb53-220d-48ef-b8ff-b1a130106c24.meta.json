@@ -1,0 +1,18 @@
+{
+  "id": "5d6acb53-220d-48ef-b8ff-b1a130106c24",
+  "runtime": "bash",
+  "purpose": "Verify M013/S02/T01 patient access helper unit tests",
+  "script_chars": 81,
+  "started_at": "2026-05-12T18:33:22.690Z",
+  "finished_at": "2026-05-12T18:33:47.976Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 25286,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/5d6acb53-220d-48ef-b8ff-b1a130106c24.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/5d6acb53-220d-48ef-b8ff-b1a130106c24.stderr"
+}

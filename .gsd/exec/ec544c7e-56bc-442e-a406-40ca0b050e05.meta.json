@@ -1,0 +1,18 @@
+{
+  "id": "ec544c7e-56bc-442e-a406-40ca0b050e05",
+  "runtime": "bash",
+  "purpose": "inspect PATH python resolution",
+  "script_chars": 216,
+  "started_at": "2026-05-12T17:26:21.261Z",
+  "finished_at": "2026-05-12T17:26:21.623Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 362,
+  "stdout_bytes": 4459,
+  "stderr_bytes": 78,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/ec544c7e-56bc-442e-a406-40ca0b050e05.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/ec544c7e-56bc-442e-a406-40ca0b050e05.stderr"
+}

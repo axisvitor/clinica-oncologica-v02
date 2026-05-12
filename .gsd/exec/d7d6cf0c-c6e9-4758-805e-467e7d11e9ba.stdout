@@ -1,0 +1,315 @@
+
+## tests/conftest.py exists=True
+59: from app.models.patient import Patient
+214: def _ensure_patients_whatsapp_opt_out_column(engine):
+215:     """Ensure Postgres test schemas include patients.messaging_stopped_at."""
+220:     if not inspector.has_table("patients"):
+221:         print("[tests.conftest] patients table missing; skipping messaging_stopped_at guard")
+224:     patient_columns = {column["name"] for column in inspector.get_columns("patients")}
+225:     if "messaging_stopped_at" in patient_columns:
+228:     print("[tests.conftest] Applying schema patch: add patients.messaging_stopped_at")
+232:                 "ALTER TABLE patients "
+238:                 "CREATE INDEX IF NOT EXISTS idx_patients_messaging_stopped "
+239:                 "ON patients (messaging_stopped_at) "
+1081:     _ensure_patients_whatsapp_opt_out_column(engine)
+1237:     async def _override_get_db():
+1240:     app.dependency_overrides[get_db] = _override_get_db
+1242:     async def _override_get_async_db():
+1245:     app.dependency_overrides[get_async_db] = _override_get_async_db
+1258:     app.dependency_overrides[get_field_selection] = get_field_selection_async
+1259:     app.dependency_overrides[get_pagination_params] = get_pagination_params_async
+1260:     app.dependency_overrides[get_eager_load_params] = get_eager_load_params_async
+1270:         async def _override_enhanced_analytics_service():
+1273:         app.dependency_overrides[get_enhanced_analytics_service] = (
+1274:             _override_enhanced_analytics_service
+1395:     async def _override_redis_cache():
+1398:     app.dependency_overrides[get_redis_cache] = _override_redis_cache
+1402:         app.dependency_overrides[monthly_quiz_shared.get_redis_cache] = _override_redis_cache
+1411:     def _override_thread_safe_service_provider():
+1418:         _override_thread_safe_service_provider,
+1436:         app.dependency_overrides.clear()
+1459: def create_test_user(db_session, email="test@example.com", role=UserRole.DOCTOR, **kwargs):
+1558: def create_test_patient(db_session, doctor, name="Test Patient", **kwargs):
+1559:     patient = Patient(
+1562:         doctor_id=doctor.id,
+1565:     if 'cpf' in kwargs: patient.set_cpf(kwargs['cpf'])
+1566:     if 'email' in kwargs: patient.set_email(kwargs['email'])
+1567:     if 'phone' in kwargs: patient.set_phone(kwargs['phone'])
+1569:     db_session.add(patient)
+1571:     return patient
+1574: def test_patient(db_session, test_user):
+1576:     return create_test_patient(db_session, doctor=user_obj)
+1587:     async def _override_session(request: Request):
+1592:     async def _override_current_user(request: Request):
+1600:     async def _override_current_user_object():
+1603:     app.dependency_overrides[get_current_user_from_session] = _override_session
+1604:     app.dependency_overrides[get_current_user_object_from_session] = _override_current_user_object
+1605:     app.dependency_overrides[get_current_user] = _override_current_user
+1611: def auth_headers(test_user):
+1623:     async def _override_session(request: Request):
+1629:     async def _override_current_user(request: Request):
+1638:     async def _override_optional_user(credentials=None, services=None):
+1641:     async def _override_current_user_object():
+1644:     async def _override_request_context(request: Request):
+1652:     app.dependency_overrides[get_current_user_from_session] = _override_session
+1653:     app.dependency_overrides[get_current_user_object_from_session] = _override_current_user_object
+1654:     app.dependency_overrides[get_current_user] = _override_current_user
+1655:     app.dependency_overrides[get_optional_user] = _override_optional_user
+1656:     app.dependency_overrides[get_request_context] = _override_request_context
+1666:     app.dependency_overrides.pop(get_current_user_from_session, None)
+1667:     app.dependency_overrides.pop(get_current_user_object_from_session, None)
+1668:     app.dependency_overrides.pop(get_current_user, None)
+1669:     app.dependency_overrides.pop(get_optional_user, None)
+... 1 more hits
+
+## tests/api/v2/test_patients_rbac_impl.py exists=True
+3: Tests to prevent privacy regression - ensure doctors only see their own patients.
+11: from tests.conftest import create_test_user, create_test_patient
+16:     """Test Role-Based Access Control for patient endpoints."""
+18:     def test_list_patients_rbac_doctor_sees_only_own(
+22:         test_doctor_user,
+23:         auth_headers
+25:         """Doctor can only list their own patients."""
+26:         # Create second doctor
+27:         doctor_b = create_test_user(db_session, email="doctor_b@test.com", role=UserRole.DOCTOR)
+29:         # Create patients
+30:         own_patient = create_test_patient(db_session, doctor=test_doctor_user, name="Own Patient")
+31:         other_patient = create_test_patient(db_session, doctor=doctor_b, name="Other Patient")
+33:         response = client.get("/api/v2/patients", headers=auth_headers)
+38:         patient_ids = [p["id"] for p in data]
+39:         assert str(own_patient.id) in patient_ids
+40:         assert str(other_patient.id) not in patient_ids
+43:     def test_list_patients_rbac_admin_sees_all(
+48:         admin_auth_headers
+50:         """Admin can see all patients regardless of doctor_id."""
+51:         # Create two doctors
+52:         doctor_a = create_test_user(db_session, email="doctor_a@test.com", role=UserRole.DOCTOR)
+53:         doctor_b = create_test_user(db_session, email="doctor_b@test.com", role=UserRole.DOCTOR)
+55:         # Create patients for each doctor
+56:         patient_a = create_test_patient(db_session, doctor=doctor_a, name="Patient A")
+57:         patient_b = create_test_patient(db_session, doctor=doctor_b, name="Patient B")
+59:         response = client.get("/api/v2/patients", headers=admin_auth_headers)
+64:         patient_ids = [p["id"] for p in data]
+65:         assert str(patient_a.id) in patient_ids
+66:         assert str(patient_b.id) in patient_ids
+69:     def test_get_patient_rbac_doctor_cannot_access_other_patient(
+73:         test_doctor_user,
+74:         auth_headers
+76:         """Doctor cannot access another doctor's patient (returns 403)."""
+77:         # Create another doctor and their patient
+78:         doctor_b = create_test_user(db_session, email="doctor_b@test.com", role=UserRole.DOCTOR)
+79:         other_patient = create_test_patient(db_session, doctor=doctor_b, name="Other Patient")
+81:         response = client.get(f"/api/v2/patients/{other_patient.id}", headers=auth_headers)
+85:     def test_get_patient_rbac_doctor_can_access_own(
+89:         test_doctor_user,
+90:         auth_headers
+92:         """Doctor can access their own patient."""
+93:         own_patient = create_test_patient(db_session, doctor=test_doctor_user, name="Own Patient")
+95:         response = client.get(f"/api/v2/patients/{own_patient.id}", headers=auth_headers)
+98:         assert response.json()["id"] == str(own_patient.id)
+101:     def test_create_patient_sets_correct_doctor_id(
+104:         test_doctor_user,
+105:         auth_headers
+107:         """Creating a patient sets doctor_id to authenticated user."""
+108:         patient_data = {
+111:             "email": "newpatient@gmail.com",
+112:             "doctor_id": str(test_doctor_user.id)
+115:         response = client.post("/api/v2/patients", json=patient_data, headers=auth_headers)
+118:         assert response.json()["doctor_id"] == str(test_doctor_user.id)
+121:     def test_update_patient_rbac_doctor_cannot_update_others(
+125:         test_doctor_user,
+126:         auth_headers
+128:         """Doctor cannot update another doctor's patient."""
+129:         # Create another doctor and their patient
+130:         doctor_b = create_test_user(db_session, email="doctor_b@test.com", role=UserRole.DOCTOR)
+131:         other_patient = create_test_patient(db_session, doctor=doctor_b, name="Other Patient")
+... 27 more hits
+
+## tests/api/v2/test_messages.py exists=True
+21: from app.models.patient import Patient
+33:     def test_list_messages_cursor_pagination(self, client: TestClient, auth_headers: dict):
+37:             headers=auth_headers
+44:     def test_list_messages_with_filters(self, client: TestClient, auth_headers: dict, test_patient: Patient):
+47:             f"/api/v2/messages?patient_id={test_patient.id}&status=sent&limit=20",
+48:             headers=auth_headers
+52:     def test_get_message_by_id(self, client: TestClient, auth_headers: dict):
+57:             headers=auth_headers
+61:     def test_send_message_success(self, client: TestClient, auth_headers: dict, test_patient: Patient):
+64:             "patient_id": str(test_patient.id),
+71:             headers=auth_headers
+75:     def test_send_message_rate_limited(self, client: TestClient, auth_headers: dict, test_patient: Patient):
+83:             "patient_id": str(test_patient.id),
+92:                 headers=auth_headers
+96:     def test_list_scheduled_messages(self, client: TestClient, auth_headers: dict):
+100:             headers=auth_headers
+104:     def test_cancel_scheduled_message(self, client: TestClient, auth_headers: dict):
+109:             headers=auth_headers
+114:     def test_patient_message_stats_cached(self, mock_redis, client: TestClient, auth_headers: dict, test_patient: Patient):
+115:         """Test patient message statistics with caching."""
+121:             f"/api/v2/messages/patient/{test_patient.id}/stats",
+122:             headers=auth_headers
+126:     def test_get_message_status(self, client: TestClient, auth_headers: dict):
+131:             headers=auth_headers
+135:     def test_retry_failed_message(self, client: TestClient, auth_headers: dict):
+140:             headers=auth_headers
+144:     def test_retry_all_failed_messages(self, client: TestClient, auth_headers: dict):
+148:             headers=auth_headers
+152:     def test_list_failed_messages(self, client: TestClient, auth_headers: dict):
+156:             headers=auth_headers
+160:     def test_filter_by_status(self, client: TestClient, auth_headers: dict):
+164:             headers=auth_headers
+169:     def test_overall_statistics_cached(self, mock_redis, client: TestClient, auth_headers: dict):
+177:             headers=auth_headers
+189:     def test_get_conversation_history(self, client: TestClient, auth_headers: dict, test_patient: Patient):
+190:         """Test getting conversation history for a patient."""
+192:             f"/api/v2/messages/conversations/{test_patient.id}?limit=20",
+193:             headers=auth_headers
+199:     def test_conversation_cursor_pagination(self, client: TestClient, auth_headers: dict, test_patient: Patient):
+202:             f"/api/v2/messages/conversations/{test_patient.id}?limit=10",
+203:             headers=auth_headers
+209:     def test_list_all_conversations(self, client: TestClient, auth_headers: dict):
+213:             headers=auth_headers
+217:     def test_conversation_unread_count(self, client: TestClient, auth_headers: dict, test_patient: Patient):
+220:             f"/api/v2/messages/conversations/{test_patient.id}/unread",
+221:             headers=auth_headers
+227:     def test_mark_conversation_read(self, client: TestClient, auth_headers: dict, test_patient: Patient):
+230:             f"/api/v2/messages/conversations/{test_patient.id}/mark-read",
+231:             headers=auth_headers
+235:     def test_conversation_eager_loading(self, client: TestClient, auth_headers: dict, test_patient: Patient):
+236:         """Test conversation with eager-loaded patient data."""
+238:             f"/api/v2/messages/conversations/{test_patient.id}?include=patient",
+239:             headers=auth_headers
+251:     def test_bulk_send_messages(self, client: TestClient, auth_headers: dict):
+252:         """Test sending messages to multiple patients."""
+254:             "patient_ids": [str(uuid4()), str(uuid4())],
+261:             headers=auth_headers
+265:     def test_bulk_send_rate_limited(self, client: TestClient, auth_headers: dict):
+268:             "patient_ids": [str(uuid4())],
+277:                 headers=auth_headers
+... 45 more hits
+
+## app/models/message.py exists=True
+22: class MessageDirection(str, enum.Enum):
+29: class MessageType(str, enum.Enum):
+52: class MessageStatus(str, enum.Enum):
+78: class MessagePriority(str, enum.Enum):
+88: class Message(BaseModel):
+94:     patient_id = Column(
+96:         ForeignKey("patients.id", ondelete="CASCADE"),
+144:     # Unique per (patient_id, idempotency_key) - enforced by database constraint
+192:     patient = relationship("Patient", back_populates="messages", passive_deletes=True)
+220:         patient = getattr(self, "patient", None)
+221:         return getattr(patient, "doctor", None) if patient is not None else None
+225:         return f"<Message(patient_id='{self.patient_id}', direction='{direction}')>"
+
+## app/models/patient.py exists=True
+2: Patient model for hormone therapy patients.
+40:     Patient model for hormone therapy patients.
+42:     This model corresponds exactly to the Supabase patients table schema:
+44:     - doctor_id (uuid, FK to users)
+59:     - doctor_notes (text, nullable)
+60:     - metadata (jsonb, nullable, default: {}) [accessed via patient_data attribute]
+69:     __tablename__ = "patients"
+72:     # NOTE: doctor_id is now optional to allow patient creation without doctor assignment
+73:     doctor_id = Column(
+86:     # Local/final schema stores patients.flow_state as VARCHAR(50), not a PostgreSQL enum.
+104:     # Migration: add_dedicated_patient_columns
+124:     doctor_notes = Column(Text, nullable=True)
+127:     # Note: Using 'patient_data' as attribute name since 'metadata' is reserved by SQLAlchemy
+129:     patient_data = Column(
+137:         # Canonical payload: use only `name` for patient identity.
+150:         data = self.patient_data or {}
+170:         data = dict(self.patient_data or {})
+173:             self.patient_data = data
+193:             self.patient_data = data
+197:     # Used to prevent duplicate patient creation from retried API requests
+204:     # Set when patient sends STOP/PARAR/CANCELAR via WhatsApp.
+209:     doctor = relationship("User", back_populates="patients")
+212:         back_populates="patient",
+218:         back_populates="patient",
+222:     quiz_responses = relationship("QuizResponse", back_populates="patient")
+225:         back_populates="patient",
+229:     medical_reports = relationship("MedicalReport", back_populates="patient")
+230:     reports = relationship("Report", back_populates="patient")
+231:     alerts = relationship("Alert", back_populates="patient")
+236:         back_populates="patient",
+243:         "Treatment", back_populates="patient", lazy="select", passive_deletes=True
+246:         "Appointment", back_populates="patient", lazy="select", passive_deletes=True
+249:         "Medication", back_populates="patient", lazy="select", passive_deletes=True
+253:         back_populates="related_patient",
+259:         back_populates="patient",
+260:         foreign_keys="[Consent.patient_id]",
+265:         "FlowAnalytics", back_populates="patient", lazy="select", passive_deletes=True
+268:         "PatientSummary", back_populates="patient", lazy="select", passive_deletes=True
+273:         "DataAccessRequest", back_populates="patient", lazy="select", passive_deletes=True
+285:         UniqueConstraint("cpf_hash", "doctor_id", name="uq_patient_cpf_hash_doctor"),
+288:             "ix_patients_cpf_hash_doctor",
+290:             "doctor_id",
+294:         Index("ix_patients_email_hash", "email_hash"),
+295:         Index("ix_patients_phone_hash", "phone_hash"),
+296:         # Unique partial indexes on hash columns (enforces uniqueness per doctor)
+298:             "ix_patients_email_hash_doctor",
+300:             "doctor_id",
+305:             "ix_patients_phone_hash_doctor",
+307:             "doctor_id",
+313:             "ix_patients_idempotency_key",
+319:         Index("ix_patients_created_at", "created_at"),
+329:         Validate patient age at ORM level.
+333:         Ensures patient is between 18 and 120 years old.
+392:     @validates("patient_data")
+397:         Validate patient_data (metadata) against JSON schema at ORM level.
+428:         from app.utils.jsonb_validator import validate_patient_metadata
+431:             validate_patient_metadata(normalized)
+636:     # NOTE: diagnosis, treatment_phase, doctor_notes are dedicated columns
+640:     def doctor_name(self) -> Optional[str]:
+641:         """Get doctor name from metadata (cache for performance)."""
+... 23 more hits
+
+## app/models/patient_flow_response.py exists=True
+2: PatientFlowResponse model for structured patient response storage.
+4: Each row records a single patient free-text response with full flow context
+6: Dual-written alongside existing step_data JSONB in process_patient_response().
+16: class PatientFlowResponse(BaseModel):
+18:     Structured storage for individual patient responses.
+20:     Table: patient_flow_responses
+23:     __tablename__ = "patient_flow_responses"
+27:         ForeignKey("patient_flow_states.id", ondelete="SET NULL"),
+31:     patient_id = Column(
+33:         ForeignKey("patients.id", ondelete="CASCADE"),
+46:     patient = relationship("Patient")
+50:             f"<PatientFlowResponse(patient='{self.patient_id}', "
+
+## app/models/flow.py exists=True
+71: class FlowTemplateVersion(BaseModel):
+146: class PatientFlowState(BaseModel):
+148:     Tracking the progress of a patient in a specific flow version.
+149:     Table: patient_flow_states
+151:     __tablename__ = "patient_flow_states"
+153:     patient_id = Column(
+155:         ForeignKey("patients.id", ondelete="CASCADE"),
+329:     patient = relationship("Patient", back_populates="flow_states")
+333:         UniqueConstraint("patient_id", "flow_template_version_id", name="uq_patient_flow_state_version"),
+334:         Index("idx_patient_flow_states_version", "id", "version"),
+394:         return f"<PatientFlowState(patient='{self.patient_id}', step={self.current_step})>"
+397: class PatientFlowOverride(BaseModel):
+399:     Per-patient day-level override for a flow template.
+404:     Table: patient_flow_overrides
+406:     __tablename__ = "patient_flow_overrides"
+408:     patient_flow_state_id = Column(
+410:         ForeignKey("patient_flow_states.id", ondelete="CASCADE"),
+422:     flow_state = relationship("PatientFlowState", backref="overrides")
+426:             "patient_flow_state_id", "day_number", name="uq_pfo_state_day"
+432:             f"<PatientFlowOverride(state='{self.patient_flow_state_id}', "
+
+## app/schemas/v2/message.py exists=False
+
+## app/schemas/v2/patient_overrides.py exists=True
+1: """Pydantic request/response schemas for per-patient flow day overrides."""
+15:     """Single day override payload sent by the physician."""
+26:         False, description="Whether the system waits for patient response"
+33: class OverrideDayUpdateRequest(BaseModel):
+34:     """Bulk override upsert request — replaces all overrides for future days."""
+43:     """A single day in the merged (global + override) view."""
+50:     source: Literal["global", "override"] = Field(
+51:         ..., description="Whether this day comes from the global template or a patient override"
+61:     patient_id: UUID

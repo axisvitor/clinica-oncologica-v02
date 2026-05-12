@@ -12,10 +12,10 @@
 
 ## Slices
 
-- [ ] **S01: S01** `risk:high` `depends:[]`
+- [x] **S01: S01** `risk:high` `depends:[]`
   > After this: Anonymous WhatsApp management calls are rejected, authorized mocked operations still work, and SSRF vectors against media fetch are blocked by tests.
 
-- [ ] **S02: Patient Ownership Boundary** `risk:high` `depends:[]`
+- [ ] **S02: S02** `risk:high` `depends:[]`
   > After this: Doctor A cannot access Doctor B’s messages, free-text flow responses or flow override schedules; assigned doctor/admin access still passes.
 
 - [ ] **S03: Quiz Link/Session Boundary** `risk:high` `depends:[S02]`

@@ -1,0 +1,10 @@
+pwd=/mnt/c/Meu Projetos/clinica-oncologica-v02-1
+command -v python: command -v python3: /usr/bin/python3
+Python 3.12.3
+__init__.py
+test_wuzapi_client.py
+test_wuzapi_extractor.py
+test_wuzapi_media.py
+test_wuzapi_mock.py
+test_wuzapi_session.py
+test_wuzapi_webhook.py

@@ -1,0 +1,18 @@
+{
+  "id": "2e1203a0-b9b0-48d6-8420-9dc91318f009",
+  "runtime": "bash",
+  "purpose": "search WuzAPI media references with ripgrep",
+  "script_chars": 183,
+  "started_at": "2026-05-12T17:28:23.823Z",
+  "finished_at": "2026-05-12T17:28:25.229Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 1406,
+  "stdout_bytes": 4745,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/2e1203a0-b9b0-48d6-8420-9dc91318f009.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/2e1203a0-b9b0-48d6-8420-9dc91318f009.stderr"
+}

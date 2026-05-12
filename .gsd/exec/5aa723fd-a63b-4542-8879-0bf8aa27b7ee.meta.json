@@ -1,0 +1,18 @@
+{
+  "id": "5aa723fd-a63b-4542-8879-0bf8aa27b7ee",
+  "runtime": "bash",
+  "purpose": "rerun current slice focused verification after port-zero guard",
+  "script_chars": 285,
+  "started_at": "2026-05-12T17:42:29.867Z",
+  "finished_at": "2026-05-12T17:42:55.559Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 25692,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/5aa723fd-a63b-4542-8879-0bf8aa27b7ee.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/5aa723fd-a63b-4542-8879-0bf8aa27b7ee.stderr"
+}

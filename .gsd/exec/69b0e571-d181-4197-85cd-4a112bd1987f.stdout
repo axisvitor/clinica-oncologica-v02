@@ -1,0 +1,9 @@
+93.184.216.34 private False reserved False link False loop False multi False unspec False global True
+192.0.2.1 private True reserved False link False loop False multi False unspec False global False
+198.51.100.1 private True reserved False link False loop False multi False unspec False global False
+203.0.113.1 private True reserved False link False loop False multi False unspec False global False
+192.0.0.8 private True reserved False link False loop False multi False unspec False global False
+100.64.0.1 private False reserved False link False loop False multi False unspec False global False
+8.8.8.8 private False reserved False link False loop False multi False unspec False global True
+2001:db8::1 private True reserved False link False loop False multi False unspec False global False
+2001:4860:4860::8888 private False reserved False link False loop False multi False unspec False global True

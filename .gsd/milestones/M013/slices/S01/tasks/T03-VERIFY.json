@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T03",
+  "unitId": "M013/S01/T03",
+  "timestamp": 1778608461142,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/integrations/wuzapi/test_ssrf_guard.py backend-hormonia/tests/integrations/wuzapi/test_wuzapi_media.py backend-hormonia/tests/integration/whatsapp/test_whatsapp_management_auth.py -q",
+      "exitCode": 0,
+      "durationMs": 25927,
+      "verdict": "pass"
+    }
+  ]
+}
