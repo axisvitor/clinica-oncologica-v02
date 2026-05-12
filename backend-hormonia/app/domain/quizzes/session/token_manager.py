@@ -82,10 +82,10 @@ class TokenManager:
             )
             return payload
         except jwt.ExpiredSignatureError:
-            logger.warning("Token expired", extra={"token_prefix": token[:10]})
+            logger.warning("Token expired", extra={"reason": "expired"})
             raise
         except jwt.InvalidTokenError as e:
-            logger.warning(f"Invalid token: {e}", extra={"token_prefix": token[:10]})
+            logger.warning("Invalid token", extra={"reason": type(e).__name__})
             raise
 
     def hash_token(self, token: str) -> str:

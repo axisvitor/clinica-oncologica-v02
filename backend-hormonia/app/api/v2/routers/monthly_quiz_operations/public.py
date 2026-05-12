@@ -40,6 +40,7 @@ from ._shared import (
     CACHE_TTL_PUBLIC_QUIZ,
 )
 from app.utils.timezone import now_sao_paulo
+from .public_security import validate_public_quiz_link_token
 
 router = APIRouter()
 
@@ -166,24 +167,11 @@ async def get_current_public_quiz(
     """
     logger.info(f"Public quiz access from IP: {request.client.host}")
 
-    # Validate token
-    try:
-        token_data = _decode_quiz_token(token)
-        quiz_id = UUID(token_data.get("quiz_id"))
-        token_type = token_data.get("type")
+    access = await validate_public_quiz_link_token(token, db)
+    session = access.session
+    quiz_id = access.quiz_template_id
 
-        # Check token type
-        if token_type != "quiz_access":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type"
-            )
-
-    except (ValueError, TypeError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
-        )
-
-    # Get quiz
+    # Get quiz only after the persisted link/session boundary is proven.
     quiz_result = await db.execute(
         select(QuizTemplate).where(
             QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz"
@@ -197,65 +185,19 @@ async def get_current_public_quiz(
         )
 
     # Check if quiz is published
-    if quiz.tags.get("status") != "published":
+    if (quiz.tags or {}).get("status") != "published":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Quiz is not currently available",
         )
 
     # Check if quiz has expired
-    if quiz.tags.get("expires_at"):
+    if (quiz.tags or {}).get("expires_at"):
         expires_at = datetime.fromisoformat(quiz.tags["expires_at"])
         if expires_at < now_sao_paulo():
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Quiz has expired"
             )
-
-    # Resolve patient and session from token
-    patient_id = token_data.get("patient_id")
-    if not patient_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-        )
-    patient_uuid = UUID(patient_id)
-    session_id = token_data.get("session_id")
-
-    # Find or create session
-    session = None
-    if session_id:
-        try:
-            session_result = await db.execute(
-                select(QuizSession).where(QuizSession.id == UUID(session_id))
-            )
-            session = session_result.scalar_one_or_none()
-        except ValueError:
-            session = None
-
-    if not session:
-        session_result = await db.execute(
-            select(QuizSession).where(
-                QuizSession.quiz_template_id == quiz_id,
-                QuizSession.patient_id == patient_uuid,
-                QuizSession.status.in_(["in_progress", "pending"]),
-            )
-        )
-        session = session_result.scalar_one_or_none()
-
-    if not session:
-        session = QuizSession(
-            patient_id=patient_uuid,
-            quiz_template_id=quiz_id,
-            status="in_progress",
-            started_at=now_sao_paulo(),
-        )
-        db.add(session)
-        await db.commit()
-        await db.refresh(session)
-
-        # Increment access count
-        quiz.tags["total_accessed"] = quiz.tags.get("total_accessed", 0) + 1
-        await db.commit()
 
     # Sanitize questions (remove sensitive data, scoring info)
     sanitized_questions = []
@@ -275,8 +217,8 @@ async def get_current_public_quiz(
         quiz_name=quiz.name,
         description=quiz.description,
         questions=sanitized_questions,
-        expires_at=datetime.fromisoformat(quiz.tags["expires_at"])
-        if quiz.tags.get("expires_at")
+        expires_at=datetime.fromisoformat((quiz.tags or {})["expires_at"])
+        if (quiz.tags or {}).get("expires_at")
         else None,
         session_id=session.id,
     )
@@ -303,32 +245,15 @@ async def submit_public_quiz_response(
     """
     logger.info(f"Public quiz submission from IP: {request.client.host}")
 
-    # Validate token
-    try:
-        token_data = _decode_quiz_token(submission.token)
-        token_quiz_id = UUID(token_data.get("quiz_id"))
-        token_type = token_data.get("type")
+    access = await validate_public_quiz_link_token(
+        submission.token,
+        db,
+        expected_quiz_id=quiz_id,
+    )
+    session = access.session
+    patient_uuid = access.patient_id
 
-        # Check if token matches quiz_id
-        if token_quiz_id != quiz_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token does not match quiz ID",
-            )
-
-        # Check token type
-        if token_type not in ["quiz_access", "quiz_submission"]:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type for submission",
-            )
-
-    except (ValueError, TypeError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
-        )
-
-    # Get quiz
+    # Get quiz only after the persisted link/session boundary is proven.
     quiz_result = await db.execute(
         select(QuizTemplate).where(
             QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz"
@@ -342,54 +267,11 @@ async def submit_public_quiz_response(
         )
 
     # Check if quiz is published
-    if quiz.tags.get("status") != "published":
+    if (quiz.tags or {}).get("status") != "published":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot submit to unpublished quiz",
         )
-
-    # Resolve patient and session from token
-    patient_id = token_data.get("patient_id")
-    if not patient_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-        )
-    patient_uuid = UUID(patient_id)
-    session_id = token_data.get("session_id")
-
-    # Get or create session
-    session = None
-    if session_id:
-        try:
-            session_result = await db.execute(
-                select(QuizSession).where(QuizSession.id == UUID(session_id))
-            )
-            session = session_result.scalar_one_or_none()
-        except ValueError:
-            session = None
-
-    if not session:
-        session_result = await db.execute(
-            select(QuizSession).where(
-                QuizSession.quiz_template_id == quiz_id,
-                QuizSession.patient_id == patient_uuid,
-                QuizSession.status.in_(["in_progress", "pending"]),
-            )
-        )
-        session = session_result.scalar_one_or_none()
-
-    if not session:
-        # Create new session
-        session = QuizSession(
-            patient_id=patient_uuid,
-            quiz_template_id=quiz_id,
-            status="in_progress",
-            started_at=now_sao_paulo(),
-        )
-        db.add(session)
-        await db.commit()
-        await db.refresh(session)
 
     # Find the question in quiz
     question = None
@@ -432,16 +314,22 @@ async def submit_public_quiz_response(
     answered_questions = answered_questions.scalar_one()
 
     if answered_questions >= total_questions:
-        # Complete session
+        # Complete session and close the public link.
         session.status = "completed"
         session.completed_at = now_sao_paulo()
+        metadata = dict(session.session_metadata or {})
+        metadata["link_status"] = "used"
+        metadata["completed_at"] = session.completed_at.isoformat()
+        session.session_metadata = metadata
 
         # Update quiz completion stats
-        quiz.tags["total_completed"] = quiz.tags.get("total_completed", 0) + 1
-        total_sent = quiz.tags.get("total_sent", 1)
-        quiz.tags["completion_rate"] = (
-            (quiz.tags["total_completed"] / total_sent * 100) if total_sent > 0 else 0.0
+        tags = dict(quiz.tags or {})
+        tags["total_completed"] = tags.get("total_completed", 0) + 1
+        total_sent = tags.get("total_sent", 1)
+        tags["completion_rate"] = (
+            (tags["total_completed"] / total_sent * 100) if total_sent > 0 else 0.0
         )
+        quiz.tags = tags
 
         await db.commit()
 
@@ -727,83 +615,29 @@ async def access_quiz(
     """
     Access endpoint for POST /quiz-extensions/access
     
-    1. Validates token
-    2. Creates/Gets session
+    1. Validates token against persisted link/session state
+    2. Requires an existing started session (no public fallback creation)
     3. Sets HttpOnly cookie for session persistence (Critical for F5 refresh)
     4. Returns QuizSession object matching Frontend interface
     """
     logger.info(f"Compatibility access request from IP: {request.client.host}")
     
-    # Reuse logic from get_current_public_quiz, but adapted
-    try:
-        token_data = _decode_quiz_token(access_req.token)
-        quiz_id = UUID(token_data.get("quiz_id"))
-        token_type = token_data.get("type")
+    access = await validate_public_quiz_link_token(access_req.token, db)
+    session = access.session
+    quiz_id = access.quiz_template_id
 
-        # Validate token type
-        if token_type != "quiz_access":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type"
-            )
-
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=401, detail="Invalid token format")
-
-    # Get Quiz
-    quiz_result = await db.execute(select(QuizTemplate).where(QuizTemplate.id == quiz_id))
+    # Get Quiz only after the persisted link/session boundary is proven.
+    quiz_result = await db.execute(
+        select(QuizTemplate).where(
+            QuizTemplate.id == quiz_id,
+            QuizTemplate.category == "monthly_quiz",
+        )
+    )
     quiz = quiz_result.scalar_one_or_none()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
-
-    # Resolve patient and session from token
-    patient_id = token_data.get("patient_id")
-    if not patient_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-        )
-    patient_uuid = UUID(patient_id)
-    session_id = token_data.get("session_id")
-
-    # Get/Create Session
-    session = None
-    if session_id:
-        try:
-            session_result = await db.execute(
-                select(QuizSession).where(QuizSession.id == UUID(session_id))
-            )
-            session = session_result.scalar_one_or_none()
-        except ValueError:
-            session = None
-
-    if not session:
-        session_result = await db.execute(
-            select(QuizSession).where(
-                QuizSession.quiz_template_id == quiz_id,
-                QuizSession.patient_id == patient_uuid,
-                QuizSession.status == "started",
-            )
-        )
-        session = session_result.scalar_one_or_none()
-
-    if not session:
-        session = QuizSession(
-            patient_id=patient_uuid,
-            quiz_template_id=quiz_id,
-            status="started",
-            started_at=now_sao_paulo()
-        )
-        db.add(session)
-        await db.commit()
-        await db.refresh(session)
-        
-        # Increment stats
-        if quiz.tags:
-            quiz.tags["total_accessed"] = quiz.tags.get("total_accessed", 0) + 1
-        else:
-            quiz.tags = {"total_accessed": 1}
-        await db.commit()
+    if (quiz.tags or {}).get("status") != "published":
+        raise HTTPException(status_code=403, detail="Quiz is not currently available")
 
     # Set Session Cookie (SameSite=None for cross-site fetch from quiz domain)
     cookie_secure = settings.SESSION_ENABLE_COOKIE_SECURE
@@ -832,7 +666,7 @@ async def access_quiz(
         "template_id": str(quiz.id),
         "patient_name": "Paciente", # Public/Anon
         "template_name": quiz.name,
-        "expires_at": (now_sao_paulo().replace(year=datetime.now().year + 1)).isoformat(), # Mock expiry if not set
+        "expires_at": access.effective_expires_at.isoformat(),
         "questions": sanitized_questions,
         "status": session.status
     }

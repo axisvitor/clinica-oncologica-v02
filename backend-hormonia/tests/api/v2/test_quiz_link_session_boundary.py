@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
-from uuid import uuid4
+from datetime import timedelta
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
 
-from app.models.quiz import QuizSession, QuizTemplate
+from app.domain.quizzes.session import TokenManager
+from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
+from app.utils.timezone import now_sao_paulo
 from tests.api.v2.security_boundary_helpers import (
     assert_response_excludes_values,
     create_message_ownership_boundary,
@@ -53,6 +56,20 @@ def ensure_quiz_boundary_tables(db_session):
         "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS session_metadata JSONB DEFAULT '{}'::jsonb",
         "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
         "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "CREATE TABLE IF NOT EXISTS quiz_responses (id UUID PRIMARY KEY)",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS patient_id UUID",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS quiz_template_id UUID",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS quiz_session_id UUID",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS question_id VARCHAR(100) NOT NULL DEFAULT 'q1'",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS question_text TEXT NOT NULL DEFAULT 'Boundary question'",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS response_type VARCHAR(50) NOT NULL DEFAULT 'scale'",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS response_value JSONB",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS response_value_text_backup TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS response_metadata JSONB DEFAULT '{}'::jsonb",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS other_text TEXT",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
     ]
     for statement in statements:
         db_session.execute(text(statement))
@@ -221,3 +238,339 @@ def test_active_links_scoped_to_assigned_doctor_and_admin_without_foreign_phi(
     assert boundary.patient_b.name in admin_body
     assert session_a in admin_body
     assert session_b in admin_body
+
+
+def _public_current(client, token: str):
+    return client.get(
+        "/api/v2/quiz-extensions/monthly/public/current",
+        params={"token": token},
+    )
+
+
+def _public_submit(client, template_id, token: str, question_id: str = "q1"):
+    return client.post(
+        f"/api/v2/quiz-extensions/monthly/public/{template_id}/submit",
+        json={
+            "token": token,
+            "question_id": question_id,
+            "response_value": "7",
+            "response_metadata": {"source": "boundary-test"},
+        },
+    )
+
+
+def _create_public_link_fixture(client, db_session):
+    boundary = create_message_ownership_boundary(db_session)
+    template = _create_quiz_template(db_session)
+    response = _create_link(
+        client,
+        boundary.doctor_a,
+        boundary.patient_a.id,
+        template.id,
+    )
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    session = db_session.get(QuizSession, UUID(payload["quiz_session_id"]))
+    assert session is not None
+    assert session.status == "started"
+    assert (session.session_metadata or {}).get("token_hash")
+    assert (session.session_metadata or {}).get("link_status") == "active"
+    assert session.expiration_date is not None
+    return boundary, template, session, payload["token"]
+
+
+def _response_count(db_session, session_id) -> int:
+    db_session.expire_all()
+    return (
+        db_session.query(QuizResponse)
+        .filter(QuizResponse.quiz_session_id == session_id)
+        .count()
+    )
+
+
+def _session_count_for_link(db_session, patient_id, template_id) -> int:
+    db_session.expire_all()
+    return (
+        db_session.query(QuizSession)
+        .filter(
+            QuizSession.patient_id == patient_id,
+            QuizSession.quiz_template_id == template_id,
+        )
+        .count()
+    )
+
+
+def _replace_session_token(
+    db_session,
+    session: QuizSession,
+    *,
+    patient_id=None,
+    quiz_template_id=None,
+    session_id=None,
+    expires_at=None,
+    token_type: str = "quiz_access",
+    include_session_id: bool = True,
+) -> str:
+    manager = TokenManager()
+    expires_at = expires_at or (now_sao_paulo() + timedelta(hours=1))
+    token = manager.generate_token(
+        patient_id=patient_id or session.patient_id,
+        quiz_template_id=quiz_template_id or session.quiz_template_id,
+        expires_at=expires_at,
+        session_id=(session.id if session_id is None else session_id)
+        if include_session_id
+        else None,
+        token_type=token_type,
+    )
+    metadata = dict(session.session_metadata or {})
+    metadata["token_hash"] = manager.hash_token(token)
+    metadata["expires_at"] = expires_at.isoformat()
+    metadata["link_status"] = "active"
+    session.expiration_date = expires_at
+    session.session_metadata = metadata
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+    return token
+
+
+def _set_metadata(db_session, session: QuizSession, **updates):
+    metadata = dict(session.session_metadata or {})
+    metadata.update(updates)
+    session.session_metadata = metadata
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+
+def test_public_token_valid_current_and_submit_complete_existing_session(
+    client, db_session
+):
+    _boundary, template, session, token = _create_public_link_fixture(client, db_session)
+
+    current_response = _public_current(client, token)
+    assert current_response.status_code == 200, current_response.text
+    current_body = current_response.json()
+    assert current_body["quiz_id"] == str(template.id)
+    assert current_body["session_id"] == str(session.id)
+    assert current_body["questions"] == [
+        {
+            "id": "q1",
+            "text": "Boundary question",
+            "type": "scale",
+            "options": [],
+        }
+    ]
+
+    assert _response_count(db_session, session.id) == 0
+    submit_response = _public_submit(client, template.id, token)
+    assert submit_response.status_code == 200, submit_response.text
+    assert submit_response.json()["status"] == "completed"
+    assert _response_count(db_session, session.id) == 1
+
+    db_session.refresh(session)
+    assert session.status == "completed"
+    assert (session.session_metadata or {}).get("link_status") == "used"
+
+
+def test_public_token_missing_session_id_does_not_create_session_or_return_quiz(
+    client, db_session
+):
+    _boundary, template, session, _token = _create_public_link_fixture(client, db_session)
+    token_without_session = _replace_session_token(
+        db_session,
+        session,
+        include_session_id=False,
+    )
+    before_count = _session_count_for_link(db_session, session.patient_id, template.id)
+
+    current_response = _public_current(client, token_without_session)
+    submit_response = _public_submit(client, template.id, token_without_session)
+
+    assert current_response.status_code == 401
+    assert submit_response.status_code == 401
+    assert _session_count_for_link(db_session, session.patient_id, template.id) == before_count
+    assert _response_count(db_session, session.id) == 0
+    assert "token" not in _body(current_response)
+    assert "token" not in _body(submit_response)
+
+
+@pytest.mark.parametrize(
+    "case_name, mutate, expected_current_status, expected_submit_status",
+    [
+        (
+            "patient_mismatch",
+            lambda db_session, session, template: _replace_session_token(
+                db_session,
+                session,
+                patient_id=uuid4(),
+            ),
+            403,
+            403,
+        ),
+        (
+            "template_mismatch",
+            lambda db_session, session, template: _replace_session_token(
+                db_session,
+                session,
+                quiz_template_id=uuid4(),
+            ),
+            403,
+            401,
+        ),
+        (
+            "session_missing",
+            lambda db_session, session, template: _replace_session_token(
+                db_session,
+                session,
+                session_id=uuid4(),
+            ),
+            404,
+            404,
+        ),
+        (
+            "wrong_token_type",
+            lambda db_session, session, template: _replace_session_token(
+                db_session,
+                session,
+                token_type="quiz_submission",
+            ),
+            401,
+            401,
+        ),
+    ],
+    ids=lambda case: case if isinstance(case, str) else None,
+)
+def test_public_token_mismatched_claims_fail_without_response_write(
+    client,
+    db_session,
+    case_name,
+    mutate,
+    expected_current_status,
+    expected_submit_status,
+):
+    _boundary, template, session, _token = _create_public_link_fixture(client, db_session)
+    token = mutate(db_session, session, template)
+
+    current_response = _public_current(client, token)
+    submit_response = _public_submit(client, template.id, token)
+
+    assert current_response.status_code == expected_current_status, case_name
+    assert submit_response.status_code == expected_submit_status, case_name
+    assert _response_count(db_session, session.id) == 0
+    assert_response_excludes_values(
+        submit_response,
+        [token, token[:12], session.patient_id, template.id],
+    )
+
+
+def test_public_token_path_quiz_mismatch_fails_without_response_write(
+    client, db_session
+):
+    _boundary, template, session, token = _create_public_link_fixture(client, db_session)
+
+    response = _public_submit(client, uuid4(), token)
+
+    assert response.status_code == 401
+    assert _response_count(db_session, session.id) == 0
+    assert_response_excludes_values(response, [token, token[:12], template.id])
+
+
+def test_token_hash_mismatch_fails_without_response_write(client, db_session):
+    _boundary, template, session, token = _create_public_link_fixture(client, db_session)
+    _set_metadata(db_session, session, token_hash="not-the-current-token-hash")
+
+    current_response = _public_current(client, token)
+    submit_response = _public_submit(client, template.id, token)
+
+    assert current_response.status_code == 403
+    assert submit_response.status_code == 403
+    assert _response_count(db_session, session.id) == 0
+    assert_response_excludes_values(submit_response, [token, token[:12]])
+
+
+@pytest.mark.parametrize("link_status", ["used", "cancelled", "expired"])
+def test_link_state_terminal_values_fail_without_response_write(
+    client, db_session, link_status
+):
+    _boundary, template, session, token = _create_public_link_fixture(client, db_session)
+    _set_metadata(db_session, session, link_status=link_status)
+
+    current_response = _public_current(client, token)
+    submit_response = _public_submit(client, template.id, token)
+
+    assert current_response.status_code == 410
+    assert submit_response.status_code == 410
+    assert _response_count(db_session, session.id) == 0
+    assert_response_excludes_values(submit_response, [token, token[:12]])
+
+
+@pytest.mark.parametrize("session_status", ["completed", "cancelled", "expired"])
+def test_link_state_terminal_session_statuses_fail_without_response_write(
+    client, db_session, session_status
+):
+    _boundary, template, session, token = _create_public_link_fixture(client, db_session)
+    session.status = session_status
+    if session_status == "completed":
+        session.completed_at = now_sao_paulo()
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+
+    current_response = _public_current(client, token)
+    submit_response = _public_submit(client, template.id, token)
+
+    assert current_response.status_code == 410
+    assert submit_response.status_code == 410
+    assert _response_count(db_session, session.id) == 0
+
+
+@pytest.mark.parametrize(
+    "case_name, mutate, expected_status",
+    [
+        (
+            "metadata_expired",
+            lambda db_session, session, token: _set_metadata(
+                db_session,
+                session,
+                expires_at=(now_sao_paulo() - timedelta(minutes=1)).isoformat(),
+            ),
+            410,
+        ),
+        (
+            "session_expired",
+            lambda db_session, session, token: (
+                setattr(session, "expiration_date", now_sao_paulo() - timedelta(minutes=1)),
+                db_session.add(session),
+                db_session.commit(),
+                db_session.refresh(session),
+            ),
+            410,
+        ),
+        (
+            "jwt_expired",
+            lambda db_session, session, token: _replace_session_token(
+                db_session,
+                session,
+                expires_at=now_sao_paulo() - timedelta(minutes=1),
+            ),
+            401,
+        ),
+    ],
+    ids=lambda case: case if isinstance(case, str) else None,
+)
+def test_expired_public_token_boundaries_fail_without_response_write(
+    client, db_session, case_name, mutate, expected_status
+):
+    _boundary, template, session, token = _create_public_link_fixture(client, db_session)
+    mutated = mutate(db_session, session, token)
+    if isinstance(mutated, str):
+        token = mutated
+
+    current_response = _public_current(client, token)
+    submit_response = _public_submit(client, template.id, token)
+
+    assert current_response.status_code == expected_status, case_name
+    assert submit_response.status_code == expected_status, case_name
+    assert _response_count(db_session, session.id) == 0
+    assert_response_excludes_values(submit_response, [token, token[:12]])
