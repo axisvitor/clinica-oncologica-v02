@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T03",
+  "unitId": "M013/S03/T03",
+  "passed": true,
+  "discoverySource": "task-summary-repair",
+  "checks": [
+    {
+      "command": "cd backend-hormonia && pytest tests/api/v2/test_monthly_quiz_compatibility.py tests/api/v2/test_quiz_link_session_boundary.py -q -k \"compatibility or session_state or raw_session or forged_state or logout\"",
+      "exitCode": 0,
+      "durationMs": 27413,
+      "verdict": "pass"
+    }
+  ]
+}

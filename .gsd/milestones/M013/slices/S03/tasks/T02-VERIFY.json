@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T02",
+  "unitId": "M013/S03/T02",
+  "passed": true,
+  "discoverySource": "task-summary-repair",
+  "checks": [
+    {
+      "command": "cd backend-hormonia && python -m py_compile app/api/v2/routers/monthly_quiz_operations/public_security.py app/api/v2/routers/monthly_quiz_operations/public.py app/domain/quizzes/session/token_manager.py tests/api/v2/test_quiz_link_session_boundary.py",
+      "exitCode": 0,
+      "durationMs": 193,
+      "verdict": "pass"
+    },
+    {
+      "command": "cd backend-hormonia && pytest tests/api/v2/test_quiz_link_session_boundary.py -q -k \"public_token or token_hash or link_state or expired\"",
+      "exitCode": 0,
+      "durationMs": 27993,
+      "verdict": "pass"
+    },
+    {
+      "command": "cd backend-hormonia && pytest tests/api/v2/test_quiz_link_session_boundary.py -q",
+      "exitCode": 0,
+      "durationMs": 26862,
+      "verdict": "pass"
+    }
+  ]
+}

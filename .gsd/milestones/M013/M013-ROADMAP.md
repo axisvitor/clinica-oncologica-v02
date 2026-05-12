@@ -18,10 +18,10 @@
 - [x] **S02: S02** `risk:high` `depends:[]`
   > After this: Doctor A cannot access Doctor B’s messages, free-text flow responses or flow override schedules; assigned doctor/admin access still passes.
 
-- [ ] **S03: S03** `risk:high` `depends:[]`
+- [x] **S03: S03** `risk:high` `depends:[]`
   > After this: Quiz link creation, status/history, active links and public submit reject foreign, expired, forged or mismatched state while a legitimate fixture quiz still completes.
 
-- [ ] **S04: Private Upload/Report Serving** `risk:high` `depends:[]`
+- [ ] **S04: S04** `risk:high` `depends:[]`
   > After this: Private uploads and generated patient PDFs are not reachable through public `/uploads`; authorized gated download works in tests.
 
 - [ ] **S05: Report Ownership Closure** `risk:high` `depends:[S04]`

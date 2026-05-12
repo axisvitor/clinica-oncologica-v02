@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T01",
+  "unitId": "M013/S03/T01",
+  "passed": true,
+  "discoverySource": "task-summary-repair",
+  "checks": [
+    {
+      "command": "cd backend-hormonia && pytest tests/api/v2/test_quiz_link_session_boundary.py -q -k \"authenticated or active_links or patient_status or patient_history\"",
+      "exitCode": 0,
+      "durationMs": 27339,
+      "verdict": "pass"
+    },
+    {
+      "command": "cd backend-hormonia && python - <<'PY'\nfrom pathlib import Path\npath = Path('tests/api/v2/test_quiz_link_session_boundary.py')\ntext = path.read_text()\nforbidden = ['.gsd/', '.planning/', '.audits/']\nhits = [marker for marker in forbidden if marker in text]\nassert not hits, f'{path} references planning artifacts: {hits}'\nprint(f'{path}: no forbidden planning artifact references')\nPY",
+      "exitCode": 0,
+      "durationMs": 50,
+      "verdict": "pass"
+    }
+  ]
+}

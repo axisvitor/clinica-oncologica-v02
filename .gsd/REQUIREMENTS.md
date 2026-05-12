@@ -4,28 +4,6 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Active
 
-### R004 — Usuários autenticados só podem emitir links e consultar status/histórico de quiz mensal para pacientes sob seu escopo autorizado.
-- Class: compliance/security
-- Status: active
-- Description: Usuários autenticados só podem emitir links e consultar status/histórico de quiz mensal para pacientes sob seu escopo autorizado.
-- Why it matters: Quiz mensal contém sintomas e dados clínicos; permitir patient_id arbitrário vaza PHI e possibilita abuso de link.
-- Source: report
-- Primary owning slice: M013/S03
-- Supporting slices: M013/S06
-- Validation: mapped
-- Notes: Cobre F-04 e F-05. Deve reaproveitar `_check_patient_access` ou controle equivalente antes de criar sessão/token ou consultar histórico/status.
-
-### R005 — O fluxo público do quiz deve aceitar apenas sessão/link opaco, válido, não expirado, não revogado e alinhado ao paciente/token estabelecido pelo acesso correto.
-- Class: compliance/security
-- Status: active
-- Description: O fluxo público do quiz deve aceitar apenas sessão/link opaco, válido, não expirado, não revogado e alinhado ao paciente/token estabelecido pelo acesso correto.
-- Why it matters: O quiz público cruza uma fronteira autenticado→público; uma sessão forjada ou vazada pode gravar respostas no paciente errado.
-- Source: report
-- Primary owning slice: M013/S03
-- Supporting slices: M013/S06
-- Validation: mapped
-- Notes: Cobre F-06. O submit público não deve confiar apenas em `quiz_session_id` de cookie controlável; deve validar estado, token hash/binding e expiração.
-
 ### R006 — Uploads marcados como privados não podem ser servidos por rota estática pública; acesso privado deve passar por autenticação e ownership.
 - Class: compliance/security
 - Status: active
@@ -115,6 +93,28 @@ This file is the explicit capability and coverage contract for the project.
 - Supporting slices: M013/S06
 - Validation: M013/S02 verified message read/list/conversation/unread/read-state/send/bulk-send/delete/cancel boundaries with `cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py tests/api/v2/test_phase25_messages_quiz_async.py -q` (exit 0; 1 expected skip for rate limiting disabled).
 - Notes: Shared admin-or-assigned-doctor patient ownership helper now gates patient-bound message routes before DB/cache/service side effects; doctor-owned and admin regressions remain passing.
+
+### R004 — Usuários autenticados só podem emitir links e consultar status/histórico de quiz mensal para pacientes sob seu escopo autorizado.
+- Class: compliance/security
+- Status: validated
+- Description: Usuários autenticados só podem emitir links e consultar status/histórico de quiz mensal para pacientes sob seu escopo autorizado.
+- Why it matters: Quiz mensal contém sintomas e dados clínicos; permitir patient_id arbitrário vaza PHI e possibilita abuso de link.
+- Source: report
+- Primary owning slice: M013/S03
+- Supporting slices: M013/S06
+- Validation: S03 verified authenticated monthly-quiz link creation, status/history, and active-link listing with admin-or-assigned-doctor ownership. Evidence: focused ownership pytest selection exited 0; full S03 proof `tests/api/v2/test_quiz_link_session_boundary.py tests/api/v2/test_monthly_quiz_compatibility.py tests/api/v2/test_quiz_extensions.py tests/api/v2/test_phase25_messages_quiz_async.py -q` plus planning-artifact audit exited 0.
+- Notes: Validated by M013/S03. Foreign-doctor patient_id tampering fails closed before quiz session/token side effects; doctor active-link lists are scoped before PHI serialization while admin/assigned-doctor flows remain functional.
+
+### R005 — O fluxo público do quiz deve aceitar apenas sessão/link opaco, válido, não expirado, não revogado e alinhado ao paciente/token estabelecido pelo acesso correto.
+- Class: compliance/security
+- Status: validated
+- Description: O fluxo público do quiz deve aceitar apenas sessão/link opaco, válido, não expirado, não revogado e alinhado ao paciente/token estabelecido pelo acesso correto.
+- Why it matters: O quiz público cruza uma fronteira autenticado→público; uma sessão forjada ou vazada pode gravar respostas no paciente errado.
+- Source: report
+- Primary owning slice: M013/S03
+- Supporting slices: M013/S06
+- Validation: S03 verified public quiz current/access/submit/session/logout boundaries for token hash, active link state, signed compatibility session state, patient/template/session binding, and expiration. Evidence: focused public-token and compatibility pytest selections exited 0; full S03 proof `tests/api/v2/test_quiz_link_session_boundary.py tests/api/v2/test_monthly_quiz_compatibility.py tests/api/v2/test_quiz_extensions.py tests/api/v2/test_phase25_messages_quiz_async.py -q` plus planning-artifact audit exited 0.
+- Notes: Validated by M013/S03. Public quiz routes now require signed access/token state plus persisted active QuizSession metadata and reject raw-cookie-only, forged, mismatched, expired, cancelled/used, and token-hash-mismatched states before payload reads or response writes.
 
 ### R009 — Respostas livres e overrides de fluxo do paciente devem exigir admin ou médico responsável pelo paciente antes de leitura ou alteração.
 - Class: compliance/security
@@ -215,8 +215,8 @@ This file is the explicit capability and coverage contract for the project.
 | R001 | compliance/security | validated | M013/S01 | M013/S06 | M013/S01 verified WhatsApp management API auth with focused and final pytest evidence: gsd_exec af1fd56e-266a-44f6-91f3-f4b4fb948c14 and 75ac52dd-e00f-4c71-9f54-244766a9885b passed. Tests cover anonymous/non-admin rejection before service/queue/DB execution, public /api/v2/whatsapp/health, and an authorized admin mocked send operation. |
 | R002 | compliance/security | validated | M013/S01 | M013/S06 | M013/S01 verified WuzAPI media SSRF protections with focused and final pytest evidence: gsd_exec 5c8857c7-87d3-4d91-8853-b038a4d5c49f and 75ac52dd-e00f-4c71-9f54-244766a9885b passed. Tests cover blocked schemes, malformed/missing hosts, userinfo, invalid/zero ports, localhost/private/loopback/link-local/multicast/unspecified/reserved/CGNAT/metadata IPs, DNS failure/mixed answers, no GET before validation, manual redirect validation with allow_redirects=False, safe redirects, data-URI behavior, and sanitized unsafe/oversize messages. |
 | R003 | compliance/security | validated | M013/S02 | M013/S06 | M013/S02 verified message read/list/conversation/unread/read-state/send/bulk-send/delete/cancel boundaries with `cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py tests/api/v2/test_phase25_messages_quiz_async.py -q` (exit 0; 1 expected skip for rate limiting disabled). |
-| R004 | compliance/security | active | M013/S03 | M013/S06 | mapped |
-| R005 | compliance/security | active | M013/S03 | M013/S06 | mapped |
+| R004 | compliance/security | validated | M013/S03 | M013/S06 | S03 verified authenticated monthly-quiz link creation, status/history, and active-link listing with admin-or-assigned-doctor ownership. Evidence: focused ownership pytest selection exited 0; full S03 proof `tests/api/v2/test_quiz_link_session_boundary.py tests/api/v2/test_monthly_quiz_compatibility.py tests/api/v2/test_quiz_extensions.py tests/api/v2/test_phase25_messages_quiz_async.py -q` plus planning-artifact audit exited 0. |
+| R005 | compliance/security | validated | M013/S03 | M013/S06 | S03 verified public quiz current/access/submit/session/logout boundaries for token hash, active link state, signed compatibility session state, patient/template/session binding, and expiration. Evidence: focused public-token and compatibility pytest selections exited 0; full S03 proof `tests/api/v2/test_quiz_link_session_boundary.py tests/api/v2/test_monthly_quiz_compatibility.py tests/api/v2/test_quiz_extensions.py tests/api/v2/test_phase25_messages_quiz_async.py -q` plus planning-artifact audit exited 0. |
 | R006 | compliance/security | active | M013/S04 | M013/S06 | mapped |
 | R007 | compliance/security | active | M013/S04 | M013/S05, M013/S06 | mapped |
 | R008 | compliance/security | active | M013/S05 | M013/S04, M013/S06 | mapped |
@@ -233,7 +233,7 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Coverage Summary
 
-- Active requirements: 7
-- Mapped to slices: 7
-- Validated: 4 (R001, R002, R003, R009)
+- Active requirements: 5
+- Mapped to slices: 5
+- Validated: 6 (R001, R002, R003, R004, R005, R009)
 - Unmapped active requirements: 0

@@ -53,7 +53,7 @@ Consumes S02's `load_patient_with_access` helper and two-doctor/two-patient fixt
   - Files: `backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py`, `backend-hormonia/tests/api/v2/test_quiz_link_session_boundary.py`, `backend-hormonia/tests/api/v2/security_boundary_helpers.py`, `backend-hormonia/app/api/v2/patients_shared_helpers.py`
   - Verify: cd backend-hormonia && pytest tests/api/v2/test_quiz_link_session_boundary.py -q -k "authenticated or active_links or patient_status or patient_history"
 
-- [ ] **T02: Bind tokenized public quiz access and submit to stored link state** `est:3h`
+- [x] **T02: Bind tokenized public quiz access and submit to stored link state** `est:3h`
   ---
   estimated_steps: 9
   estimated_files: 5
@@ -66,7 +66,7 @@ Consumes S02's `load_patient_with_access` helper and two-doctor/two-patient fixt
   - Files: `backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py`, `backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public_security.py`, `backend-hormonia/app/domain/quizzes/session/token_manager.py`, `backend-hormonia/tests/api/v2/test_quiz_link_session_boundary.py`, `backend-hormonia/app/core/router_registry.py`
   - Verify: cd backend-hormonia && pytest tests/api/v2/test_quiz_link_session_boundary.py -q -k "public_token or token_hash or link_state or expired"
 
-- [ ] **T03: Require signed quiz session state for compatibility cookies** `est:3h`
+- [x] **T03: Require signed quiz session state for compatibility cookies** `est:3h`
   ---
   estimated_steps: 9
   estimated_files: 5
@@ -79,7 +79,7 @@ Consumes S02's `load_patient_with_access` helper and two-doctor/two-patient fixt
   - Files: `backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py`, `backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public_security.py`, `backend-hormonia/tests/api/v2/test_monthly_quiz_compatibility.py`, `backend-hormonia/tests/api/v2/test_quiz_link_session_boundary.py`, `backend-hormonia/app/config/settings.py`
   - Verify: cd backend-hormonia && pytest tests/api/v2/test_monthly_quiz_compatibility.py tests/api/v2/test_quiz_link_session_boundary.py -q -k "compatibility or session_state or raw_session or forged_state or logout"
 
-- [ ] **T04: Sanitize quiz-token diagnostics and run the full S03 proof** `est:1.5h`
+- [x] **T04: Sanitize quiz-token diagnostics and run the full S03 proof** `est:1.5h`
   ---
   estimated_steps: 6
   estimated_files: 6

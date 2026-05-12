@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T04",
+  "unitId": "M013/S03/T04",
+  "passed": true,
+  "discoverySource": "task-summary-repair",
+  "checks": [
+    {
+      "command": "cd backend-hormonia && pytest tests/api/v2/test_quiz_link_session_boundary.py tests/api/v2/test_monthly_quiz_compatibility.py -q -k \"invalid_public_token or token_hash_mismatch or raw_session_cookie_only or forged_state\"",
+      "exitCode": 0,
+      "durationMs": 28112,
+      "verdict": "pass"
+    },
+    {
+      "command": "cd backend-hormonia && pytest tests/api/v2/test_quiz_extensions.py -q",
+      "exitCode": 0,
+      "durationMs": 27899,
+      "verdict": "pass"
+    },
+    {
+      "command": "cd backend-hormonia && pytest tests/api/v2/test_quiz_link_session_boundary.py tests/api/v2/test_monthly_quiz_compatibility.py tests/api/v2/test_quiz_extensions.py tests/api/v2/test_phase25_messages_quiz_async.py -q && python - <<'PY'\nfrom pathlib import Path\nfor path in [Path('tests/api/v2/test_quiz_link_session_boundary.py'), Path('tests/api/v2/test_monthly_quiz_compatibility.py')]:\n    text = path.read_text()\n    forbidden = ['.gsd/', '.planning/', '.audits/']\n    assert not any(marker in text for marker in forbidden), f'{path} references planning artifacts'\nPY",
+      "exitCode": 0,
+      "durationMs": 33365,
+      "verdict": "pass"
+    },
+    {
+      "command": "python - <<'PY'\nfrom pathlib import Path\nfiles = [\n    Path('backend-hormonia/app/domain/quizzes/session/token_manager.py'),\n    Path('backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public_security.py'),\n]\nfor path in files:\n    text = path.read_text()\n    forbidden = ['token_prefix', 'token[:', 'raw token', 'token material']\n    hits = [marker for marker in forbidden if marker in text]\n    assert not hits, f'{path} contains forbidden diagnostic marker(s): {hits}'\n    print(f'{path}: no forbidden token diagnostic markers')\nPY",
+      "exitCode": 0,
+      "durationMs": 56,
+      "verdict": "pass"
+    }
+  ]
+}

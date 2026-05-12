@@ -157,11 +157,21 @@ backend-hormonia/debug_log.txt
 
 # ── GSD baseline (auto-generated) ──
 .gsd/activity/
+.gsd/audit/
+.gsd/exec/
 .gsd/runtime/
 .gsd/worktrees/
+.gsd/journal/
 .gsd/auto.lock
 .gsd/metrics.json
+.gsd/completed-units*.json
+.gsd/state-manifest.json
 .gsd/STATE.md
+.gsd/gsd.db*
+.gsd/doctor-history.jsonl
+.gsd/event-log.jsonl
+.gsd/notifications.jsonl
+.gsd/notifications.lock
 *.code-workspace
 .env.*
 *.pyc
