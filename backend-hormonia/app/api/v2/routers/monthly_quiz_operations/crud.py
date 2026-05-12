@@ -14,7 +14,7 @@ import string
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -105,6 +105,23 @@ async def _generate_unique_short_code(db: AsyncSession) -> str:
         if exists_result.first() is None:
             return code
     raise RuntimeError("Failed to generate a unique short code")
+
+
+def _require_quiz_medical_staff(current_user: Any) -> tuple[UserRole, UUID]:
+    """Resolve a medical actor for quiz admin surfaces without trusting dict shape."""
+    actor_role, actor_id = extract_user_context_sync(current_user)
+    actor_uuid = ensure_uuid_sync(actor_id)
+    if actor_role not in (UserRole.ADMIN, UserRole.DOCTOR) or actor_uuid is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only medical staff can access quiz links",
+        )
+    return actor_role, actor_uuid
+
+
+def _session_has_active_link_metadata(session: QuizSession) -> bool:
+    metadata = session.session_metadata or {}
+    return metadata.get("link_status") == "active"
 
 
 @router.get(
@@ -223,6 +240,11 @@ async def get_monthly_quiz_responses(
 
 from pydantic import BaseModel
 from app.utils.timezone import now_sao_paulo
+from app.api.v2.patients_shared_helpers import (
+    ensure_uuid_sync,
+    extract_user_context_sync,
+    load_patient_with_access,
+)
 
 class QuizLinkCreate(BaseModel):
     patient_id: UUID
@@ -264,6 +286,8 @@ async def create_quiz_link(
     current_user: User = Depends(_get_current_user_simple)
 ):
     """Create a quiz link (session + token)."""
+    patient = await load_patient_with_access(db, link_data.patient_id, current_user)
+
     # Verify template
     template_result = await db.execute(
         select(QuizTemplate).where(QuizTemplate.id == link_data.quiz_template_id)
@@ -276,15 +300,15 @@ async def create_quiz_link(
     session_result = await db.execute(
         select(QuizSession).where(
             QuizSession.quiz_template_id == link_data.quiz_template_id,
-            QuizSession.patient_id == link_data.patient_id,
-            QuizSession.status.in_(["started", "active"]),
+            QuizSession.patient_id == patient.id,
+            QuizSession.status == "started",
         )
     )
     session = session_result.scalar_one_or_none()
 
     if not session:
         session = QuizSession(
-            patient_id=link_data.patient_id,
+            patient_id=patient.id,
             quiz_template_id=link_data.quiz_template_id,
             status="started",
             started_at=now_sao_paulo(),
@@ -299,7 +323,7 @@ async def create_quiz_link(
         await db.refresh(session)
     
     # Ensure short code exists (for short link)
-    metadata = session.session_metadata or {}
+    metadata = dict(session.session_metadata or {})
     if session.expiration_date and not metadata.get("expires_at"):
         metadata["expires_at"] = session.expiration_date.isoformat()
     metadata.setdefault("link_status", "active")
@@ -355,10 +379,11 @@ async def get_patient_quiz_status(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple)
 ):
+    patient = await load_patient_with_access(db, patient_id, current_user)
     sessions = (
         await db.execute(
             select(QuizSession)
-            .where(QuizSession.patient_id == patient_id)
+            .where(QuizSession.patient_id == patient.id)
             .order_by(desc(QuizSession.started_at))
             .limit(5)
         )
@@ -409,26 +434,38 @@ async def get_active_links(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple)
 ):
-    """Get all active (non-expired, non-completed) quiz links/sessions."""
+    """Get active quiz links scoped to the authenticated doctor's patients."""
     import logging
     logger = logging.getLogger(__name__)
-    
+
     try:
+        actor_role, actor_uuid = _require_quiz_medical_staff(current_user)
         now = now_sao_paulo()
-        
-        # Get active sessions (started, not expired)
-        sessions = (
-            await db.execute(
-                select(QuizSession)
-                .where(QuizSession.status.in_(["started", "active"]))
-                .order_by(desc(QuizSession.started_at))
-                .limit(50)
+
+        query = (
+            select(QuizSession, Patient)
+            .join(Patient, QuizSession.patient_id == Patient.id)
+            .where(
+                QuizSession.status == "started",
+                or_(
+                    QuizSession.expiration_date.is_(None),
+                    QuizSession.expiration_date >= now,
+                ),
             )
-        ).scalars().all()
+            .order_by(desc(QuizSession.started_at))
+            .limit(50)
+        )
+        if actor_role == UserRole.DOCTOR:
+            query = query.where(Patient.doctor_id == actor_uuid)
 
-        template_ids = {session.quiz_template_id for session in sessions}
-        patient_ids = {session.patient_id for session in sessions}
+        rows = (await db.execute(query)).all()
+        session_patient_pairs = [
+            (session, patient)
+            for session, patient in rows
+            if _session_has_active_link_metadata(session)
+        ]
 
+        template_ids = {session.quiz_template_id for session, _ in session_patient_pairs}
         templates_by_id = {}
         if template_ids:
             templates_result = await db.execute(
@@ -438,41 +475,28 @@ async def get_active_links(
                 template.id: template for template in templates_result.scalars().all()
             }
 
-        patients_by_id = {}
-        if patient_ids:
-            patients_result = await db.execute(
-                select(Patient).where(Patient.id.in_(patient_ids))
-            )
-            patients_by_id = {
-                patient.id: patient for patient in patients_result.scalars().all()
-            }
-        
         result = []
-        for s in sessions:
-            # Check expiration
-            if s.expiration_date and s.expiration_date < now:
-                continue
-                
-            template = templates_by_id.get(s.quiz_template_id)
-            patient = patients_by_id.get(s.patient_id)
-            
+        for session, patient in session_patient_pairs:
+            template = templates_by_id.get(session.quiz_template_id)
             result.append({
-                "id": str(s.id),
-                "quiz_session_id": str(s.id),
-                "patient_id": str(s.patient_id),
+                "id": str(session.id),
+                "quiz_session_id": str(session.id),
+                "patient_id": str(session.patient_id),
                 "patient_name": patient.name if patient and patient.name else "Unknown",
-                "quiz_template_id": str(s.quiz_template_id),
+                "quiz_template_id": str(session.quiz_template_id),
                 "template_name": template.name if template else "Unknown",
-                "status": s.status,
-                "expires_at": s.expiration_date.isoformat() if s.expiration_date else None,
-                "created_at": s.started_at.isoformat() if s.started_at else None,
+                "status": session.status,
+                "expires_at": session.expiration_date.isoformat() if session.expiration_date else None,
+                "created_at": session.started_at.isoformat() if session.started_at else None,
             })
         return result
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error getting active links: {e}", exc_info=True)
+        logger.error("Error getting active links", extra={"reason": type(e).__name__}, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get active links: {str(e)}"
+            detail="Failed to get active links"
         )
 
 @router.get(

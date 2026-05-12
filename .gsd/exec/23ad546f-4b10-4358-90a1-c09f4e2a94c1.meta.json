@@ -1,0 +1,18 @@
+{
+  "id": "23ad546f-4b10-4358-90a1-c09f4e2a94c1",
+  "runtime": "python",
+  "purpose": "summarize monthly quiz test fixtures/endpoints",
+  "script_chars": 588,
+  "started_at": "2026-05-12T20:23:11.132Z",
+  "finished_at": "2026-05-12T20:23:11.233Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 101,
+  "stdout_bytes": 742,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/23ad546f-4b10-4358-90a1-c09f4e2a94c1.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/23ad546f-4b10-4358-90a1-c09f4e2a94c1.stderr"
+}

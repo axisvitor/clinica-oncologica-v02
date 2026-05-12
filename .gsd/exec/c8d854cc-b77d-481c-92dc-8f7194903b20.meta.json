@@ -1,0 +1,18 @@
+{
+  "id": "c8d854cc-b77d-481c-92dc-8f7194903b20",
+  "runtime": "bash",
+  "purpose": "Locate list_patients function line in crud router",
+  "script_chars": 241,
+  "started_at": "2026-05-12T19:39:28.767Z",
+  "finished_at": "2026-05-12T19:39:28.816Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 49,
+  "stdout_bytes": 63,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/c8d854cc-b77d-481c-92dc-8f7194903b20.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/c8d854cc-b77d-481c-92dc-8f7194903b20.stderr"
+}

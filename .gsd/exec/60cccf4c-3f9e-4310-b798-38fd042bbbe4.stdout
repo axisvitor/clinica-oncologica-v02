@@ -1,0 +1,150 @@
+backend-hormonia/tests/conftest.py:69:     get_redis_cache,
+backend-hormonia/tests/conftest.py:1299:         async def delete_pattern(self, pattern):
+backend-hormonia/tests/conftest.py:1300:             # Compatibility: some tests patch RedisManager.delete_pattern directly.
+backend-hormonia/tests/conftest.py:1304:             patched = getattr(RedisManager, "delete_pattern", None)
+backend-hormonia/tests/conftest.py:1398:     app.dependency_overrides[get_redis_cache] = _override_redis_cache
+backend-hormonia/tests/conftest.py:1402:         app.dependency_overrides[monthly_quiz_shared.get_redis_cache] = _override_redis_cache
+backend-hormonia/tests/test_ai_simulation_guards.py:97:                 "app.api.v2.routers.ai.humanize.get_redis_cache",
+backend-hormonia/tests/test_ai_simulation_guards.py:197:                 "app.api.v2.routers.ai.analysis.get_redis_cache",
+backend-hormonia/tests/test_ai_simulation_guards.py:224:                 "app.api.v2.routers.ai.analysis.get_redis_cache",
+backend-hormonia/tests/integration/test_auth_hard_cut_end_to_end.py:13: from app.dependencies.auth_dependencies import get_redis_cache
+backend-hormonia/tests/integration/test_auth_hard_cut_end_to_end.py:89:     async def delete_pattern(self, pattern: str):
+backend-hormonia/tests/integration/test_auth_hard_cut_end_to_end.py:139:     app.dependency_overrides[get_redis_cache] = _override_redis_cache
+backend-hormonia/tests/integration/test_auth_hard_cut_end_to_end.py:143:         app.dependency_overrides.pop(get_redis_cache, None)
+backend-hormonia/tests/integration/test_local_auth_core_flow.py:11: from app.dependencies.auth_dependencies import get_redis_cache
+backend-hormonia/tests/integration/test_local_auth_core_flow.py:86:     async def delete_pattern(self, pattern: str):
+backend-hormonia/tests/integration/test_local_auth_core_flow.py:121:     app.dependency_overrides[get_redis_cache] = _override_redis_cache
+backend-hormonia/tests/integration/test_local_auth_core_flow.py:125:         app.dependency_overrides.pop(get_redis_cache, None)
+backend-hormonia/tests/integration/test_password_reset_migration_flow.py:12: from app.dependencies.auth_dependencies import get_redis_cache
+backend-hormonia/tests/integration/test_password_reset_migration_flow.py:86:     async def delete_pattern(self, pattern: str):
+backend-hormonia/tests/integration/test_password_reset_migration_flow.py:119:     app.dependency_overrides[get_redis_cache] = _override_redis_cache
+backend-hormonia/tests/integration/test_password_reset_migration_flow.py:123:         app.dependency_overrides.pop(get_redis_cache, None)
+backend-hormonia/tests/unit/test_auth_dependencies.py:259: async def test_generic_redis_cache_delete_pattern_uses_scan_iter():
+backend-hormonia/tests/unit/test_auth_dependencies.py:260:     """delete_pattern should scan with pattern/count and delete matching keys."""
+backend-hormonia/tests/unit/test_auth_dependencies.py:265:     result = await cache.delete_pattern("cache:*")
+backend-hormonia/tests/unit/test_auth_dependencies.py:273: async def test_generic_redis_cache_delete_pattern_batches_large_keyspace():
+backend-hormonia/tests/unit/test_auth_dependencies.py:274:     """delete_pattern should delete scanned keys in bounded batches."""
+backend-hormonia/tests/unit/test_auth_dependencies.py:280:     result = await cache.delete_pattern("cache:*")
+backend-hormonia/tests/unit/test_auth_dependencies.py:293: async def test_generic_redis_cache_delete_pattern_preserves_false_on_error():
+backend-hormonia/tests/unit/test_auth_dependencies.py:294:     """delete_pattern should keep fail-closed return contract."""
+backend-hormonia/tests/unit/test_auth_dependencies.py:299:     result = await cache.delete_pattern("cache:*")
+backend-hormonia/tests/api/v2/conftest.py:78:         mock_instance.delete_pattern = MagicMock()
+backend-hormonia/tests/api/v2/conftest_auth.py:339:         'app.dependencies.auth_dependencies.get_redis_cache'
+backend-hormonia/tests/api/v2/test_ai.py:97:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:146:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:167:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:259:         with patch("app.api.v2.routers.ai.get_redis_cache", side_effect=Exception("AI Error")):
+backend-hormonia/tests/api/v2/test_ai.py:286:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:362:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:382:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=None):
+backend-hormonia/tests/api/v2/test_ai.py:407:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:438:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:494:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:525:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:552:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:595:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:644:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:677:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:691:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=None):
+backend-hormonia/tests/api/v2/test_ai.py:709:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:743:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=None):
+backend-hormonia/tests/api/v2/test_ai.py:785:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:815:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_ai.py:852:         with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+backend-hormonia/tests/api/v2/test_auth_critical.py:20:     from app.dependencies.auth_dependencies import get_redis_cache
+backend-hormonia/tests/api/v2/test_auth_critical.py:22:     async def _override_get_redis_cache():
+backend-hormonia/tests/api/v2/test_auth_critical.py:25:     app.dependency_overrides[get_redis_cache] = _override_get_redis_cache
+backend-hormonia/tests/api/v2/test_auth_critical.py:29:         app.dependency_overrides.pop(get_redis_cache, None)
+backend-hormonia/tests/api/v2/test_auth_hard_cut_cleanup.py:16: from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
+backend-hormonia/tests/api/v2/test_auth_hard_cut_cleanup.py:72:     async def delete_pattern(self, pattern: str):
+backend-hormonia/tests/api/v2/test_auth_hard_cut_cleanup.py:107:     app.dependency_overrides[get_redis_cache] = _override_redis_cache
+backend-hormonia/tests/api/v2/test_auth_hard_cut_cleanup.py:111:         app.dependency_overrides.pop(get_redis_cache, None)
+backend-hormonia/tests/api/v2/test_auth_local_login.py:14: from app.dependencies.auth_dependencies import get_redis_cache
+backend-hormonia/tests/api/v2/test_auth_local_login.py:145:     app.dependency_overrides[get_redis_cache] = _override_redis_cache
+backend-hormonia/tests/api/v2/test_auth_local_login.py:149:         app.dependency_overrides.pop(get_redis_cache, None)
+backend-hormonia/tests/api/v2/test_auth_local_login.py:159:     app.dependency_overrides[get_redis_cache] = _override_redis_cache
+backend-hormonia/tests/api/v2/test_auth_local_login.py:163:         app.dependency_overrides.pop(get_redis_cache, None)
+backend-hormonia/tests/api/v2/test_auth_login_comprehensive.py:105:             with patch('app.dependencies.auth_dependencies.get_redis_cache') as mock_cache:
+backend-hormonia/tests/api/v2/test_auth_login_comprehensive.py:150:             with patch('app.dependencies.auth_dependencies.get_redis_cache') as mock_cache:
+backend-hormonia/tests/api/v2/test_auth_login_comprehensive.py:290:             with patch('app.dependencies.auth_dependencies.get_redis_cache') as mock_cache:
+backend-hormonia/tests/api/v2/test_auth_login_comprehensive.py:400:         with patch('app.dependencies.auth_dependencies.get_redis_cache') as mock_cache:
+backend-hormonia/tests/api/v2/test_auth_login_comprehensive.py:428:         with patch('app.dependencies.auth_dependencies.get_redis_cache') as mock_cache:
+backend-hormonia/tests/api/v2/test_auth_login_comprehensive.py:451:         with patch('app.dependencies.auth_dependencies.get_redis_cache') as mock_cache:
+backend-hormonia/tests/api/v2/test_auth_login_comprehensive.py:566:         with patch('app.dependencies.auth_dependencies.get_redis_cache') as mock_cache:
+backend-hormonia/tests/api/v2/test_auth_login_comprehensive.py:638:                 with patch('app.dependencies.auth_dependencies.get_redis_cache') as mock_cache:
+backend-hormonia/tests/api/v2/test_auth_login_comprehensive.py:774:             with patch('app.dependencies.auth_dependencies.get_redis_cache') as mock_cache:
+backend-hormonia/tests/api/v2/test_edge_cases.py:466:     @patch('app.core.redis_manager.RedisManager.delete_pattern')
+backend-hormonia/tests/api/v2/test_edge_cases.py:469:         mock_delete_pattern,
+backend-hormonia/tests/api/v2/test_edge_cases.py:518:             # instead of direct RedisManager.delete_pattern calls.
+backend-hormonia/tests/api/v2/test_edge_cases.py:523:     @patch('app.core.redis_manager.RedisManager.delete_pattern')
+backend-hormonia/tests/api/v2/test_edge_cases.py:526:         mock_delete_pattern,
+backend-hormonia/tests/api/v2/test_edge_cases.py:577:             # instead of direct RedisManager.delete_pattern calls.
+backend-hormonia/tests/api/v2/test_localization.py:127:     class MockRedisCache:
+backend-hormonia/tests/api/v2/test_localization.py:138:         async def delete_pattern(self, pattern: str):
+backend-hormonia/tests/api/v2/test_localization.py:152:     return MockRedisCache()
+backend-hormonia/tests/api/v2/test_localization.py:162:         with patch('app.api.v2.routers.localization.get_redis_cache', return_value=mock_redis_cache):
+backend-hormonia/tests/api/v2/test_localization.py:177:         with patch('app.api.v2.routers.localization.get_redis_cache', return_value=mock_redis_cache):
+backend-hormonia/tests/api/v2/test_localization.py:204:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:232:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:257:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:284:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:323:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:350:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:372:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:397:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:432:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:462:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:489:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:514:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:548:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:572:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:602:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:626:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:648:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:670:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:706:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:732:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:757:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:779:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:911:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:941:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:954:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:988:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:1010:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_localization.py:1034:             with patch('app.api.v2.routers.localization.get_redis_cache',
+backend-hormonia/tests/api/v2/test_platform_sync.py:36:     redis_mock.delete_pattern = AsyncMock(return_value=True)
+backend-hormonia/tests/api/v2/test_platform_sync.py:92:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:107:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:118:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:129:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:148:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:167:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:186:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:202:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:226:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:240:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:257:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:298:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:317:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:331:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:346:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:364:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:376:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:390:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:493:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:514:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:533:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:558:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:583:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:597:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:608:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:619:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:630:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:656:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:677:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:694:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:788:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:800:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:824:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:861:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+backend-hormonia/tests/api/v2/test_platform_sync.py:880:     @patch("app.api.v2.routers.platform_sync.get_redis_cache")

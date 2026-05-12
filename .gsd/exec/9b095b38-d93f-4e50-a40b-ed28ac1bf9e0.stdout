@@ -1,0 +1,53 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+__ test_active_links_scoped_to_assigned_doctor_and_admin_without_foreign_phi ___
+
+client = <tests.utils.async_test_client.AsyncTestClient object at 0x7c5afca67d10>
+db_session = <sqlalchemy.orm.session.Session object at 0x7c5afd179850>
+
+    def test_active_links_scoped_to_assigned_doctor_and_admin_without_foreign_phi(
+        client, db_session
+    ):
+        boundary = create_message_ownership_boundary(db_session)
+        template = _create_quiz_template(db_session)
+    
+        link_a = _create_link(
+            client,
+            boundary.doctor_a,
+            boundary.patient_a.id,
+            template.id,
+        )
+        link_b = _create_link(
+            client,
+            boundary.doctor_b,
+            boundary.patient_b.id,
+            template.id,
+        )
+        assert link_a.status_code == 200
+        assert link_b.status_code == 200
+        session_a = link_a.json()["quiz_session_id"]
+        session_b = link_b.json()["quiz_session_id"]
+    
+        doctor_a_response = client.get(
+            "/api/v2/quiz-extensions/links/active/",
+            headers=headers_for_user(boundary.doctor_a),
+        )
+        assert doctor_a_response.status_code == 200
+        doctor_a_body = _body(doctor_a_response)
+>       assert str(boundary.patient_a.id) in doctor_a_body
+E       AssertionError: assert '8665ef6b-92f9-4f8c-9aa1-8f40f34a2216' in '[]'
+E        +  where '8665ef6b-92f9-4f8c-9aa1-8f40f34a2216' = str(UUID('8665ef6b-92f9-4f8c-9aa1-8f40f34a2216'))
+E        +    where UUID('8665ef6b-92f9-4f8c-9aa1-8f40f34a2216') = <Patient(name='Boundary Patient A', phone_hash='N/A')>.id
+E        +      where <Patient(name='Boundary Patient A', phone_hash='N/A')> = MessageOwnershipBoundary(doctor_a=<User(email='doctor-a-0d978177afe8480bb6db7bb0baf22422@example.test', role='doctor')...6', direction='inbound')>, message_b=<Message(patient_id='dc5912cf-0583-4bb6-a15e-2477c62f1194', direction='inbound')>).patient_a
+
+tests/api/v2/test_quiz_link_session_boundary.py:205: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-05-12 17:30:23 - app.utils.db_retry - INFO - Circuit breaker manually reset to CLOSED state
+------------------------------ Captured log setup ------------------------------
+INFO     app.utils.db_retry:db_retry.py:368 Circuit breaker manually reset to CLOSED state
+--------------------------- Captured stderr teardown ---------------------------
+2026-05-12 17:30:34 - app.utils.db_retry - INFO - Circuit breaker manually reset to CLOSED state
+---------------------------- Captured log teardown -----------------------------
+INFO     app.utils.db_retry:db_retry.py:368 Circuit breaker manually reset to CLOSED state
+=========================== short test summary info ============================
+FAILED tests/api/v2/test_quiz_link_session_boundary.py::test_active_links_scoped_to_assigned_doctor_and_admin_without_foreign_phi

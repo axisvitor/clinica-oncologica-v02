@@ -1,0 +1,18 @@
+{
+  "id": "7194c9e9-ccd3-4e2c-a794-ec6b2d2b9e71",
+  "runtime": "bash",
+  "purpose": "Concise S03 quiz route/model/test map",
+  "script_chars": 1313,
+  "started_at": "2026-05-12T19:55:43.720Z",
+  "finished_at": "2026-05-12T19:55:44.989Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 1269,
+  "stdout_bytes": 31189,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/7194c9e9-ccd3-4e2c-a794-ec6b2d2b9e71.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/7194c9e9-ccd3-4e2c-a794-ec6b2d2b9e71.stderr"
+}

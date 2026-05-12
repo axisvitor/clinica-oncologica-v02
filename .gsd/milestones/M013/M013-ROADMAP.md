@@ -15,10 +15,10 @@
 - [x] **S01: S01** `risk:high` `depends:[]`
   > After this: Anonymous WhatsApp management calls are rejected, authorized mocked operations still work, and SSRF vectors against media fetch are blocked by tests.
 
-- [ ] **S02: S02** `risk:high` `depends:[]`
+- [x] **S02: S02** `risk:high` `depends:[]`
   > After this: Doctor A cannot access Doctor B’s messages, free-text flow responses or flow override schedules; assigned doctor/admin access still passes.
 
-- [ ] **S03: Quiz Link/Session Boundary** `risk:high` `depends:[S02]`
+- [ ] **S03: S03** `risk:high` `depends:[]`
   > After this: Quiz link creation, status/history, active links and public submit reject foreign, expired, forged or mismatched state while a legitimate fixture quiz still completes.
 
 - [ ] **S04: Private Upload/Report Serving** `risk:high` `depends:[]`

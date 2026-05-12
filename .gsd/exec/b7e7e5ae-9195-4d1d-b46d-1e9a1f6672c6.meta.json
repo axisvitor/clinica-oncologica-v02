@@ -1,0 +1,18 @@
+{
+  "id": "b7e7e5ae-9195-4d1d-b46d-1e9a1f6672c6",
+  "runtime": "bash",
+  "purpose": "Inspect test_doctor_user fixture relation to auth_headers test_user",
+  "script_chars": 412,
+  "started_at": "2026-05-12T19:09:41.651Z",
+  "finished_at": "2026-05-12T19:09:41.712Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 61,
+  "stdout_bytes": 44,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/b7e7e5ae-9195-4d1d-b46d-1e9a1f6672c6.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/b7e7e5ae-9195-4d1d-b46d-1e9a1f6672c6.stderr"
+}

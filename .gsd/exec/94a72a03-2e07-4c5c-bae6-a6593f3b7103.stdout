@@ -1,0 +1,1 @@
+Patient ownership deny diagnostics use only actor/resource ids, role, and reason; unit tests assert no PHI markers are logged.

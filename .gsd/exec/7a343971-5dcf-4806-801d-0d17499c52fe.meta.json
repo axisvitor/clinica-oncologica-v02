@@ -1,0 +1,18 @@
+{
+  "id": "7a343971-5dcf-4806-801d-0d17499c52fe",
+  "runtime": "bash",
+  "purpose": "Slice-level verification for S02 message read/conversation ownership gate",
+  "script_chars": 114,
+  "started_at": "2026-05-12T19:21:00.723Z",
+  "finished_at": "2026-05-12T19:21:27.386Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 26663,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/7a343971-5dcf-4806-801d-0d17499c52fe.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/7a343971-5dcf-4806-801d-0d17499c52fe.stderr"
+}

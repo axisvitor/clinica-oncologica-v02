@@ -1,0 +1,427 @@
+## def create_test_user
+1454:     distributed_lock._default_lock = None
+1455:     redis_utils._redis_manager = None
+1456:     redis_utils._redis_cache_manager = None
+1457:     redis_utils._redis_broker_manager = None
+1458: 
+1459: def create_test_user(db_session, email="test@example.com", role=UserRole.DOCTOR, **kwargs):
+1460:     # Check if user already exists
+1461:     existing = db_session.query(User).filter(User.email == email).first()
+1462:     if existing:
+1463:         return existing
+1464: 
+1465:     user = User(
+1466:         id=kwargs.get('id', uuid4()),
+1467:         email=email,
+1468:         hashed_password=get_password_hash(kwargs.get('password', 'testpass123')),
+1469:         full_name=kwargs.get('full_name', 'Test User'),
+1470:         display_name=kwargs.get('display_name', kwargs.get('full_name', 'Test User')),
+1471:         photo_url=kwargs.get('photo_url', 'https://example.com/test-user-photo.png'),
+1472:         preferences=kwargs.get('preferences', {'theme': 'dark', 'language': 'pt-BR'}),
+1473:         last_login=kwargs.get('last_login'),
+1474:         role=role,
+1475:         is_active=kwargs.get('is_active', True),
+1476:         firebase_uid=kwargs.get('firebase_uid'),
+1477:     )
+1478:     db_session.add(user)
+1479:     db_session.commit()
+1480:     return user
+1481: 
+1482: class TestUser(dict):
+1483:     """Dictionary-backed test user with attribute access for User fields."""
+1484: 
+1485:     def __init__(self, user: User, password: str):
+1486:         super().__init__(
+1487:             id=str(user.id),
+1488:             email=user.email,
+1489:             password=password,
+1490:             full_name=user.full_name,
+1491:             role=user.role,
+1492:             user=user,
+1493:             firebase_uid=getattr(user, "firebase_uid", None),
+1494:             is_active=user.is_active,
+1495:             created_at=user.created_at.isoformat() if user.created_at else None,
+1496:             updated_at=user.updated_at.isoformat() if user.updated_at else None,
+1497:             last_login=user.last_login.isoformat() if user.last_login else None,
+1498:             display_name=user.get_display_name() if hasattr(user, "get_display_name") else getattr(user, "display_name", user.full_name),
+1499:             photo_url=user.get_photo_url() if hasattr(user, "get_photo_url") else getattr(user, "photo_url", None),
+1500:             preferences=user.get_preferences_data() if hasattr(user, "get_preferences_data") else dict(getattr(user, "preferences", {}) or {}),
+1501:         )
+1502:         self.user = user
+1503:         self.password = password
+1504:         self.access_token = f"test_session_{user.id}"
+1505: 
+1506:     def __getattr__(self, name):
+1507:         if hasattr(self.user, name):
+1508:             return getattr(self.user, name)
+1509:         if name in self:
+1510:             return self[name]
+1511:         raise AttributeError(name)
+1512: 
+1513:     def __setattr__(self, name, value):
+1514:         if name in {"user", "password", "access_token"} or name.startswith("_"):
+1515:             object.__setattr__(self, name, value)
+1516:             return
+1517:         if hasattr(self, "user") and hasattr(self.user, name):
+1518:             setattr(self.user, name, value)
+1519:             return
+1520:         if name in self:
+1521:             self[name] = value
+1522:             return
+1523:         object.__setattr__(self, name, value)
+1524: 
+1525:     def session_dict(self) -> dict:
+1526:         role = self.user.role.value if hasattr(self.user.role, "value") else str(self.user.role)
+1527:         return {
+1528:             "id": str(self.user.id),
+1529:             "email": self.user.email,
+1530:             "full_name": self.user.full_name,
+1531:             "role": role,
+1532:             "is_active": self.user.is_active,
+1533:             "firebase_uid": getattr(self.user, "firebase_uid", None),
+1534:             "created_at": self.user.created_at.isoformat() if self.user.created_at else None,
+1535:             "updated_at": self.user.updated_at.isoformat() if self.user.updated_at else None,
+1536:             "last_login": self.user.last_login.isoformat()
+1537:             if self.user.last_login
+1538:             else None,
+1539:             "display_name": self.user.get_display_name() if hasattr(self.user, "get_display_name") else getattr(self.user, "display_name", self.user.full_name),
+
+## def create_test_patient
+1553: @pytest.fixture
+1554: def test_user_obj(db_session):
+1555:     """Return User object directly for tests that need the model."""
+1556:     return create_test_user(db_session)
+1557: 
+1558: def create_test_patient(db_session, doctor, name="Test Patient", **kwargs):
+1559:     patient = Patient(
+1560:         id=kwargs.get('id', uuid4()),
+1561:         name=name,
+1562:         doctor_id=doctor.id,
+1563:         birth_date=kwargs.get('birth_date')
+1564:     )
+1565:     if 'cpf' in kwargs: patient.set_cpf(kwargs['cpf'])
+1566:     if 'email' in kwargs: patient.set_email(kwargs['email'])
+1567:     if 'phone' in kwargs: patient.set_phone(kwargs['phone'])
+1568:     
+1569:     db_session.add(patient)
+1570:     db_session.commit()
+1571:     return patient
+1572: 
+1573: @pytest.fixture
+1574: def test_patient(db_session, test_user):
+1575:     user_obj = test_user["user"] if isinstance(test_user, dict) else test_user
+1576:     return create_test_patient(db_session, doctor=user_obj)
+1577: 
+1578: @pytest.fixture
+1579: def authenticated_client(client, test_user):
+1580:     user_obj = test_user["user"] if isinstance(test_user, dict) else test_user
+1581:     session_user = (
+1582:         test_user.session_dict()
+1583:         if isinstance(test_user, TestUser)
+1584:         else TestUser(user_obj, getattr(test_user, "password", "testpass123")).session_dict()
+1585:     )
+1586: 
+1587:     async def _override_session(request: Request):
+1588:         request.state.user_id = session_user.get("id")
+1589:         request.state.user_role = session_user.get("role")
+1590:         return session_user
+1591: 
+1592:     async def _override_current_user(request: Request):
+1593:         request.state.user = user_obj
+1594:         request.state.user_id = str(user_obj.id)
+1595:         request.state.user_role = (
+1596:             user_obj.role.value if hasattr(user_obj.role, "value") else str(user_obj.role)
+1597:         )
+1598:         return user_obj
+1599: 
+1600:     async def _override_current_user_object():
+1601:         return user_obj
+1602: 
+1603:     app.dependency_overrides[get_current_user_from_session] = _override_session
+1604:     app.dependency_overrides[get_current_user_object_from_session] = _override_current_user_object
+1605:     app.dependency_overrides[get_current_user] = _override_current_user
+1606:     client.headers["Authorization"] = f"Bearer test_token_{user_obj.id}"
+1607:     return client
+1608: 
+1609: 
+1610: @pytest.fixture
+1611: def auth_headers(test_user):
+1612:     from app.main import app
+1613:     from app.middleware.csrf import get_csrf_token
+1614: 
+1615:     user_obj = test_user.user if isinstance(test_user, TestUser) else test_user
+1616:     session_user = (
+1617:         test_user.session_dict()
+1618:         if isinstance(test_user, TestUser)
+1619:         else TestUser(user_obj, getattr(test_user, "password", "testpass123")).session_dict()
+1620:     )
+1621:     session_id = f"test-session-{user_obj.id}"
+1622: 
+1623:     async def _override_session(request: Request):
+1624:         request.state.user_id = session_user.get("id")
+1625:         request.state.user_role = session_user.get("role")
+1626:         request.state.session_id = session_id
+1627:         return session_user
+1628: 
+1629:     async def _override_current_user(request: Request):
+1630:         request.state.user = user_obj
+1631:         request.state.user_id = str(user_obj.id)
+1632:         request.state.user_role = (
+1633:             user_obj.role.value if hasattr(user_obj.role, "value") else str(user_obj.role)
+1634:         )
+1635:         request.state.session_id = session_id
+1636:         return user_obj
+1637: 
+1638:     async def _override_optional_user(credentials=None, services=None):
+
+## @pytest.fixture
+def test_patient
+1569:     db_session.add(patient)
+1570:     db_session.commit()
+1571:     return patient
+1572: 
+1573: @pytest.fixture
+1574: def test_patient(db_session, test_user):
+1575:     user_obj = test_user["user"] if isinstance(test_user, dict) else test_user
+1576:     return create_test_patient(db_session, doctor=user_obj)
+1577: 
+1578: @pytest.fixture
+1579: def authenticated_client(client, test_user):
+1580:     user_obj = test_user["user"] if isinstance(test_user, dict) else test_user
+1581:     session_user = (
+1582:         test_user.session_dict()
+1583:         if isinstance(test_user, TestUser)
+1584:         else TestUser(user_obj, getattr(test_user, "password", "testpass123")).session_dict()
+1585:     )
+1586: 
+1587:     async def _override_session(request: Request):
+1588:         request.state.user_id = session_user.get("id")
+1589:         request.state.user_role = session_user.get("role")
+1590:         return session_user
+1591: 
+1592:     async def _override_current_user(request: Request):
+1593:         request.state.user = user_obj
+1594:         request.state.user_id = str(user_obj.id)
+1595:         request.state.user_role = (
+1596:             user_obj.role.value if hasattr(user_obj.role, "value") else str(user_obj.role)
+1597:         )
+1598:         return user_obj
+1599: 
+1600:     async def _override_current_user_object():
+1601:         return user_obj
+1602: 
+1603:     app.dependency_overrides[get_current_user_from_session] = _override_session
+1604:     app.dependency_overrides[get_current_user_object_from_session] = _override_current_user_object
+1605:     app.dependency_overrides[get_current_user] = _override_current_user
+1606:     client.headers["Authorization"] = f"Bearer test_token_{user_obj.id}"
+1607:     return client
+1608: 
+1609: 
+1610: @pytest.fixture
+1611: def auth_headers(test_user):
+1612:     from app.main import app
+1613:     from app.middleware.csrf import get_csrf_token
+1614: 
+1615:     user_obj = test_user.user if isinstance(test_user, TestUser) else test_user
+1616:     session_user = (
+1617:         test_user.session_dict()
+1618:         if isinstance(test_user, TestUser)
+1619:         else TestUser(user_obj, getattr(test_user, "password", "testpass123")).session_dict()
+1620:     )
+1621:     session_id = f"test-session-{user_obj.id}"
+1622: 
+1623:     async def _override_session(request: Request):
+1624:         request.state.user_id = session_user.get("id")
+1625:         request.state.user_role = session_user.get("role")
+1626:         request.state.session_id = session_id
+1627:         return session_user
+1628: 
+1629:     async def _override_current_user(request: Request):
+1630:         request.state.user = user_obj
+1631:         request.state.user_id = str(user_obj.id)
+1632:         request.state.user_role = (
+1633:             user_obj.role.value if hasattr(user_obj.role, "value") else str(user_obj.role)
+1634:         )
+1635:         request.state.session_id = session_id
+1636:         return user_obj
+1637: 
+1638:     async def _override_optional_user(credentials=None, services=None):
+1639:         return user_obj
+1640: 
+1641:     async def _override_current_user_object():
+1642:         return user_obj
+1643: 
+1644:     async def _override_request_context(request: Request):
+1645:         return RequestContext(
+1646:             ip_address="127.0.0.1",
+1647:             user_agent="pytest",
+1648:             user_id=user_obj.id,
+1649:             session_id=session_id,
+1650:         )
+1651: 
+1652:     app.dependency_overrides[get_current_user_from_session] = _override_session
+1653:     app.dependency_overrides[get_current_user_object_from_session] = _override_current_user_object
+1654:     app.dependency_overrides[get_current_user] = _override_current_user
+
+## @pytest.fixture
+def auth_headers
+1606:     client.headers["Authorization"] = f"Bearer test_token_{user_obj.id}"
+1607:     return client
+1608: 
+1609: 
+1610: @pytest.fixture
+1611: def auth_headers(test_user):
+1612:     from app.main import app
+1613:     from app.middleware.csrf import get_csrf_token
+1614: 
+1615:     user_obj = test_user.user if isinstance(test_user, TestUser) else test_user
+1616:     session_user = (
+1617:         test_user.session_dict()
+1618:         if isinstance(test_user, TestUser)
+1619:         else TestUser(user_obj, getattr(test_user, "password", "testpass123")).session_dict()
+1620:     )
+1621:     session_id = f"test-session-{user_obj.id}"
+1622: 
+1623:     async def _override_session(request: Request):
+1624:         request.state.user_id = session_user.get("id")
+1625:         request.state.user_role = session_user.get("role")
+1626:         request.state.session_id = session_id
+1627:         return session_user
+1628: 
+1629:     async def _override_current_user(request: Request):
+1630:         request.state.user = user_obj
+1631:         request.state.user_id = str(user_obj.id)
+1632:         request.state.user_role = (
+1633:             user_obj.role.value if hasattr(user_obj.role, "value") else str(user_obj.role)
+1634:         )
+1635:         request.state.session_id = session_id
+1636:         return user_obj
+1637: 
+1638:     async def _override_optional_user(credentials=None, services=None):
+1639:         return user_obj
+1640: 
+1641:     async def _override_current_user_object():
+1642:         return user_obj
+1643: 
+1644:     async def _override_request_context(request: Request):
+1645:         return RequestContext(
+1646:             ip_address="127.0.0.1",
+1647:             user_agent="pytest",
+1648:             user_id=user_obj.id,
+1649:             session_id=session_id,
+1650:         )
+1651: 
+1652:     app.dependency_overrides[get_current_user_from_session] = _override_session
+1653:     app.dependency_overrides[get_current_user_object_from_session] = _override_current_user_object
+1654:     app.dependency_overrides[get_current_user] = _override_current_user
+1655:     app.dependency_overrides[get_optional_user] = _override_optional_user
+1656:     app.dependency_overrides[get_request_context] = _override_request_context
+1657: 
+1658:     csrf_token = get_csrf_token()
+1659:     headers = {
+1660:         "X-Session-ID": session_id,
+1661:         "Authorization": f"Bearer test-token-{user_obj.id}",
+1662:         "X-CSRF-Token": csrf_token,
+1663:         "Cookie": f"csrf_token={csrf_token}",
+1664:     }
+1665:     yield headers
+1666:     app.dependency_overrides.pop(get_current_user_from_session, None)
+1667:     app.dependency_overrides.pop(get_current_user_object_from_session, None)
+1668:     app.dependency_overrides.pop(get_current_user, None)
+1669:     app.dependency_overrides.pop(get_optional_user, None)
+1670:     app.dependency_overrides.pop(get_request_context, None)
+1671: 
+1672: 
+1673: @pytest.fixture
+1674: def sync_executor():
+1675:     """Synchronous executor for testing (avoids SQLite threading issues)."""
+1676:     return SyncExecutor()
+
+## class TestUser
+1477:     )
+1478:     db_session.add(user)
+1479:     db_session.commit()
+1480:     return user
+1481: 
+1482: class TestUser(dict):
+1483:     """Dictionary-backed test user with attribute access for User fields."""
+1484: 
+1485:     def __init__(self, user: User, password: str):
+1486:         super().__init__(
+1487:             id=str(user.id),
+1488:             email=user.email,
+1489:             password=password,
+1490:             full_name=user.full_name,
+1491:             role=user.role,
+1492:             user=user,
+1493:             firebase_uid=getattr(user, "firebase_uid", None),
+1494:             is_active=user.is_active,
+1495:             created_at=user.created_at.isoformat() if user.created_at else None,
+1496:             updated_at=user.updated_at.isoformat() if user.updated_at else None,
+1497:             last_login=user.last_login.isoformat() if user.last_login else None,
+1498:             display_name=user.get_display_name() if hasattr(user, "get_display_name") else getattr(user, "display_name", user.full_name),
+1499:             photo_url=user.get_photo_url() if hasattr(user, "get_photo_url") else getattr(user, "photo_url", None),
+1500:             preferences=user.get_preferences_data() if hasattr(user, "get_preferences_data") else dict(getattr(user, "preferences", {}) or {}),
+1501:         )
+1502:         self.user = user
+1503:         self.password = password
+1504:         self.access_token = f"test_session_{user.id}"
+1505: 
+1506:     def __getattr__(self, name):
+1507:         if hasattr(self.user, name):
+1508:             return getattr(self.user, name)
+1509:         if name in self:
+1510:             return self[name]
+1511:         raise AttributeError(name)
+1512: 
+1513:     def __setattr__(self, name, value):
+1514:         if name in {"user", "password", "access_token"} or name.startswith("_"):
+1515:             object.__setattr__(self, name, value)
+1516:             return
+1517:         if hasattr(self, "user") and hasattr(self.user, name):
+1518:             setattr(self.user, name, value)
+1519:             return
+1520:         if name in self:
+1521:             self[name] = value
+1522:             return
+1523:         object.__setattr__(self, name, value)
+1524: 
+1525:     def session_dict(self) -> dict:
+1526:         role = self.user.role.value if hasattr(self.user.role, "value") else str(self.user.role)
+1527:         return {
+1528:             "id": str(self.user.id),
+1529:             "email": self.user.email,
+1530:             "full_name": self.user.full_name,
+1531:             "role": role,
+1532:             "is_active": self.user.is_active,
+1533:             "firebase_uid": getattr(self.user, "firebase_uid", None),
+1534:             "created_at": self.user.created_at.isoformat() if self.user.created_at else None,
+1535:             "updated_at": self.user.updated_at.isoformat() if self.user.updated_at else None,
+1536:             "last_login": self.user.last_login.isoformat()
+1537:             if self.user.last_login
+1538:             else None,
+1539:             "display_name": self.user.get_display_name() if hasattr(self.user, "get_display_name") else getattr(self.user, "display_name", self.user.full_name),
+1540:             "photo_url": self.user.get_photo_url() if hasattr(self.user, "get_photo_url") else getattr(self.user, "photo_url", None),
+1541:             "preferences": self.user.get_preferences_data() if hasattr(self.user, "get_preferences_data") else dict(getattr(self.user, "preferences", {}) or {}),
+1542:             "permissions": get_permissions_for_role(role),
+1543:         }
+1544: 
+1545: @pytest.fixture
+1546: def test_user(db_session):
+1547:     """Return user dict with credentials for login tests."""
+1548:     password = "testpass123"
+1549:     user = create_test_user(db_session, password=password)
+1550:     return TestUser(user, password)
+1551: 
+1552: 
+1553: @pytest.fixture
+1554: def test_user_obj(db_session):
+1555:     """Return User object directly for tests that need the model."""
+1556:     return create_test_user(db_session)
+1557: 
+1558: def create_test_patient(db_session, doctor, name="Test Patient", **kwargs):
+1559:     patient = Patient(
+1560:         id=kwargs.get('id', uuid4()),
+1561:         name=name,
+1562:         doctor_id=doctor.id,
+

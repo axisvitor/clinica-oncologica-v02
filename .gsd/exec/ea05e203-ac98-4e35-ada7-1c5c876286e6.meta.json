@@ -1,0 +1,18 @@
+{
+  "id": "ea05e203-ac98-4e35-ada7-1c5c876286e6",
+  "runtime": "bash",
+  "purpose": "Find short-code quiz link resolvers",
+  "script_chars": 166,
+  "started_at": "2026-05-12T20:01:26.000Z",
+  "finished_at": "2026-05-12T20:01:26.011Z",
+  "exit_code": 2,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 11,
+  "stdout_bytes": 0,
+  "stderr_bytes": 233,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/ea05e203-ac98-4e35-ada7-1c5c876286e6.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/ea05e203-ac98-4e35-ada7-1c5c876286e6.stderr"
+}

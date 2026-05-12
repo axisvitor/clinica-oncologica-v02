@@ -1,0 +1,18 @@
+{
+  "id": "ed9b4de3-e38a-41fd-aa43-e28b8ae026e4",
+  "runtime": "bash",
+  "purpose": "Re-run adjusted admin RBAC regression test after fixture isolation patch",
+  "script_chars": 134,
+  "started_at": "2026-05-12T19:40:36.121Z",
+  "finished_at": "2026-05-12T19:41:01.202Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 25081,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/ed9b4de3-e38a-41fd-aa43-e28b8ae026e4.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/ed9b4de3-e38a-41fd-aa43-e28b8ae026e4.stderr"
+}

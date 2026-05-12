@@ -1,0 +1,63 @@
+backend-hormonia/tests/domain/quizzes/test_link_builder_urls.py:23:    builder.config.MONTHLY_QUIZ_SHORT_BASE_URL = "https://q.hrm.br"
+backend-hormonia/tests/domain/quizzes/test_link_builder_urls.py:32:    builder.config.MONTHLY_QUIZ_SHORT_BASE_URL = None
+backend-hormonia/app/tasks/quiz_link_taskiq.py:37:from app.domain.quizzes.session.factory import generate_unique_short_code
+backend-hormonia/app/tasks/quiz_link_taskiq.py:323:            # Build short link
+backend-hormonia/app/tasks/quiz_link_taskiq.py:325:            short_code = metadata.get("short_code")
+backend-hormonia/app/tasks/quiz_link_taskiq.py:326:            if not short_code:
+backend-hormonia/app/tasks/quiz_link_taskiq.py:327:                short_code = generate_unique_short_code(db)
+backend-hormonia/app/tasks/quiz_link_taskiq.py:328:                metadata["short_code"] = short_code
+backend-hormonia/app/tasks/quiz_link_taskiq.py:334:            link_url = link_builder.build_preferred_link(token, short_code)
+backend-hormonia/app/core/router_registry.py:115:    async def resolve_quiz_short_link(code: str, db: Session = Depends(get_db)):
+backend-hormonia/app/core/router_registry.py:122:            .filter(QuizSession.session_metadata["short_code"].astext == code)
+backend-hormonia/app/core/monthly_quiz_config.py:104:    MONTHLY_QUIZ_SHORT_BASE_URL: Optional[str] = Field(
+backend-hormonia/app/core/monthly_quiz_config.py:107:            "QUIZ_SHORT_BASE_URL", "MONTHLY_QUIZ_SHORT_BASE_URL"
+backend-hormonia/app/core/monthly_quiz_config.py:112:    @field_validator("MONTHLY_QUIZ_SHORT_BASE_URL", mode="before")
+backend-hormonia/app/core/monthly_quiz_config.py:126:                f"MONTHLY_QUIZ_SHORT_BASE_URL must be a valid URL. Got: '{v}'. Error: {e}"
+backend-hormonia/app/core/monthly_quiz_config.py:131:                f"MONTHLY_QUIZ_SHORT_BASE_URL must use HTTP or HTTPS scheme. Got: '{v}'"
+backend-hormonia/app/domain/quizzes/session/factory.py:28:def generate_unique_short_code(
+backend-hormonia/app/domain/quizzes/session/factory.py:38:            .filter(QuizSession.session_metadata["short_code"].astext == code)
+backend-hormonia/app/domain/quizzes/session/factory.py:97:        short_code = generate_unique_short_code(self.db)
+backend-hormonia/app/domain/quizzes/session/factory.py:106:            "short_code": short_code,
+backend-hormonia/app/domain/quizzes/resilience/link_resilience.py:25:from app.domain.quizzes.session.factory import generate_unique_short_code
+backend-hormonia/app/domain/quizzes/resilience/link_resilience.py:296:        if not metadata.get("short_code"):
+backend-hormonia/app/domain/quizzes/resilience/link_resilience.py:297:            metadata["short_code"] = generate_unique_short_code(self.db)
+backend-hormonia/app/domain/quizzes/resilience/link_resilience.py:316:        short_code = metadata.get("short_code")
+backend-hormonia/app/domain/quizzes/resilience/link_resilience.py:317:        link_url = self.link_builder.build_preferred_link(new_token, short_code)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:99:async def _generate_unique_short_code(db: AsyncSession) -> str:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:103:            select(QuizSession.id).where(QuizSession.session_metadata["short_code"].astext == code)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:301:    # Ensure short code exists (for short link)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:306:    if not metadata.get("short_code"):
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:307:        metadata["short_code"] = await _generate_unique_short_code(db)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:333:    link = link_builder.build_preferred_link(token, metadata.get("short_code"))
+backend-hormonia/app/domain/quizzes/operations/link_ops.py:18:from ..session.factory import generate_unique_short_code
+backend-hormonia/app/domain/quizzes/operations/link_ops.py:134:        if not metadata.get("short_code"):
+backend-hormonia/app/domain/quizzes/operations/link_ops.py:135:            metadata["short_code"] = generate_unique_short_code(self.db)
+backend-hormonia/app/domain/quizzes/operations/link_ops.py:265:        if not metadata.get("short_code"):
+backend-hormonia/app/domain/quizzes/operations/link_ops.py:266:            metadata["short_code"] = generate_unique_short_code(self.db)
+backend-hormonia/app/domain/quizzes/operations/link_ops.py:290:            token, metadata.get("short_code")
+backend-hormonia/app/domain/quizzes/manager.py:29:from .session.factory import generate_unique_short_code
+backend-hormonia/app/domain/quizzes/manager.py:172:        short_code = metadata.get("short_code")
+backend-hormonia/app/domain/quizzes/manager.py:173:        if not short_code:
+backend-hormonia/app/domain/quizzes/manager.py:174:            short_code = generate_unique_short_code(self.db)
+backend-hormonia/app/domain/quizzes/manager.py:175:            metadata["short_code"] = short_code
+backend-hormonia/app/domain/quizzes/manager.py:180:        link_url = self.link_builder.build_preferred_link(token, short_code)
+backend-hormonia/app/domain/quizzes/manager.py:316:        short_code = updated_metadata.get("short_code")
+backend-hormonia/app/domain/quizzes/manager.py:317:        if not short_code:
+backend-hormonia/app/domain/quizzes/manager.py:318:            short_code = generate_unique_short_code(self.db)
+backend-hormonia/app/domain/quizzes/manager.py:319:            updated_metadata["short_code"] = short_code
+backend-hormonia/app/domain/quizzes/manager.py:324:        link_url = self.link_builder.build_preferred_link(token, short_code)
+backend-hormonia/app/domain/quizzes/manager.py:356:        short_code = metadata.get("short_code")
+backend-hormonia/app/domain/quizzes/manager.py:357:        if not short_code:
+backend-hormonia/app/domain/quizzes/manager.py:358:            short_code = generate_unique_short_code(self.db)
+backend-hormonia/app/domain/quizzes/manager.py:359:            metadata["short_code"] = short_code
+backend-hormonia/app/domain/quizzes/manager.py:364:        link_url = self.link_builder.build_preferred_link(new_token, short_code)
+backend-hormonia/app/domain/quizzes/delivery/link_builder.py:31:            self.config.MONTHLY_QUIZ_SHORT_BASE_URL
+backend-hormonia/app/domain/quizzes/delivery/link_builder.py:32:            and "localhost" in self.config.MONTHLY_QUIZ_SHORT_BASE_URL
+backend-hormonia/app/domain/quizzes/delivery/link_builder.py:36:                f"MONTHLY_QUIZ_SHORT_BASE_URL is set to localhost ({self.config.MONTHLY_QUIZ_SHORT_BASE_URL}) "
+backend-hormonia/app/domain/quizzes/delivery/link_builder.py:67:    def build_short_link(self, short_code: str) -> Optional[str]:
+backend-hormonia/app/domain/quizzes/delivery/link_builder.py:69:        if not self.config.MONTHLY_QUIZ_SHORT_BASE_URL:
+backend-hormonia/app/domain/quizzes/delivery/link_builder.py:71:        return f"{self.config.MONTHLY_QUIZ_SHORT_BASE_URL.rstrip('/')}/{short_code}"
+backend-hormonia/app/domain/quizzes/delivery/link_builder.py:73:    def build_preferred_link(self, token: str, short_code: Optional[str] = None) -> str:
+backend-hormonia/app/domain/quizzes/delivery/link_builder.py:74:        """Prefer short link when configured and available; fallback to full token link."""
+backend-hormonia/app/domain/quizzes/delivery/link_builder.py:75:        if short_code:
+backend-hormonia/app/domain/quizzes/delivery/link_builder.py:76:            short_link = self.build_short_link(short_code)

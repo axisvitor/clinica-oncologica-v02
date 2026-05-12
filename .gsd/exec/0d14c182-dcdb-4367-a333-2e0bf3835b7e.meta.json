@@ -1,0 +1,18 @@
+{
+  "id": "0d14c182-dcdb-4367-a333-2e0bf3835b7e",
+  "runtime": "bash",
+  "purpose": "rerun focused quiz boundary tests after metadata dirty fix",
+  "script_chars": 152,
+  "started_at": "2026-05-12T20:31:10.224Z",
+  "finished_at": "2026-05-12T20:31:38.775Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 28551,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/0d14c182-dcdb-4367-a333-2e0bf3835b7e.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/0d14c182-dcdb-4367-a333-2e0bf3835b7e.stderr"
+}

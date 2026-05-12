@@ -1,0 +1,18 @@
+{
+  "id": "296b0823-35b8-4cb8-9ef6-6b0b9ced9489",
+  "runtime": "bash",
+  "purpose": "Inspect remaining old cache invalidation and direct message query patterns",
+  "script_chars": 339,
+  "started_at": "2026-05-12T19:18:33.356Z",
+  "finished_at": "2026-05-12T19:18:33.403Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 47,
+  "stdout_bytes": 280,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/296b0823-35b8-4cb8-9ef6-6b0b9ced9489.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/296b0823-35b8-4cb8-9ef6-6b0b9ced9489.stderr"
+}

@@ -1,0 +1,18 @@
+{
+  "id": "90165893-1768-45f4-9252-12632936d713",
+  "runtime": "bash",
+  "purpose": "Check domain quiz security/link helper modules",
+  "script_chars": 466,
+  "started_at": "2026-05-12T19:59:10.969Z",
+  "finished_at": "2026-05-12T19:59:11.140Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 171,
+  "stdout_bytes": 43600,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/90165893-1768-45f4-9252-12632936d713.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/90165893-1768-45f4-9252-12632936d713.stderr"
+}

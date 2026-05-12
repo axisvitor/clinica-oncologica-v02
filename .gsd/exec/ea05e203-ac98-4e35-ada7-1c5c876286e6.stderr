@@ -1,0 +1,4 @@
+rg: regex parse error:
+    (?:short_code|MONTHLY_QUIZ_SHORT|build_short_link|resolve.*code|/s/|/{short)
+                                                                          ^
+error: repetition quantifier expects a valid decimal

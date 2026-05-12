@@ -1,0 +1,18 @@
+{
+  "id": "a131a1ce-e6c0-4b05-b610-4403a35ef9cc",
+  "runtime": "bash",
+  "purpose": "existing messages API regression subset after diagnostics reuse",
+  "script_chars": 121,
+  "started_at": "2026-05-12T19:03:08.271Z",
+  "finished_at": "2026-05-12T19:03:34.628Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 26357,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/a131a1ce-e6c0-4b05-b610-4403a35ef9cc.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/a131a1ce-e6c0-4b05-b610-4403a35ef9cc.stderr"
+}

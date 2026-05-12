@@ -1,0 +1,18 @@
+{
+  "id": "acf1a2c2-9457-4aae-b031-e13a040b993e",
+  "runtime": "bash",
+  "purpose": "Extract report quiz-related findings labels for S03",
+  "script_chars": 350,
+  "started_at": "2026-05-12T20:02:16.715Z",
+  "finished_at": "2026-05-12T20:02:18.623Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 1908,
+  "stdout_bytes": 28,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/acf1a2c2-9457-4aae-b031-e13a040b993e.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/acf1a2c2-9457-4aae-b031-e13a040b993e.stderr"
+}

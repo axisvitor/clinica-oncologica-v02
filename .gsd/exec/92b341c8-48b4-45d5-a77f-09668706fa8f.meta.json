@@ -1,0 +1,18 @@
+{
+  "id": "92b341c8-48b4-45d5-a77f-09668706fa8f",
+  "runtime": "bash",
+  "purpose": "focused T02 patient ownership boundary tests final",
+  "script_chars": 114,
+  "started_at": "2026-05-12T18:59:56.697Z",
+  "finished_at": "2026-05-12T19:00:23.953Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 27256,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/92b341c8-48b4-45d5-a77f-09668706fa8f.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/92b341c8-48b4-45d5-a77f-09668706fa8f.stderr"
+}

@@ -1,0 +1,18 @@
+{
+  "id": "ac6da52a-7d97-4fb8-8fdd-9a35398205d3",
+  "runtime": "bash",
+  "purpose": "Map monthly_quiz_operations package and routes",
+  "script_chars": 489,
+  "started_at": "2026-05-12T19:57:08.893Z",
+  "finished_at": "2026-05-12T19:57:09.052Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 159,
+  "stdout_bytes": 44010,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/ac6da52a-7d97-4fb8-8fdd-9a35398205d3.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/ac6da52a-7d97-4fb8-8fdd-9a35398205d3.stderr"
+}

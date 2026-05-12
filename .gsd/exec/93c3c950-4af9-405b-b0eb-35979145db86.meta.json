@@ -1,0 +1,18 @@
+{
+  "id": "93c3c950-4af9-405b-b0eb-35979145db86",
+  "runtime": "bash",
+  "purpose": "run focused ownership boundary tests after flow protection changes",
+  "script_chars": 80,
+  "started_at": "2026-05-12T19:33:12.409Z",
+  "finished_at": "2026-05-12T19:33:38.325Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 25916,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/93c3c950-4af9-405b-b0eb-35979145db86.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/93c3c950-4af9-405b-b0eb-35979145db86.stderr"
+}

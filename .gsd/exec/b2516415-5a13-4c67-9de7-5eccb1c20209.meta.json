@@ -1,0 +1,18 @@
+{
+  "id": "b2516415-5a13-4c67-9de7-5eccb1c20209",
+  "runtime": "bash",
+  "purpose": "root-cwd compatibility gate for patient access helpers",
+  "script_chars": 58,
+  "started_at": "2026-05-12T18:53:12.290Z",
+  "finished_at": "2026-05-12T18:53:16.394Z",
+  "exit_code": 2,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 4104,
+  "stdout_bytes": 1971,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/b2516415-5a13-4c67-9de7-5eccb1c20209.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/b2516415-5a13-4c67-9de7-5eccb1c20209.stderr"
+}

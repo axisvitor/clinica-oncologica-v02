@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "milestoneId": "M013",
+  "sliceId": "S03",
+  "timestamp": 1778616704648,
+  "status": "fail",
+  "durationMs": 130,
+  "checks": [
+    {
+      "category": "file",
+      "target": "backend-hormonia/app/config/settings.py",
+      "passed": false,
+      "message": "Task T03 references 'backend-hormonia/app/config/settings.py' which doesn't exist and isn't created by prior or same-task outputs",
+      "blocking": true
+    }
+  ]
+}

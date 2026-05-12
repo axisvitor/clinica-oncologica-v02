@@ -1,0 +1,18 @@
+{
+  "id": "b4ae3109-c085-47a0-a90a-0cddafd73f03",
+  "runtime": "bash",
+  "purpose": "Locate db_session fixture and cleanup strategy in backend tests conftest",
+  "script_chars": 267,
+  "started_at": "2026-05-12T19:38:16.237Z",
+  "finished_at": "2026-05-12T19:38:16.283Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 46,
+  "stdout_bytes": 667,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/b4ae3109-c085-47a0-a90a-0cddafd73f03.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/b4ae3109-c085-47a0-a90a-0cddafd73f03.stderr"
+}

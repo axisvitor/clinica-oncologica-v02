@@ -1,0 +1,3 @@
+backend-hormonia/tests/migrations/test_drop_unused_quiz_tables_migration.py
+  52: "quiz_templates",
+

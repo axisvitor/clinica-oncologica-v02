@@ -1,0 +1,18 @@
+{
+  "id": "23583dc1-636a-47f2-822d-4591a5b15668",
+  "runtime": "bash",
+  "purpose": "Locate MonthlyQuizService token/session methods",
+  "script_chars": 336,
+  "started_at": "2026-05-12T20:02:05.626Z",
+  "finished_at": "2026-05-12T20:02:05.656Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 30,
+  "stdout_bytes": 1615,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/23583dc1-636a-47f2-822d-4591a5b15668.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/23583dc1-636a-47f2-822d-4591a5b15668.stderr"
+}

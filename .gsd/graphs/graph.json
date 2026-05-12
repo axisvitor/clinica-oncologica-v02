@@ -1393,8 +1393,39 @@
     },
     {
       "id": "slice:M013:S02",
-      "label": "M013/S02",
+      "label": "S02: Patient Ownership Boundary",
       "type": "slice",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/slices/S02/S02-PLAN.md"
+    },
+    {
+      "id": "task:M013:S02:T01",
+      "label": "T01: Add shared admin-or-assigned-doctor patient access helper",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M013:S02:T02",
+      "label": "T02: Scope message read/list/conversation routes by patient ownership",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M013:S02:T03",
+      "label": "T03: Enforce message mutation and read-state ownership",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M013:S02:T04",
+      "label": "T04: Protect flow responses and flow overrides with patient ownership",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M013:S02:T05",
+      "label": "T05: Run S02 regression proof and close integration",
+      "type": "task",
       "confidence": "EXTRACTED"
     },
     {
@@ -2648,11 +2679,41 @@
       "confidence": "EXTRACTED"
     },
     {
+      "from": "slice:M013:S02",
+      "to": "task:M013:S02:T01",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M013:S02",
+      "to": "task:M013:S02:T02",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M013:S02",
+      "to": "task:M013:S02:T03",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M013:S02",
+      "to": "task:M013:S02:T04",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M013:S02",
+      "to": "task:M013:S02:T05",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
       "from": "milestone:M013",
       "to": "slice:M013:S04",
       "type": "contains",
       "confidence": "EXTRACTED"
     }
   ],
-  "builtAt": "2026-05-12T18:12:15.169Z"
+  "builtAt": "2026-05-12T19:54:04.872Z"
 }

@@ -1,0 +1,64 @@
+42 @pytest.fixture(autouse=True)
+  43 def reset_db_circuit_breaker_state():
+105 @pytest.fixture
+  106 def test_doctor_user(db_session: Session) -> User:
+149 @pytest.fixture
+  150 def test_patient_data() -> dict:
+163 @pytest.fixture
+  164 def create_test_patient(db_session: Session, test_doctor_user: User):
+201 @pytest.fixture
+  202 def test_patient_instance(create_test_patient):
+207 @pytest.fixture
+  208 def test_patient(test_patient_instance):
+217 @pytest.fixture(autouse=True)
+  218 def seed_flow_templates(db_session: Session):
+262 @pytest.fixture(autouse=True)
+  263 def auto_csrf_headers(monkeypatch: pytest.MonkeyPatch):
+361 @pytest.fixture
+  362 def auth_headers_admin(test_admin_user: User) -> dict:
+416 @pytest.fixture
+  417 def auth_headers_doctor(test_doctor_user: User) -> dict:
+471 @pytest.fixture
+  472 def auth_headers(auth_headers_doctor):
+477 @pytest.fixture
+  478 def auth_headers_patient(test_patient: Patient) -> dict:
+548 @pytest.fixture
+  549 def admin_headers(auth_headers_admin):
+554 @pytest.fixture
+  555 def admin_auth_headers(auth_headers_admin):
+560 @pytest.fixture
+  561 def admin_token(auth_headers_admin):
+569 @pytest.fixture
+  570 def doctor_headers(auth_headers_doctor):
+575 @pytest.fixture
+  576 def doctor_token(auth_headers_doctor):
+584 @pytest.fixture
+  585 def auth_headers_physician(auth_headers_doctor):
+590 @pytest.fixture
+  591 def mock_authenticated_session(mock_redis, test_doctor_user: User):
+627 @pytest.fixture
+  628 def generate_patients(create_test_patient):
+644 @pytest.fixture
+  645 def test_patients_various_phases(create_test_patient):
+654 @pytest.fixture
+  655 def test_patients_with_flows(create_test_patient):
+664 @pytest.fixture
+  665 def test_patients_various_dates(create_test_patient, db_session: Session):
+680 @pytest.fixture
+  681 def test_patients_various_names(create_test_patient):
+690 @pytest.fixture
+  691 def test_patients_various_emails(create_test_patient):
+700 @pytest.fixture
+  701 def test_patients_complex(create_test_patient, db_session: Session):
+720 @pytest.fixture
+  721 def test_patients_multiple_doctors(
+755 @pytest.fixture
+  756 def test_patient_with_clinical_data(create_test_patient):
+776 @pytest.fixture
+  777 def test_patient_owned_by_doctor(create_test_patient):
+782 @pytest.fixture
+  783 def test_patient_owned_by_other_doctor(db_session: Session, create_test_patient):
+804 @pytest.fixture
+  805 def generate_alerts(create_test_alert, test_patient_instance):
+909 @pytest.fixture(autouse=True)
+  910 def cleanup_test_data(db_session: Session):

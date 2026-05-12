@@ -4,17 +4,6 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Active
 
-### R003 — Rotas de mensagens devem impedir leitura ou mutação cross-patient/cross-doctor por filtros, IDs diretos, read-state ou conversation endpoints.
-- Class: compliance/security
-- Status: active
-- Description: Rotas de mensagens devem impedir leitura ou mutação cross-patient/cross-doctor por filtros, IDs diretos, read-state ou conversation endpoints.
-- Why it matters: Mensagens carregam PHI e histórico clínico; IDOR em mensagens quebra isolamento médico/paciente.
-- Source: report
-- Primary owning slice: M013/S02
-- Supporting slices: M013/S06
-- Validation: mapped
-- Notes: Cobre F-03. Deve usar join/ownership por paciente ou helper compartilhado; testes negativos com doctor A tentando acessar paciente/mensagem do doctor B.
-
 ### R004 — Usuários autenticados só podem emitir links e consultar status/histórico de quiz mensal para pacientes sob seu escopo autorizado.
 - Class: compliance/security
 - Status: active
@@ -70,17 +59,6 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: mapped
 - Notes: Cobre F-09 diretamente e fecha superfícies de relatório relacionadas quando usam o mesmo controle. F-22 médio pode ser parcialmente avançado se compartilhar helper.
 
-### R009 — Respostas livres e overrides de fluxo do paciente devem exigir admin ou médico responsável pelo paciente antes de leitura ou alteração.
-- Class: compliance/security
-- Status: active
-- Description: Respostas livres e overrides de fluxo do paciente devem exigir admin ou médico responsável pelo paciente antes de leitura ou alteração.
-- Why it matters: Respostas livres e conteúdo personalizado podem conter informações clínicas sensíveis e plano de comunicação individual.
-- Source: report
-- Primary owning slice: M013/S02
-- Supporting slices: M013/S06
-- Validation: mapped
-- Notes: Cobre F-10 e F-11. Deve validar `patient.doctor_id` antes de flow responses, active flow state e overrides.
-
 ### R010 — O M013 deve deixar uma prova negativa reutilizável de isolamento médico/paciente com dois médicos, pacientes cruzados e endpoints críticos exercitados.
 - Class: quality-attribute
 - Status: active
@@ -126,6 +104,28 @@ This file is the explicit capability and coverage contract for the project.
 - Supporting slices: M013/S06
 - Validation: M013/S01 verified WuzAPI media SSRF protections with focused and final pytest evidence: gsd_exec 5c8857c7-87d3-4d91-8853-b038a4d5c49f and 75ac52dd-e00f-4c71-9f54-244766a9885b passed. Tests cover blocked schemes, malformed/missing hosts, userinfo, invalid/zero ports, localhost/private/loopback/link-local/multicast/unspecified/reserved/CGNAT/metadata IPs, DNS failure/mixed answers, no GET before validation, manual redirect validation with allow_redirects=False, safe redirects, data-URI behavior, and sanitized unsafe/oversize messages.
 - Notes: Validated by S01; downstream S06 should include this proof in the consolidated security evidence matrix.
+
+### R003 — Rotas de mensagens devem impedir leitura ou mutação cross-patient/cross-doctor por filtros, IDs diretos, read-state ou conversation endpoints.
+- Class: compliance/security
+- Status: validated
+- Description: Rotas de mensagens devem impedir leitura ou mutação cross-patient/cross-doctor por filtros, IDs diretos, read-state ou conversation endpoints.
+- Why it matters: Mensagens carregam PHI e histórico clínico; IDOR em mensagens quebra isolamento médico/paciente.
+- Source: report
+- Primary owning slice: M013/S02
+- Supporting slices: M013/S06
+- Validation: M013/S02 verified message read/list/conversation/unread/read-state/send/bulk-send/delete/cancel boundaries with `cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py tests/api/v2/test_phase25_messages_quiz_async.py -q` (exit 0; 1 expected skip for rate limiting disabled).
+- Notes: Shared admin-or-assigned-doctor patient ownership helper now gates patient-bound message routes before DB/cache/service side effects; doctor-owned and admin regressions remain passing.
+
+### R009 — Respostas livres e overrides de fluxo do paciente devem exigir admin ou médico responsável pelo paciente antes de leitura ou alteração.
+- Class: compliance/security
+- Status: validated
+- Description: Respostas livres e overrides de fluxo do paciente devem exigir admin ou médico responsável pelo paciente antes de leitura ou alteração.
+- Why it matters: Respostas livres e conteúdo personalizado podem conter informações clínicas sensíveis e plano de comunicação individual.
+- Source: report
+- Primary owning slice: M013/S02
+- Supporting slices: M013/S06
+- Validation: M013/S02 verified flow response and flow override GET/PUT ownership denial and assigned-doctor/admin positives with `cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py tests/api/v2/test_phase25_messages_quiz_async.py -q` (exit 0; boundary suite includes flow-response/override tests).
+- Notes: `flow_responses.py` and `flow_overrides.py` now call `load_patient_with_access` before patient-bound response/override queries or mutations; PUT audit attribution resolves actor UUID via shared auth utilities and fails closed when unresolved.
 
 ## Deferred
 
@@ -214,13 +214,13 @@ This file is the explicit capability and coverage contract for the project.
 |---|---|---|---|---|---|
 | R001 | compliance/security | validated | M013/S01 | M013/S06 | M013/S01 verified WhatsApp management API auth with focused and final pytest evidence: gsd_exec af1fd56e-266a-44f6-91f3-f4b4fb948c14 and 75ac52dd-e00f-4c71-9f54-244766a9885b passed. Tests cover anonymous/non-admin rejection before service/queue/DB execution, public /api/v2/whatsapp/health, and an authorized admin mocked send operation. |
 | R002 | compliance/security | validated | M013/S01 | M013/S06 | M013/S01 verified WuzAPI media SSRF protections with focused and final pytest evidence: gsd_exec 5c8857c7-87d3-4d91-8853-b038a4d5c49f and 75ac52dd-e00f-4c71-9f54-244766a9885b passed. Tests cover blocked schemes, malformed/missing hosts, userinfo, invalid/zero ports, localhost/private/loopback/link-local/multicast/unspecified/reserved/CGNAT/metadata IPs, DNS failure/mixed answers, no GET before validation, manual redirect validation with allow_redirects=False, safe redirects, data-URI behavior, and sanitized unsafe/oversize messages. |
-| R003 | compliance/security | active | M013/S02 | M013/S06 | mapped |
+| R003 | compliance/security | validated | M013/S02 | M013/S06 | M013/S02 verified message read/list/conversation/unread/read-state/send/bulk-send/delete/cancel boundaries with `cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py tests/api/v2/test_phase25_messages_quiz_async.py -q` (exit 0; 1 expected skip for rate limiting disabled). |
 | R004 | compliance/security | active | M013/S03 | M013/S06 | mapped |
 | R005 | compliance/security | active | M013/S03 | M013/S06 | mapped |
 | R006 | compliance/security | active | M013/S04 | M013/S06 | mapped |
 | R007 | compliance/security | active | M013/S04 | M013/S05, M013/S06 | mapped |
 | R008 | compliance/security | active | M013/S05 | M013/S04, M013/S06 | mapped |
-| R009 | compliance/security | active | M013/S02 | M013/S06 | mapped |
+| R009 | compliance/security | validated | M013/S02 | M013/S06 | M013/S02 verified flow response and flow override GET/PUT ownership denial and assigned-doctor/admin positives with `cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py tests/api/v2/test_phase25_messages_quiz_async.py -q` (exit 0; boundary suite includes flow-response/override tests). |
 | R010 | quality-attribute | active | M013/S06 | M013/S02, M013/S03, M013/S04, M013/S05 | mapped |
 | R011 | failure-visibility | active | M013/S06 | M013/S01, M013/S02, M013/S03, M013/S04, M013/S05 | mapped |
 | R012 | compliance/security | deferred | M014/provisional | none | unmapped |
@@ -233,7 +233,7 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Coverage Summary
 
-- Active requirements: 9
-- Mapped to slices: 9
-- Validated: 2 (R001, R002)
+- Active requirements: 7
+- Mapped to slices: 7
+- Validated: 4 (R001, R002, R003, R009)
 - Unmapped active requirements: 0

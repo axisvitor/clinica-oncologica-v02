@@ -1,0 +1,18 @@
+{
+  "id": "0509644e-2fda-40a0-a131-7ee87232b736",
+  "runtime": "python",
+  "purpose": "summarize conftest test fixtures for client/db/auth",
+  "script_chars": 439,
+  "started_at": "2026-05-12T20:23:22.051Z",
+  "finished_at": "2026-05-12T20:23:22.103Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 52,
+  "stdout_bytes": 1699,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/0509644e-2fda-40a0-a131-7ee87232b736.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/0509644e-2fda-40a0-a131-7ee87232b736.stderr"
+}

@@ -1,0 +1,130 @@
+backend-hormonia/tests/api/v2/conftest.py:106: def test_doctor_user(db_session: Session) -> User:
+backend-hormonia/tests/api/v2/conftest.py:164: def create_test_patient(db_session: Session, test_doctor_user: User):
+backend-hormonia/tests/api/v2/conftest.py:174:             doctor_id=kwargs.get('doctor_id', test_doctor_user.id),
+backend-hormonia/tests/api/v2/conftest.py:417: def auth_headers_doctor(test_doctor_user: User) -> dict:
+backend-hormonia/tests/api/v2/conftest.py:422:     session_user = _build_canonical_session_user(test_doctor_user)
+backend-hormonia/tests/api/v2/conftest.py:431:         request.state.user = test_doctor_user
+backend-hormonia/tests/api/v2/conftest.py:432:         request.state.user_id = str(test_doctor_user.id)
+backend-hormonia/tests/api/v2/conftest.py:434:         return test_doctor_user
+backend-hormonia/tests/api/v2/conftest.py:437:         return test_doctor_user
+backend-hormonia/tests/api/v2/conftest.py:440:         return test_doctor_user
+backend-hormonia/tests/api/v2/conftest.py:446:             user_id=test_doctor_user.id,
+backend-hormonia/tests/api/v2/conftest.py:447:             session_id=f"doctor-session-{test_doctor_user.id}",
+backend-hormonia/tests/api/v2/conftest.py:458:         "X-Session-ID": f"doctor-session-{test_doctor_user.id}",
+backend-hormonia/tests/api/v2/conftest.py:459:         "Authorization": f"Bearer doctor-token-{test_doctor_user.id}",
+backend-hormonia/tests/api/v2/conftest.py:591: def mock_authenticated_session(mock_redis, test_doctor_user: User):
+backend-hormonia/tests/api/v2/conftest.py:594:         "firebase_uid": test_doctor_user.firebase_uid,
+backend-hormonia/tests/api/v2/conftest.py:595:         "user_id": str(test_doctor_user.id),
+backend-hormonia/tests/api/v2/conftest.py:596:         "email": test_doctor_user.email,
+backend-hormonia/tests/api/v2/conftest.py:597:         "role": test_doctor_user.role.value,
+backend-hormonia/tests/api/v2/conftest.py:598:         "last_login": test_doctor_user.last_login.isoformat()
+backend-hormonia/tests/api/v2/conftest.py:599:         if test_doctor_user.last_login
+backend-hormonia/tests/api/v2/conftest.py:601:         "display_name": test_doctor_user.display_name,
+backend-hormonia/tests/api/v2/conftest.py:602:         "photo_url": test_doctor_user.photo_url,
+backend-hormonia/tests/api/v2/conftest.py:603:         "preferences": dict(test_doctor_user.preferences or {}),
+backend-hormonia/tests/api/v2/conftest.py:606:         "id": str(test_doctor_user.id),
+backend-hormonia/tests/api/v2/conftest.py:607:         "email": test_doctor_user.email,
+backend-hormonia/tests/api/v2/conftest.py:608:         "full_name": test_doctor_user.full_name,
+backend-hormonia/tests/api/v2/conftest.py:609:         "role": test_doctor_user.role.value,
+backend-hormonia/tests/api/v2/conftest.py:611:         "last_login": test_doctor_user.last_login.isoformat()
+backend-hormonia/tests/api/v2/conftest.py:612:         if test_doctor_user.last_login
+backend-hormonia/tests/api/v2/conftest.py:614:         "display_name": test_doctor_user.display_name,
+backend-hormonia/tests/api/v2/conftest.py:615:         "photo_url": test_doctor_user.photo_url,
+backend-hormonia/tests/api/v2/conftest.py:616:         "preferences": dict(test_doctor_user.preferences or {}),
+backend-hormonia/tests/api/v2/conftest.py:724:     test_doctor_user: User,
+backend-hormonia/tests/api/v2/conftest.py:742:         doctor_id=test_doctor_user.id,
+backend-hormonia/tests/api/v2/test_ai.py:59: def test_patient(db_session, test_doctor_user):
+backend-hormonia/tests/api/v2/test_ai.py:65:         doctor_id=test_doctor_user.id,
+backend-hormonia/tests/api/v2/test_auth.py:37: def test_user(test_doctor_user: User) -> User:
+backend-hormonia/tests/api/v2/test_auth.py:39:     return test_doctor_user
+backend-hormonia/tests/api/v2/test_auth_login_comprehensive.py:31: def test_user(test_doctor_user: User) -> User:
+backend-hormonia/tests/api/v2/test_auth_login_comprehensive.py:33:     return test_doctor_user
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:23:     test_doctor_user: User,
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:26:     test_doctor_user.last_login = canonical_last_login
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:27:     test_doctor_user.display_name = "Dra. Perfil Canonical"
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:28:     test_doctor_user.photo_url = "https://example.com/canonical-photo.png"
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:29:     test_doctor_user.email_verified = True
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:30:     test_doctor_user.preferences = {"theme": "dark", "language": "en-US"}
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:32:     db_session.refresh(test_doctor_user)
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:62:     test_doctor_user: User,
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:64:     test_doctor_user.preferences = {}
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:75:     db_session.refresh(test_doctor_user)
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:80:     assert test_doctor_user.preferences["theme"] == "dark", (
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:83:     assert test_doctor_user.preferences["language"] == "en-US", (
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:86:     assert test_doctor_user.preferences["notification_email"] is False, (
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:91: def test_canonical_profile_auth_user_payload_prefers_canonical_fields(test_doctor_user: User):
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:92:     test_doctor_user.last_login = datetime(2026, 3, 15, 14, 0, tzinfo=timezone.utc)
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:93:     test_doctor_user.photo_url = "https://example.com/auth-canonical-photo.png"
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:95:     payload = _serialize_authenticated_user(test_doctor_user)
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:97:     assert payload["last_login"] == test_doctor_user.last_login, (
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:100:     assert payload["photo_url"] == test_doctor_user.photo_url, (
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:112:     test_doctor_user: User,
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:114:     test_doctor_user.display_name = "Dra. Canonical Physician"
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:115:     test_doctor_user.photo_url = "https://example.com/physician-canonical-photo.png"
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:116:     test_doctor_user.email_verified = True
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:117:     test_doctor_user.last_login = datetime(2026, 3, 15, 16, 0, tzinfo=timezone.utc)
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:119:     db_session.refresh(test_doctor_user)
+backend-hormonia/tests/api/v2/test_canonical_user_profile_contracts.py:122:         f"/api/v2/physicians/{test_doctor_user.id}",
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:56:         test_doctor_user: User,
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:60:             "id": str(test_doctor_user.id),
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:61:             "email": test_doctor_user.email,
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:62:             "full_name": test_doctor_user.full_name,
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:63:             "role": test_doctor_user.role.value,
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:64:             "is_active": test_doctor_user.is_active,
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:65:             "created_at": test_doctor_user.created_at.isoformat(),
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:66:             "updated_at": test_doctor_user.updated_at.isoformat(),
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:118:         test_doctor_user: User,
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:120:         test_doctor_user.firebase_last_sign_in = datetime(
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:124:         db_session.refresh(test_doctor_user)
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:127:             f"/api/v2/admin/users/{test_doctor_user.id}?fields=id,email,firebase_uid,last_login",
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:145:         test_doctor_user: User,
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:147:         test_doctor_user.firebase_display_name = "Dr. Boundary"
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:148:         test_doctor_user.firebase_photo_url = "https://example.invalid/doctor.png"
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:149:         test_doctor_user.firebase_last_sign_in = datetime(
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:153:         db_session.refresh(test_doctor_user)
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:156:             f"/api/v2/physicians/{test_doctor_user.id}",
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:165:         assert payload["display_name"] == test_doctor_user.get_display_name(), (
+backend-hormonia/tests/api/v2/test_firebase_boundary_contracts.py:168:         assert payload["photo_url"] == test_doctor_user.get_photo_url(), (
+backend-hormonia/tests/api/v2/test_flows.py:406: def test_patient(db_session: Session, test_doctor_user: User) -> Patient:
+backend-hormonia/tests/api/v2/test_flows.py:412:         doctor_id=test_doctor_user.id,
+backend-hormonia/tests/api/v2/test_messages.py:517: def test_patient(db_session, test_doctor_user: User) -> Patient:
+backend-hormonia/tests/api/v2/test_messages.py:523:         doctor_id=test_doctor_user.id,
+backend-hormonia/tests/api/v2/test_patients_production.py:88:     def test_create_with_idempotency_key(self, client, auth_headers, test_doctor_user):
+backend-hormonia/tests/api/v2/test_patients_production.py:98:             "doctor_id": str(test_doctor_user.id),
+backend-hormonia/tests/api/v2/test_patients_production.py:123:     def test_different_idempotency_keys_create_separate_patients(self, client, auth_headers, test_doctor_user):
+backend-hormonia/tests/api/v2/test_patients_production.py:131:             "doctor_id": str(test_doctor_user.id),
+backend-hormonia/tests/api/v2/test_patients_production.py:139:             "doctor_id": str(test_doctor_user.id),
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:22:         test_doctor_user,
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:30:         own_patient = create_test_patient(db_session, doctor=test_doctor_user, name="Own Patient")
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:73:         test_doctor_user,
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:89:         test_doctor_user,
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:93:         own_patient = create_test_patient(db_session, doctor=test_doctor_user, name="Own Patient")
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:104:         test_doctor_user,
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:112:             "doctor_id": str(test_doctor_user.id)
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:118:         assert response.json()["doctor_id"] == str(test_doctor_user.id)
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:125:         test_doctor_user,
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:146:         test_doctor_user,
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:162:         test_doctor_user,
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:175:                 doctor=test_doctor_user,
+backend-hormonia/tests/api/v2/test_patients_rbac_impl.py:211:             assert patient["doctor_id"] == str(test_doctor_user.id)
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:62:     test_doctor_user: User,
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:65:     test_doctor_user.full_name = "Unrelated Physician Name"
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:66:     test_doctor_user.display_name = search_term
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:68:     db_session.refresh(test_doctor_user)
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:77:     match = next((row for row in rows if row["id"] == str(test_doctor_user.id)), None)
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:90:     test_doctor_user: User,
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:93:         f"/api/v2/physicians/{test_doctor_user.id}",
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:106:     db_session.refresh(test_doctor_user)
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:117:     assert test_doctor_user.specialties == ["oncology", "hematology"]
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:118:     assert test_doctor_user.specialty == "oncology"
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:119:     assert test_doctor_user.is_active is False
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:120:     assert test_doctor_user.license_number == "CRM/SP-123456"
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:121:     assert test_doctor_user.phone == "+55 11 99999-1234"
+backend-hormonia/tests/api/v2/test_physicians_crud_regression.py:122:     assert test_doctor_user.bio == "Especialista em oncologia clínica."
+backend-hormonia/tests/api/v2/test_quiz_pagination.py:31: def quiz_template(db_session, test_doctor_user: User) -> QuizTemplate:
+backend-hormonia/tests/api/v2/test_quiz_pagination.py:62: def create_quiz_sessions(db_session, test_doctor_user: User, quiz_template: QuizTemplate):
+backend-hormonia/tests/api/v2/test_quiz_pagination.py:78:             doctor=test_doctor_user,
+backend-hormonia/tests/api/v2/test_quiz_pagination.py:101: def create_patients(db_session, test_doctor_user: User):
+backend-hormonia/tests/api/v2/test_quiz_pagination.py:116:             doctor_id=test_doctor_user.id,
+backend-hormonia/tests/api/v2/test_quiz_pagination.py:249:         test_doctor_user,
+backend-hormonia/tests/api/v2/test_quiz_pagination.py:274:                 doctor=test_doctor_user,

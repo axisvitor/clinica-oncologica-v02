@@ -1,0 +1,26 @@
+backend-hormonia/app/middleware/config.py
+  58: "/api/v2/quiz-extensions/monthly/public",
+
+backend-hormonia/app/middleware/csrf.py
+  73: "/api/v2/quiz-extensions/monthly/public",
+
+backend-hormonia/app/monitoring/health_endpoints.py
+  64: f"{settings.API_V2_STR}/quiz-extensions/health",
+
+backend-hormonia/app/api/v2/router.py
+  51: from .routers.monthly_quiz_operations import router as monthly_quiz_operations_router
+  194: quiz_responses_router, prefix="/quiz-extensions", tags=["quiz-responses-v2"]
+  197: quiz_alerts_router, prefix="/quiz-extensions", tags=["quiz-alerts-v2"]
+  200: monthly_quiz_management_router, prefix="/quiz-extensions", tags=["monthly-quiz-v2"]
+  203: monthly_quiz_operations_router,
+  204: prefix="/quiz-extensions",
+
+backend-hormonia/app/api/v2/routers/quiz_responses.py
+  52: from app.api.v2.routers.monthly_quiz_operations.response_utils import (
+
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/health.py
+  21: "service": "quiz-extensions-v2",
+
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py
+  728: Access endpoint for POST /quiz-extensions/access
+

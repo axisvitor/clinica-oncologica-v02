@@ -1,0 +1,365 @@
+- backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py
+- backend-hormonia/app/api/v2/routers/monthly_quiz_operations/health.py
+- backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py
+- backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py
+- backend-hormonia/app/api/v2/routers/monthly_quiz_operations/response_utils.py
+- backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py
+- backend-hormonia/app/api/v2/routers/monthly_quiz_operations/_shared.py
+
+ROUTES/SECURITY TERMS
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:5:- GET /monthly/public/current - Get current public quiz (token-based)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:6:- POST /monthly/public/{quiz_id}/submit - Submit quiz response publicly
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:7:- GET /monthly/public/{quiz_id}/results - View aggregate quiz results
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:20:from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response, Cookie
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:44:router = APIRouter()
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:93:def _decode_quiz_token(token: str) -> Dict[str, Any]:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:95:    Decode quiz access token.
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:97:    Supports signed JWT tokens only.
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:99:    token = token.strip()
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:101:    if token.count(".") != 2:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:103:            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:107:        payload = TokenManager().verify_token(token)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:111:            "session_id": payload.get("session_id"),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:117:            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:121:            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:129:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:130:    "/auth/csrf-token",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:132:    description="CSRF token endpoint for quiz interface",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:135:async def get_csrf_token_quiz_public(response: Response):
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:136:    """Return CSRF token for quiz public flows."""
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:137:    from app.middleware.csrf import get_csrf_token, set_csrf_cookie
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:139:    token = get_csrf_token()
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:140:    set_csrf_cookie(response, token)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:141:    return {"csrf_token": token}
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:144:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:145:    "/monthly/public/current",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:148:    description="Get the current active monthly quiz without authentication",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:150:@limiter.limit("20/minute")  # Lower limit for public endpoint
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:151:async def get_current_public_quiz(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:153:    token: str = Query(..., description="Access token"),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:154:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:155:    redis_cache=Depends(get_redis_cache),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:158:    Get current monthly quiz using access token.
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:165:    - Signed JWT with quiz_template_id/patient_id/session_id/exp
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:169:    # Validate token
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:171:        token_data = _decode_quiz_token(token)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:172:        quiz_id = UUID(token_data.get("quiz_id"))
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:173:        token_type = token_data.get("type")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:175:        # Check token type
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:176:        if token_type != "quiz_access":
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:178:                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:183:            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:196:            status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:200:    if quiz.tags.get("status") != "published":
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:202:            status_code=status.HTTP_403_FORBIDDEN,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:211:                status_code=status.HTTP_403_FORBIDDEN, detail="Quiz has expired"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:214:    # Resolve patient and session from token
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:215:    patient_id = token_data.get("patient_id")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:218:            status_code=status.HTTP_401_UNAUTHORIZED,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:219:            detail="Invalid token payload",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:222:    session_id = token_data.get("session_id")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:226:    if session_id:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:229:                select(QuizSession).where(QuizSession.id == UUID(session_id))
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:240:                QuizSession.status.in_(["in_progress", "pending"]),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:249:            status="in_progress",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:281:        session_id=session.id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:285:@router.post(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:286:    "/monthly/public/{quiz_id}/submit",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:289:    description="Submit a quiz response using access token",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:292:async def submit_public_quiz_response(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:296:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:299:    Submit quiz response with token validation.
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:306:    # Validate token
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:308:        token_data = _decode_quiz_token(submission.token)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:309:        token_quiz_id = UUID(token_data.get("quiz_id"))
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:310:        token_type = token_data.get("type")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:312:        # Check if token matches quiz_id
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:313:        if token_quiz_id != quiz_id:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:315:                status_code=status.HTTP_401_UNAUTHORIZED,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:319:        # Check token type
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:320:        if token_type not in ["quiz_access", "quiz_submission"]:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:322:                status_code=status.HTTP_401_UNAUTHORIZED,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:323:                detail="Invalid token type for submission",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:328:            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:341:            status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:345:    if quiz.tags.get("status") != "published":
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:347:            status_code=status.HTTP_403_FORBIDDEN,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:348:            detail="Cannot submit to unpublished quiz",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:351:    # Resolve patient and session from token
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:352:    patient_id = token_data.get("patient_id")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:355:            status_code=status.HTTP_401_UNAUTHORIZED,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:356:            detail="Invalid token payload",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:359:    session_id = token_data.get("session_id")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:363:    if session_id:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:366:                select(QuizSession).where(QuizSession.id == UUID(session_id))
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:377:                QuizSession.status.in_(["in_progress", "pending"]),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:387:            status="in_progress",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:404:            status_code=status.HTTP_404_NOT_FOUND,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:412:        quiz_session_id=session.id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:429:            select(func.count(QuizResponse.id)).where(QuizResponse.quiz_session_id == session.id)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:436:        session.status = "completed"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:452:            "status": "completed",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:453:            "session_id": str(session.id),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:460:        "status": "in_progress",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:461:        "session_id": str(session.id),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:468:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:469:    "/monthly/public/{quiz_id}/results",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:471:    summary="Get public quiz results",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:475:async def get_public_quiz_results(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:478:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:479:    redis_cache=Depends(get_redis_cache),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:491:    cache_key = f"public_quiz_results:{quiz_id}"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:507:            status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:511:    if quiz.tags.get("status") != "published":
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:513:            status_code=status.HTTP_403_FORBIDDEN,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:522:                QuizSession.status == "completed",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:532:                QuizSession.status == "completed",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:711:    token: str
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:713:@router.post(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:724:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:725:    redis_cache=Depends(get_redis_cache)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:730:    1. Validates token
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:737:    # Reuse logic from get_current_public_quiz, but adapted
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:739:        token_data = _decode_quiz_token(access_req.token)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:740:        quiz_id = UUID(token_data.get("quiz_id"))
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:741:        token_type = token_data.get("type")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:743:        # Validate token type
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:744:        if token_type != "quiz_access":
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:746:                status_code=status.HTTP_401_UNAUTHORIZED,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:747:                detail="Invalid token type"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:751:        raise HTTPException(status_code=401, detail="Invalid token format")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:757:        raise HTTPException(status_code=404, detail="Quiz not found")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:759:    # Resolve patient and session from token
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:760:    patient_id = token_data.get("patient_id")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:763:            status_code=status.HTTP_401_UNAUTHORIZED,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:764:            detail="Invalid token payload",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:767:    session_id = token_data.get("session_id")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:771:    if session_id:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:774:                select(QuizSession).where(QuizSession.id == UUID(session_id))
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:785:                QuizSession.status == "started",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:794:            status="started",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:812:        key="quiz_session_id",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:830:        "quiz_session_id": str(session.id), # Redundant but safe
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:837:        "status": session.status
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:840:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:841:    "/session/active",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:843:    description="GET /session/active endpoint for session recovery",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:846:async def get_active_session(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:848:    quiz_session_id: Optional[str] = Cookie(None),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:849:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:850:    redis_cache=Depends(get_redis_cache)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:855:    if not quiz_session_id:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:856:        raise HTTPException(status_code=401, detail="No active session cookie")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:859:        select(QuizSession).where(QuizSession.id == UUID(quiz_session_id))
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:862:    if not session or session.status != "started":
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:863:        raise HTTPException(status_code=404, detail="Session expired or not found")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:870:        raise HTTPException(status_code=404, detail="Quiz not found")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:881:        "quiz_session_id": str(session.id),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:888:        "status": session.status,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:903:@router.post(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:904:    "/submit",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:906:    description="POST /submit endpoint for submitting quiz answers",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:910:async def submit_answer(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:911:    submit_req: QuizSubmitRequest,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:913:    quiz_session_id: Optional[str] = Cookie(None),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:914:    db: AsyncSession = Depends(get_async_db)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:920:    if not quiz_session_id:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:921:        raise HTTPException(status_code=401, detail="No active session")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:925:            select(QuizSession).where(QuizSession.id == UUID(quiz_session_id))
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:929:        raise HTTPException(status_code=400, detail="Invalid session ID")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:931:    if not session or session.status != "started":
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:932:        raise HTTPException(status_code=404, detail="Session not found or expired")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:939:        raise HTTPException(status_code=404, detail="Quiz not found")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:945:        if q.get("id") == submit_req.question_id:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:951:        raise HTTPException(status_code=400, detail="Question not found in quiz")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:956:            QuizResponse.quiz_session_id == session.id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:957:            QuizResponse.question_id == submit_req.question_id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:962:    response_value = submit_req.response_value
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:981:        existing.response_value_text_backup = str(submit_req.response_value)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:982:        existing.response_metadata = submit_req.response_metadata or {}
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:988:            quiz_session_id=session.id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:989:            question_id=submit_req.question_id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:993:            response_value_text_backup=str(submit_req.response_value),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:994:            response_metadata=submit_req.response_metadata or {},
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:1009:        session.status = "completed"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:1034:        "session_status": session.status,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:1043:@router.post(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:1051:    quiz_session_id: Optional[str] = Cookie(None),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:1052:    db: AsyncSession = Depends(get_async_db)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:1057:    if quiz_session_id:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:1060:                select(QuizSession).where(QuizSession.id == UUID(quiz_session_id))
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:1063:            if session and session.status == "started":
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:1064:                session.status = "cancelled"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py:1073:        key="quiz_session_id",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/health.py:7:from fastapi import APIRouter
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/health.py:9:router = APIRouter()
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/health.py:12:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/health.py:20:        "status": "healthy",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/health.py:27:            "public_quiz": 3,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/health.py:35:            "public_access": True,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/response_utils.py:19:        "quiz_session_id": response.quiz_session_id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/response_utils.py:30:        "session_status": session.status if session else None,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:14:from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:33:    _get_current_user_simple,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:41:router = APIRouter()
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:44:@router.post(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:55:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:56:    current_user: User = Depends(_get_current_user_simple),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:66:            status_code=status.HTTP_403_FORBIDDEN,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:80:            status_code=status.HTTP_404_NOT_FOUND, detail="Monthly quiz not found"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:83:    if quiz.tags.get("status") != "published":
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:85:            status_code=status.HTTP_400_BAD_REQUEST,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:89:    # Check reminder history
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:90:    reminder_history = quiz.tags.get("reminder_history", [])
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:91:    if len(reminder_history) >= 3:  # Max 3 reminders per quiz
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:93:            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:101:            status_code=status.HTTP_400_BAD_REQUEST,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:109:            .where(QuizSession.quiz_template_id == quiz_id, QuizSession.status == "completed")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:132:    reminder_history.append(reminder_entry)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:133:    quiz.tags["reminder_history"] = reminder_history
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:142:        "total_reminders": len(reminder_history),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:147:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:158:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:159:    current_user: User = Depends(_get_current_user_simple),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:160:    redis_cache=Depends(get_redis_cache),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:170:            status_code=status.HTTP_403_FORBIDDEN,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:201:                status=quiz.tags.get("status", "draft"),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:212:@router.post(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:217:    status_code=status.HTTP_201_CREATED,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:223:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:224:    current_user: User = Depends(_get_current_user_simple),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:237:            status_code=status.HTTP_403_FORBIDDEN,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:249:            status_code=status.HTTP_404_NOT_FOUND, detail="Quiz template not found"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:261:            status_code=status.HTTP_400_BAD_REQUEST,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:293:            "status": "published" if generate_request.auto_publish else "draft",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:307:        is_active=True,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:328:        status=monthly_quiz.tags.get("status", "draft"),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:341:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:350:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:351:    current_user: User = Depends(_get_current_user_simple),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:352:    redis_cache=Depends(get_redis_cache),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:362:            status_code=status.HTTP_403_FORBIDDEN,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:377:                QuizTemplate.category != "monthly_quiz", QuizTemplate.is_active
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/scheduling.py:399:                is_active=template.is_active,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:16:from fastapi import APIRouter, Depends, HTTPException, status, Request
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:40:    _get_current_user_simple,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:48:router = APIRouter()
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:110:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:120:    pagination: dict = Depends(get_pagination_params),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:121:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:122:    current_user: User = Depends(_get_current_user_simple),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:123:    redis_cache=Depends(get_redis_cache),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:133:            status_code=status.HTTP_403_FORBIDDEN,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:147:            status_code=status.HTTP_404_NOT_FOUND, detail="Monthly quiz not found"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:177:    session_ids = {
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:178:        response.quiz_session_id for response in responses if response.quiz_session_id
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:189:    if session_ids:
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:191:            select(QuizSession).where(QuizSession.id.in_(session_ids))
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:198:        session = sessions_by_id.get(response.quiz_session_id)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:236:    quiz_session_id: UUID
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:239:    link: str
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:240:    token: str
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:241:    status: str
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:250:    total_active: int
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:255:@router.post(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:256:    "/links/",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:258:    summary="Create quiz link",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:259:    description="Create a monthly quiz link for a patient"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:261:async def create_quiz_link(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:262:    link_data: QuizLinkCreate,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:263:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:264:    current_user: User = Depends(_get_current_user_simple)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:266:    """Create a quiz link (session + token)."""
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:269:        select(QuizTemplate).where(QuizTemplate.id == link_data.quiz_template_id)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:273:        raise HTTPException(status_code=404, detail="Quiz template not found")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:278:            QuizSession.quiz_template_id == link_data.quiz_template_id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:279:            QuizSession.patient_id == link_data.patient_id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:280:            QuizSession.status.in_(["started", "active"]),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:287:            patient_id=link_data.patient_id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:288:            quiz_template_id=link_data.quiz_template_id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:289:            status="started",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:292:                "delivery_method": link_data.delivery_method,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:293:                "custom_message": link_data.custom_message
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:296:        session.set_expiration_date(hours=link_data.expiry_hours)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:301:    # Ensure short code exists (for short link)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:305:    metadata.setdefault("link_status", "active")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:309:    # Generate JWT token for access (patient/session scoped)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:310:    token_manager = TokenManager()
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:314:    token = token_manager.generate_token(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:318:        session_id=session.id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:319:        token_type="quiz_access",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:322:    # Keep metadata synchronized with token/expiry used by resolver and monitoring.
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:323:    metadata["token_hash"] = token_manager.hash_token(token)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:325:    metadata["link_status"] = "active"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:332:    link_builder = LinkBuilder()
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:333:    link = link_builder.build_preferred_link(token, metadata.get("short_code"))
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:337:        quiz_session_id=session.id,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:340:        link=link,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:341:        token=token,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:342:        status=session.status,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:348:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:349:    "/patients/{patient_id}/status",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:350:    summary="Get patient quiz status",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:353:async def get_patient_quiz_status(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:355:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:356:    current_user: User = Depends(_get_current_user_simple)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:380:            "quiz_session_id": str(s.id),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:383:            "status": s.status,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:391:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:392:    "/patients/{patient_id}/history",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:393:    summary="Get patient quiz history",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:396:async def get_patient_quiz_history(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:398:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:399:    current_user: User = Depends(_get_current_user_simple)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:401:    return await get_patient_quiz_status(patient_id, db, current_user)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:403:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:404:    "/links/active/",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:405:    summary="Get active quiz links",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:408:async def get_active_links(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:409:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:410:    current_user: User = Depends(_get_current_user_simple)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:412:    """Get all active (non-expired, non-completed) quiz links/sessions."""
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:419:        # Get active sessions (started, not expired)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:423:                .where(QuizSession.status.in_(["started", "active"]))
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:461:                "quiz_session_id": str(s.id),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:466:                "status": s.status,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:472:        logger.error(f"Error getting active links: {e}", exc_info=True)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:474:            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:475:            detail=f"Failed to get active links: {str(e)}"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:478:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:484:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:485:    current_user: User = Depends(_get_current_user_simple)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:493:        total_active = (
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:495:                select(func.count(QuizSession.id)).where(QuizSession.status == "started")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:500:                select(func.count(QuizSession.id)).where(QuizSession.status == "completed")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:505:                select(func.count(QuizSession.id)).where(QuizSession.status == "expired")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:508:        total_sent = total_active + total_completed + total_expired  # Approximate
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:513:                select(QuizSession).where(QuizSession.status == "completed")
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:532:            total_active=total_active,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:540:            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:544:@router.get(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:554:    db: AsyncSession = Depends(get_async_db),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:555:    current_user: User = Depends(_get_current_user_simple),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:556:    redis_cache=Depends(get_redis_cache),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:566:            status_code=status.HTTP_403_FORBIDDEN,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:587:            status_code=status.HTTP_404_NOT_FOUND, detail="Monthly quiz not found"
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py:600:                QuizSession.status == "completed",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/_shared.py:13:from fastapi import Depends, HTTPException, status
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/_shared.py:35:from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache as _get_redis_cache
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/_shared.py:79:async def _get_current_user_simple(
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/_shared.py:80:    current_user: User = Depends(get_current_user_from_session),
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/_shared.py:85:            status_code=status.HTTP_401_UNAUTHORIZED,
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/_shared.py:104:    "status",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/_shared.py:139:    "_get_current_user_simple",
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py:4:This package handles monthly quiz operations, scheduling, and public access.
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py:9:- public.py - Public access endpoints (current quiz, submit, results)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py:21:- Get current public quiz (token-based)
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py:22:- Submit quiz response publicly
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py:29:- Token-based public access security
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py:37:- Public endpoints use signed JWT tokens only
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py:39:- IP logging for public access
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py:40:- Personal data sanitization in public responses
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py:45:from fastapi import APIRouter
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py:50:from .public import router as public_router
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py:54:router = APIRouter()
+backend-hormonia/app/api/v2/routers/monthly_quiz_operations/__init__.py:59:router.include_router(public_router, tags=["Monthly Quiz - Public Access"])

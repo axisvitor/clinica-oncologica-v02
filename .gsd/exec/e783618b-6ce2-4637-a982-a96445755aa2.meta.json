@@ -1,0 +1,18 @@
+{
+  "id": "e783618b-6ce2-4637-a982-a96445755aa2",
+  "runtime": "bash",
+  "purpose": "detect pytest config and route paths",
+  "script_chars": 578,
+  "started_at": "2026-05-12T19:26:36.097Z",
+  "finished_at": "2026-05-12T19:26:43.076Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 6979,
+  "stdout_bytes": 266,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/e783618b-6ce2-4637-a982-a96445755aa2.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/e783618b-6ce2-4637-a982-a96445755aa2.stderr"
+}

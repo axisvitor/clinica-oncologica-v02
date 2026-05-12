@@ -1,0 +1,18 @@
+{
+  "id": "4de2fe5f-6f7f-42d1-a61c-db71c40007bd",
+  "runtime": "bash",
+  "purpose": "Find quiz route registrations and public submit/link surfaces",
+  "script_chars": 599,
+  "started_at": "2026-05-12T19:56:03.318Z",
+  "finished_at": "2026-05-12T19:56:03.559Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 241,
+  "stdout_bytes": 58588,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/4de2fe5f-6f7f-42d1-a61c-db71c40007bd.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/4de2fe5f-6f7f-42d1-a61c-db71c40007bd.stderr"
+}

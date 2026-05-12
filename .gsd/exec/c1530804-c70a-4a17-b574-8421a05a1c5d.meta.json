@@ -1,0 +1,18 @@
+{
+  "id": "c1530804-c70a-4a17-b574-8421a05a1c5d",
+  "runtime": "bash",
+  "purpose": "Find patient list endpoint signature for RBAC test adjustment",
+  "script_chars": 261,
+  "started_at": "2026-05-12T19:38:50.384Z",
+  "finished_at": "2026-05-12T19:38:51.696Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 1312,
+  "stdout_bytes": 0,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/c1530804-c70a-4a17-b574-8421a05a1c5d.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/c1530804-c70a-4a17-b574-8421a05a1c5d.stderr"
+}

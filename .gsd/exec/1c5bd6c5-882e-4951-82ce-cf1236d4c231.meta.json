@@ -1,0 +1,18 @@
+{
+  "id": "1c5bd6c5-882e-4951-82ce-cf1236d4c231",
+  "runtime": "bash",
+  "purpose": "T01 patient access helper regression with backend cwd",
+  "script_chars": 81,
+  "started_at": "2026-05-12T18:51:22.269Z",
+  "finished_at": "2026-05-12T18:51:47.937Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 25668,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/1c5bd6c5-882e-4951-82ce-cf1236d4c231.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/1c5bd6c5-882e-4951-82ce-cf1236d4c231.stderr"
+}

@@ -1,0 +1,18 @@
+{
+  "id": "eda53090-61ba-49f0-955c-b2307cdec0f5",
+  "runtime": "bash",
+  "purpose": "Run S02 full focused ownership and regression pytest suite after RBAC isolation patch",
+  "script_chars": 252,
+  "started_at": "2026-05-12T19:41:19.139Z",
+  "finished_at": "2026-05-12T19:41:49.571Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 30432,
+  "stdout_bytes": 330,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/eda53090-61ba-49f0-955c-b2307cdec0f5.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/eda53090-61ba-49f0-955c-b2307cdec0f5.stderr"
+}

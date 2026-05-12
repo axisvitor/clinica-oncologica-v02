@@ -1,0 +1,25 @@
+backend-hormonia/tests/api/v2/test_enhanced_quiz.py
+  hits: QuizSession, QuizTemplate
+
+backend-hormonia/tests/api/v2/test_monthly_quiz_compatibility.py
+  hits: monthly-quiz, QuizSession, QuizTemplate
+
+backend-hormonia/tests/api/v2/test_phase25_messages_quiz_async.py
+  hits: QuizSession
+
+backend-hormonia/tests/api/v2/test_quiz.py
+  hits: QuizSession, QuizTemplate
+
+backend-hormonia/tests/api/v2/test_quiz_extensions.py
+  hits: QuizSession, QuizTemplate
+
+backend-hormonia/tests/api/v2/test_quiz_pagination.py
+  hits: QuizSession, QuizTemplate
+
+backend-hormonia/tests/api/v2/security_boundary_helpers.py
+  hits: headers_for_user
+
+backend-hormonia/tests/api/v2/test_patient_ownership_boundary.py
+  hits: headers_for_user
+  contains /patients/
+

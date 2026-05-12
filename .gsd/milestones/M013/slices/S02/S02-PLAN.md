@@ -36,22 +36,22 @@ Consumes existing session dependencies, `User`/`Patient` models, active monolith
   - Files: `backend-hormonia/app/api/v2/patients_shared_helpers.py`, `backend-hormonia/app/utils/auth_helpers.py`, `backend-hormonia/app/models/patient.py`, `backend-hormonia/tests/unit/api/v2/test_patient_access_helpers.py`
   - Verify: cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py -q
 
-- [ ] **T02: Scope message read/list/conversation routes by patient ownership** `est:2h`
+- [x] **T02: Scope message read/list/conversation routes by patient ownership** `est:2h`
   Expected executor skills (`skills_used`): `security-review`, `tdd`, `test`, `verify-before-complete`.
   - Files: `backend-hormonia/app/api/v2/routers/messages.py`, `backend-hormonia/app/api/v2/patients_shared_helpers.py`, `backend-hormonia/tests/api/v2/security_boundary_helpers.py`, `backend-hormonia/tests/api/v2/test_patient_ownership_boundary.py`
   - Verify: cd backend-hormonia && pytest tests/api/v2/test_patient_ownership_boundary.py -q -k "message_read or conversation"
 
-- [ ] **T03: Enforce message mutation and read-state ownership** `est:2h`
+- [x] **T03: Enforce message mutation and read-state ownership** `est:2h`
   Expected executor skills (`skills_used`): `security-review`, `tdd`, `test`, `verify-before-complete`.
   - Files: `backend-hormonia/app/api/v2/routers/messages.py`, `backend-hormonia/tests/api/v2/test_patient_ownership_boundary.py`, `backend-hormonia/tests/api/v2/test_messages.py`
   - Verify: cd backend-hormonia && pytest tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py -q -k "message_mutation or read_state or bulk or send_message"
 
-- [ ] **T04: Protect flow responses and flow overrides with patient ownership** `est:2h`
+- [x] **T04: Protect flow responses and flow overrides with patient ownership** `est:2h`
   Expected executor skills (`skills_used`): `security-review`, `tdd`, `test`, `verify-before-complete`.
   - Files: `backend-hormonia/app/api/v2/routers/patients/flow_responses.py`, `backend-hormonia/app/api/v2/routers/patients/flow_overrides.py`, `backend-hormonia/tests/api/v2/test_patient_ownership_boundary.py`
   - Verify: cd backend-hormonia && pytest tests/api/v2/test_patient_ownership_boundary.py -q
 
-- [ ] **T05: Run S02 regression proof and close integration** `est:45m`
+- [x] **T05: Run S02 regression proof and close integration** `est:45m`
   Expected executor skills (`skills_used`): `test`, `security-review`, `verify-before-complete`.
   - Files: `backend-hormonia/app/api/v2/patients_shared_helpers.py`, `backend-hormonia/app/api/v2/routers/messages.py`, `backend-hormonia/app/api/v2/routers/patients/flow_responses.py`, `backend-hormonia/app/api/v2/routers/patients/flow_overrides.py`, `backend-hormonia/tests/unit/api/v2/test_patient_access_helpers.py`, `backend-hormonia/tests/api/v2/test_patient_ownership_boundary.py`, `backend-hormonia/tests/api/v2/test_messages.py`, `backend-hormonia/tests/api/v2/test_patients_rbac_impl.py`, `backend-hormonia/tests/api/v2/test_phase25_messages_quiz_async.py`
   - Verify: cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py tests/api/v2/test_phase25_messages_quiz_async.py -q

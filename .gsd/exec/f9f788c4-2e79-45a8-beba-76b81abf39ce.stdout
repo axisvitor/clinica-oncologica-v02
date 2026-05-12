@@ -1,0 +1,12 @@
+cwd=/mnt/c/Meu Projetos/clinica-oncologica-v02-1
+backend-hormonia exists
+FOUND backend-hormonia/app/api/v2/patients_shared_helpers.py
+FOUND backend-hormonia/app/api/v2/routers/messages.py
+FOUND backend-hormonia/app/api/v2/routers/patients/flow_responses.py
+FOUND backend-hormonia/app/api/v2/routers/patients/flow_overrides.py
+FOUND backend-hormonia/tests/unit/api/v2/test_patient_access_helpers.py
+FOUND backend-hormonia/tests/api/v2/security_boundary_helpers.py
+FOUND backend-hormonia/tests/api/v2/test_patient_ownership_boundary.py
+FOUND backend-hormonia/tests/api/v2/test_messages.py
+FOUND backend-hormonia/tests/api/v2/test_patients_rbac_impl.py
+FOUND backend-hormonia/tests/api/v2/test_phase25_messages_quiz_async.py

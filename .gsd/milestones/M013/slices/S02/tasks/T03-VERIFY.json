@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T03",
+  "unitId": "M013/S02/T03",
+  "timestamp": 1778613902113,
+  "passed": false,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "cd backend-hormonia",
+      "exitCode": 0,
+      "durationMs": 8,
+      "verdict": "pass"
+    },
+    {
+      "command": "pytest tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py -q -k \"message_mutation or read_state or bulk or send_message\"",
+      "exitCode": 4,
+      "durationMs": 924,
+      "verdict": "fail"
+    }
+  ],
+  "retryAttempt": 1,
+  "maxRetries": 2
+}

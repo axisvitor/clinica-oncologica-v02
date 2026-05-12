@@ -1,0 +1,18 @@
+{
+  "id": "5ffcd3c6-d7f2-4f10-ae7f-690086cb022d",
+  "runtime": "bash",
+  "purpose": "Locate /api/v2/patients router implementation",
+  "script_chars": 521,
+  "started_at": "2026-05-12T19:39:02.870Z",
+  "finished_at": "2026-05-12T19:39:04.438Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 1568,
+  "stdout_bytes": 1116,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/5ffcd3c6-d7f2-4f10-ae7f-690086cb022d.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/5ffcd3c6-d7f2-4f10-ae7f-690086cb022d.stderr"
+}

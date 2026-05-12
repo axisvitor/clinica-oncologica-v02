@@ -1,0 +1,18 @@
+{
+  "id": "81afae47-65e0-4520-a251-69e380e7551c",
+  "runtime": "bash",
+  "purpose": "Summarize auth and patient fixtures used by message tests",
+  "script_chars": 572,
+  "started_at": "2026-05-12T19:07:49.189Z",
+  "finished_at": "2026-05-12T19:07:49.266Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 77,
+  "stdout_bytes": 19348,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/81afae47-65e0-4520-a251-69e380e7551c.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/81afae47-65e0-4520-a251-69e380e7551c.stderr"
+}

@@ -1,0 +1,18 @@
+{
+  "id": "6ae3acb5-20cc-463b-ac6d-fa7f20e7d835",
+  "runtime": "bash",
+  "purpose": "existing messages API regression subset",
+  "script_chars": 121,
+  "started_at": "2026-05-12T18:54:44.362Z",
+  "finished_at": "2026-05-12T18:55:23.105Z",
+  "exit_code": 1,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 38743,
+  "stdout_bytes": 14224,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/6ae3acb5-20cc-463b-ac6d-fa7f20e7d835.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/6ae3acb5-20cc-463b-ac6d-fa7f20e7d835.stderr"
+}

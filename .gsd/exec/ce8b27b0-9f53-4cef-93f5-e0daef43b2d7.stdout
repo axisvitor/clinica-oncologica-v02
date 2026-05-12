@@ -1,0 +1,51 @@
+....................................s................................... [ 63%]
+.F.......................................                                [100%]
+=================================== FAILURES ===================================
+___________ TestPatientsRBAC.test_list_patients_rbac_admin_sees_all ____________
+
+self = <tests.api.v2.test_patients_rbac_impl.TestPatientsRBAC object at 0x727305404fb0>
+client = <tests.utils.async_test_client.AsyncTestClient object at 0x727304d446b0>
+db_session = <sqlalchemy.orm.session.Session object at 0x727304d46330>
+admin_user = <User(email='admin_51feccfb4c5742a992eda4e1fc339f53@example.com', role='admin')>
+admin_auth_headers = {'Authorization': 'Bearer admin-token-088d69d7-8b0b-4ebb-bf0a-7d2bf9854c6d', 'Cookie': 'csrf_token=1778614652.1e10fb22...67855c7a2cfbaecd8d04afb35c94476425ec3b2acd552a6', 'X-Session-ID': 'admin-session-088d69d7-8b0b-4ebb-bf0a-7d2bf9854c6d'}
+
+    def test_list_patients_rbac_admin_sees_all(
+        self,
+        client: TestClient,
+        db_session,
+        admin_user,
+        admin_auth_headers
+    ):
+        """Admin can see all patients regardless of doctor_id."""
+        # Create two doctors
+        doctor_a = create_test_user(db_session, email="doctor_a@test.com", role=UserRole.DOCTOR)
+        doctor_b = create_test_user(db_session, email="doctor_b@test.com", role=UserRole.DOCTOR)
+    
+        # Create patients for each doctor
+        patient_a = create_test_patient(db_session, doctor=doctor_a, name="Patient A")
+        patient_b = create_test_patient(db_session, doctor=doctor_b, name="Patient B")
+    
+        response = client.get("/api/v2/patients", headers=admin_auth_headers)
+    
+        assert response.status_code == 200
+        data = response.json()["data"]
+    
+        patient_ids = [p["id"] for p in data]
+        assert str(patient_a.id) in patient_ids
+        assert str(patient_b.id) in patient_ids
+>       assert len(data) == 2
+E       AssertionError: assert 20 == 2
+E        +  where 20 = len([{'allergies': None, 'birth_date': None, 'blood_type': None, 'comorbidities': None, ...}, {'allergies': None, 'birth_d...morbidities': None, ...}, {'allergies': None, 'birth_date': None, 'blood_type': None, 'comorbidities': None, ...}, ...])
+
+tests/api/v2/test_patients_rbac_impl.py:67: AssertionError
+---------------------------- Captured stderr setup -----------------------------
+2026-05-12 16:37:32 - app.utils.db_retry - INFO - Circuit breaker manually reset to CLOSED state
+------------------------------ Captured log setup ------------------------------
+INFO     app.utils.db_retry:db_retry.py:368 Circuit breaker manually reset to CLOSED state
+--------------------------- Captured stderr teardown ---------------------------
+2026-05-12 16:37:41 - app.utils.db_retry - INFO - Circuit breaker manually reset to CLOSED state
+---------------------------- Captured log teardown -----------------------------
+INFO     app.utils.db_retry:db_retry.py:368 Circuit breaker manually reset to CLOSED state
+=========================== short test summary info ============================
+SKIPPED [1] tests/api/v2/test_messages.py:80: Rate limiting disabled in test environment
+FAILED tests/api/v2/test_patients_rbac_impl.py::TestPatientsRBAC::test_list_patients_rbac_admin_sees_all

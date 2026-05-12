@@ -1,4 +1,4 @@
-# M008: Onboarding Real de Pacientes — Ponta a Ponta
+# M008: Onboarding Real de Pacientes - Ponta a Ponta
 
 **Vision:** Provar que o sistema de acompanhamento oncológico funciona de verdade: médico cria paciente no dashboard, paciente recebe mensagens no WhatsApp real, responde livremente, e o fluxo avança automaticamente do onboarding ao daily follow-up — tudo rodando localmente contra serviços reais.
 

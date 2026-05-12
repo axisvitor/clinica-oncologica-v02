@@ -1,0 +1,18 @@
+{
+  "id": "6d548ccd-fd44-4ab2-b923-27ebf54ba489",
+  "runtime": "bash",
+  "purpose": "focused T02 patient ownership boundary tests after diagnostics reuse",
+  "script_chars": 114,
+  "started_at": "2026-05-12T19:02:32.526Z",
+  "finished_at": "2026-05-12T19:02:58.040Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 25514,
+  "stdout_bytes": 80,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/6d548ccd-fd44-4ab2-b923-27ebf54ba489.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/6d548ccd-fd44-4ab2-b923-27ebf54ba489.stderr"
+}

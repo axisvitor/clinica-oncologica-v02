@@ -1,0 +1,18 @@
+{
+  "id": "aa0ae6e6-66c4-418c-82dc-190706fd7da7",
+  "runtime": "bash",
+  "purpose": "Red run for T03 message mutation/read-state ownership tests",
+  "script_chars": 170,
+  "started_at": "2026-05-12T19:13:37.811Z",
+  "finished_at": "2026-05-12T19:14:15.072Z",
+  "exit_code": 1,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 37261,
+  "stdout_bytes": 11032,
+  "stderr_bytes": 633,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/aa0ae6e6-66c4-418c-82dc-190706fd7da7.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/aa0ae6e6-66c4-418c-82dc-190706fd7da7.stderr"
+}
