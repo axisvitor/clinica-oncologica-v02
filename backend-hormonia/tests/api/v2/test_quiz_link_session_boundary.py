@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import text
 
+from app.middleware.csrf import get_csrf_token
 from app.domain.quizzes.session import TokenManager
 from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
 from app.utils.timezone import now_sao_paulo
@@ -574,3 +575,160 @@ def test_expired_public_token_boundaries_fail_without_response_write(
     assert submit_response.status_code == expected_status, case_name
     assert _response_count(db_session, session.id) == 0
     assert_response_excludes_values(submit_response, [token, token[:12]])
+
+
+def _compat_access(client, token: str):
+    return client.post("/api/v2/quiz-extensions/access", json={"token": token})
+
+
+def _compat_submit(client, question_id: str = "q1", value: str = "7", **kwargs):
+    return client.post(
+        "/api/v2/quiz-extensions/submit",
+        json={"question_id": question_id, "response_value": value},
+        **kwargs,
+    )
+
+
+def _quiz_cookie_header(*, session_id=None, state=None):
+    csrf_token = get_csrf_token()
+    cookies = [f"csrf_token={csrf_token}"]
+    if session_id is not None:
+        cookies.append(f"quiz_session_id={session_id}")
+    if state is not None:
+        cookies.append(f"quiz_session_state={state}")
+    return {"cookie": "; ".join(cookies), "X-CSRF-Token": csrf_token}
+
+
+def test_session_state_cookie_from_access_recovers_and_submits_bound_session(
+    client, db_session
+):
+    _boundary, template, session, token = _create_public_link_fixture(client, db_session)
+
+    access_response = _compat_access(client, token)
+    assert access_response.status_code == 200, access_response.text
+    assert access_response.cookies["quiz_session_id"] == str(session.id)
+    assert "quiz_session_state" in access_response.cookies
+
+    # The signed state is sufficient proof; the legacy raw cookie is only a
+    # compatibility hint and is not required when state is present.
+    state = access_response.cookies["quiz_session_state"]
+    client.cookies.clear()
+    client.cookies.set("quiz_session_state", state)
+
+    active_response = client.get(
+        "/api/v2/quiz-extensions/session/active",
+        cookies={"quiz_session_state": state},
+    )
+    assert active_response.status_code == 200, active_response.text
+    assert active_response.json()["id"] == str(session.id)
+    assert active_response.json()["template_id"] == str(template.id)
+
+    submit_response = _compat_submit(
+        client,
+        headers=_quiz_cookie_header(state=state),
+    )
+    assert submit_response.status_code == 200, submit_response.text
+    assert _response_count(db_session, session.id) == 1
+    db_session.refresh(session)
+    assert session.status == "completed"
+
+
+def test_raw_session_cookie_only_fails_compatibility_active_and_submit(
+    client, db_session
+):
+    _boundary, _template, session, _token = _create_public_link_fixture(client, db_session)
+    client.cookies.clear()
+    client.cookies.set("quiz_session_id", str(session.id))
+
+    active_response = client.get(
+        "/api/v2/quiz-extensions/session/active",
+        cookies={"quiz_session_id": str(session.id)},
+    )
+    submit_response = _compat_submit(
+        client,
+        headers=_quiz_cookie_header(session_id=session.id),
+    )
+
+    assert active_response.status_code == 401
+    assert submit_response.status_code == 401
+    assert _response_count(db_session, session.id) == 0
+    assert_response_excludes_values(active_response, [session.id, session.patient_id])
+    assert_response_excludes_values(submit_response, [session.id, session.patient_id])
+
+
+def test_forged_state_cookie_fails_compatibility_without_response_write(
+    client, db_session
+):
+    _boundary, _template, session, token = _create_public_link_fixture(client, db_session)
+    access_response = _compat_access(client, token)
+    assert access_response.status_code == 200, access_response.text
+
+    client.cookies.clear()
+    tampered_state = f"{access_response.cookies['quiz_session_state']}tampered"
+    client.cookies.set("quiz_session_id", str(session.id))
+    client.cookies.set("quiz_session_state", tampered_state)
+
+    active_response = client.get(
+        "/api/v2/quiz-extensions/session/active",
+        cookies={
+            "quiz_session_id": str(session.id),
+            "quiz_session_state": tampered_state,
+        },
+    )
+    submit_response = _compat_submit(
+        client,
+        headers=_quiz_cookie_header(session_id=session.id, state=tampered_state),
+    )
+
+    assert active_response.status_code == 401
+    assert submit_response.status_code == 401
+    assert _response_count(db_session, session.id) == 0
+    assert_response_excludes_values(submit_response, [token, token[:12], session.id])
+
+
+def test_session_state_raw_session_mismatch_fails_without_response_write(
+    client, db_session
+):
+    _boundary, _template, session, token = _create_public_link_fixture(client, db_session)
+    access_response = _compat_access(client, token)
+    assert access_response.status_code == 200, access_response.text
+
+    client.cookies.clear()
+    raw_session_id = str(uuid4())
+    state = access_response.cookies["quiz_session_state"]
+    client.cookies.set("quiz_session_id", raw_session_id)
+    client.cookies.set("quiz_session_state", state)
+
+    active_response = client.get(
+        "/api/v2/quiz-extensions/session/active",
+        cookies={"quiz_session_id": raw_session_id, "quiz_session_state": state},
+    )
+    submit_response = _compat_submit(
+        client,
+        headers=_quiz_cookie_header(session_id=raw_session_id, state=state),
+    )
+
+    assert active_response.status_code == 401
+    assert submit_response.status_code == 401
+    assert _response_count(db_session, session.id) == 0
+    assert_response_excludes_values(submit_response, [token, token[:12], session.id])
+
+
+def test_logout_raw_session_only_does_not_cancel_foreign_session(client, db_session):
+    _boundary, _template, session, _token = _create_public_link_fixture(client, db_session)
+    client.cookies.clear()
+    client.cookies.set("quiz_session_id", str(session.id))
+
+    response = client.post(
+        "/api/v2/quiz-extensions/logout",
+        headers=_quiz_cookie_header(session_id=session.id),
+    )
+
+    assert response.status_code == 200, response.text
+    set_cookie = "; ".join(response.headers.get_list("set-cookie"))
+    assert "quiz_session_id=" in set_cookie
+    assert "quiz_session_state=" in set_cookie
+    db_session.refresh(session)
+    assert session.status == "started"
+    assert (session.session_metadata or {}).get("link_status") == "active"
+    assert _response_count(db_session, session.id) == 0

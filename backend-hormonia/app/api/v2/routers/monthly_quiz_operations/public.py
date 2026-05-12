@@ -40,7 +40,11 @@ from ._shared import (
     CACHE_TTL_PUBLIC_QUIZ,
 )
 from app.utils.timezone import now_sao_paulo
-from .public_security import validate_public_quiz_link_token
+from .public_security import (
+    sign_public_quiz_session_state,
+    validate_public_quiz_link_token,
+    validate_public_quiz_session_state,
+)
 
 router = APIRouter()
 
@@ -639,16 +643,30 @@ async def access_quiz(
     if (quiz.tags or {}).get("status") != "published":
         raise HTTPException(status_code=403, detail="Quiz is not currently available")
 
-    # Set Session Cookie (SameSite=None for cross-site fetch from quiz domain)
+    # Set compatibility cookies. The raw session ID remains for legacy clients,
+    # but authorization for recovery/submit is proven by signed session state.
     cookie_secure = settings.SESSION_ENABLE_COOKIE_SECURE
     cookie_samesite = "none" if cookie_secure else "lax"
+    cookie_max_age = max(
+        0,
+        int((access.effective_expires_at - now_sao_paulo()).total_seconds()),
+    )
+    session_state = sign_public_quiz_session_state(access)
     response.set_cookie(
         key="quiz_session_id",
         value=str(session.id),
         httponly=True,
         secure=cookie_secure,
         samesite=cookie_samesite,
-        max_age=86400  # 24h
+        max_age=cookie_max_age,
+    )
+    response.set_cookie(
+        key="quiz_session_state",
+        value=session_state,
+        httponly=True,
+        secure=cookie_secure,
+        samesite=cookie_samesite,
+        max_age=cookie_max_age,
     )
 
     # Transform questions using cached function (Performance optimization)
@@ -680,21 +698,23 @@ async def access_quiz(
 async def get_active_session(
     request: Request,
     quiz_session_id: Optional[str] = Cookie(None),
+    quiz_session_state: Optional[str] = Cookie(None),
     db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache)
 ):
     """
-    Recover session from cookie.
+    Recover session from signed compatibility state.
     """
-    if not quiz_session_id:
-        raise HTTPException(status_code=401, detail="No active session cookie")
-    
-    session_result = await db.execute(
-        select(QuizSession).where(QuizSession.id == UUID(quiz_session_id))
+    logger.info(f"Compatibility active-session recovery from IP: {request.client.host}")
+
+    state_cookie = quiz_session_state or request.cookies.get("quiz_session_state")
+    raw_session_cookie = quiz_session_id or request.cookies.get("quiz_session_id")
+    access = await validate_public_quiz_session_state(
+        state_cookie,
+        db,
+        raw_session_id=raw_session_cookie,
     )
-    session = session_result.scalar_one_or_none()
-    if not session or session.status != "started":
-        raise HTTPException(status_code=404, detail="Session expired or not found")
+    session = access.session
 
     quiz_result = await db.execute(
         select(QuizTemplate).where(QuizTemplate.id == session.quiz_template_id)
@@ -717,7 +737,7 @@ async def get_active_session(
         "template_id": str(quiz.id),
         "patient_name": "Paciente",
         "template_name": quiz.name,
-        "expires_at": (now_sao_paulo().replace(year=datetime.now().year + 1)).isoformat(),
+        "expires_at": access.effective_expires_at.isoformat(),
         "questions": sanitized_questions,
         "status": session.status,
         "current_question_index": 0  # TODO: Track progress if needed
@@ -745,25 +765,31 @@ async def submit_answer(
     submit_req: QuizSubmitRequest,
     request: Request,
     quiz_session_id: Optional[str] = Cookie(None),
+    quiz_session_state: Optional[str] = Cookie(None),
     db: AsyncSession = Depends(get_async_db)
 ):
     """
     Submit an answer to a quiz question.
-    Session is identified via HttpOnly cookie.
+    Session authorization is proven by signed HttpOnly state.
     """
-    if not quiz_session_id:
-        raise HTTPException(status_code=401, detail="No active session")
-    
-    try:
-        session_result = await db.execute(
-            select(QuizSession).where(QuizSession.id == UUID(quiz_session_id))
-        )
-        session = session_result.scalar_one_or_none()
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid session ID")
-    
-    if not session or session.status != "started":
-        raise HTTPException(status_code=404, detail="Session not found or expired")
+    quiz_cookie_keys = sorted(
+        key for key in request.cookies.keys() if key.startswith("quiz_")
+    )
+    logger.info(
+        "Compatibility answer submission from IP: %s cookies=%s",
+        request.client.host,
+        quiz_cookie_keys,
+        extra={"quiz_cookie_keys": quiz_cookie_keys},
+    )
+
+    state_cookie = quiz_session_state or request.cookies.get("quiz_session_state")
+    raw_session_cookie = quiz_session_id or request.cookies.get("quiz_session_id")
+    access = await validate_public_quiz_session_state(
+        state_cookie,
+        db,
+        raw_session_id=raw_session_cookie,
+    )
+    session = access.session
     
     quiz_result = await db.execute(
         select(QuizTemplate).where(QuizTemplate.id == session.quiz_template_id)
@@ -881,32 +907,52 @@ async def submit_answer(
     response_model=Dict[str, Any]
 )
 async def logout_quiz(
+    request: Request,
     response: Response,
     quiz_session_id: Optional[str] = Cookie(None),
+    quiz_session_state: Optional[str] = Cookie(None),
     db: AsyncSession = Depends(get_async_db)
 ):
     """
-    End quiz session and clear cookie.
+    End a quiz session when signed state validates, then clear cookies.
     """
-    if quiz_session_id:
-        try:
-            session_result = await db.execute(
-                select(QuizSession).where(QuizSession.id == UUID(quiz_session_id))
-            )
-            session = session_result.scalar_one_or_none()
-            if session and session.status == "started":
-                session.status = "cancelled"
-                await db.commit()
-        except ValueError:
-            pass  # Invalid UUID, just clear cookie
-    
-    # Clear session cookie
     cookie_secure = settings.SESSION_ENABLE_COOKIE_SECURE
     cookie_samesite = "none" if cookie_secure else "lax"
+
+    # Always clear both compatibility cookies, even when the state is malformed.
     response.delete_cookie(
         key="quiz_session_id",
         secure=cookie_secure,
         samesite=cookie_samesite,
     )
+    response.delete_cookie(
+        key="quiz_session_state",
+        secure=cookie_secure,
+        samesite=cookie_samesite,
+    )
+
+    state_cookie = quiz_session_state or request.cookies.get("quiz_session_state")
+    raw_session_cookie = quiz_session_id or request.cookies.get("quiz_session_id")
+    if state_cookie:
+        try:
+            access = await validate_public_quiz_session_state(
+                state_cookie,
+                db,
+                raw_session_id=raw_session_cookie,
+            )
+        except HTTPException:
+            logger.warning(
+                "Compatibility logout skipped session mutation",
+                extra={"reason": "invalid_session_state"},
+            )
+        else:
+            session = access.session
+            if session.status == "started":
+                session.status = "cancelled"
+                metadata = dict(session.session_metadata or {})
+                metadata["link_status"] = "cancelled"
+                metadata["cancelled_at"] = now_sao_paulo().isoformat()
+                session.session_metadata = metadata
+                await db.commit()
     
     return {"success": True, "message": "Session ended"}
