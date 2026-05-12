@@ -86,7 +86,11 @@ def _deny(
             session_id=session_id,
         )
     )
-    logger.warning("Public quiz link denied: %s", reason, extra=extra)
+    try:
+        logger.warning("Public quiz link denied: %s", reason, extra=extra)
+    except Exception:
+        # Denial logging must never become an authorization dependency.
+        pass
 
     detail_by_status = {
         status.HTTP_401_UNAUTHORIZED: "Invalid quiz link",

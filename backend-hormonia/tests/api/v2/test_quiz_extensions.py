@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
@@ -36,6 +37,61 @@ from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # Test Fixtures
 # ============================================================================
+
+@pytest.fixture(autouse=True)
+def ensure_quiz_extension_tables(db: Session):
+    """Align legacy local Postgres quiz tables with the current ORM columns."""
+    if db.bind.dialect.name != "postgresql":
+        return
+
+    statements = [
+        "CREATE TABLE IF NOT EXISTS quiz_templates (id UUID PRIMARY KEY)",
+        "ALTER TABLE quiz_templates ADD COLUMN IF NOT EXISTS name VARCHAR(255) NOT NULL DEFAULT 'Test Template'",
+        "ALTER TABLE quiz_templates ADD COLUMN IF NOT EXISTS version VARCHAR(50) NOT NULL DEFAULT '1.0'",
+        "ALTER TABLE quiz_templates ADD COLUMN IF NOT EXISTS questions JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "ALTER TABLE quiz_templates ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true",
+        "ALTER TABLE quiz_templates ADD COLUMN IF NOT EXISTS description TEXT",
+        "ALTER TABLE quiz_templates ADD COLUMN IF NOT EXISTS category VARCHAR(100)",
+        "ALTER TABLE quiz_templates ADD COLUMN IF NOT EXISTS passing_score INTEGER",
+        "ALTER TABLE quiz_templates ADD COLUMN IF NOT EXISTS time_limit_minutes INTEGER",
+        "ALTER TABLE quiz_templates ADD COLUMN IF NOT EXISTS randomize_questions BOOLEAN",
+        "ALTER TABLE quiz_templates ADD COLUMN IF NOT EXISTS tags JSONB",
+        "ALTER TABLE quiz_templates ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "ALTER TABLE quiz_templates ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "CREATE TABLE IF NOT EXISTS quiz_sessions (id UUID PRIMARY KEY)",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS patient_id UUID",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS quiz_template_id UUID",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'started'",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS current_question INTEGER DEFAULT 0",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS total_questions INTEGER",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS answered_questions INTEGER DEFAULT 0",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS score NUMERIC(5, 2)",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS max_score NUMERIC(5, 2)",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS passed BOOLEAN",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS expiration_date TIMESTAMPTZ",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS time_spent_seconds INTEGER",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS session_metadata JSONB DEFAULT '{}'::jsonb",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "ALTER TABLE quiz_sessions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "CREATE TABLE IF NOT EXISTS quiz_responses (id UUID PRIMARY KEY)",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS patient_id UUID",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS quiz_template_id UUID",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS quiz_session_id UUID",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS question_id VARCHAR(100) NOT NULL DEFAULT 'q1'",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS question_text TEXT NOT NULL DEFAULT 'Test question'",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS response_type VARCHAR(50) NOT NULL DEFAULT 'scale'",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS response_value JSONB",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS response_value_text_backup TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS response_metadata JSONB DEFAULT '{}'::jsonb",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS other_text TEXT",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS responded_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "ALTER TABLE quiz_responses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+    ]
+    for statement in statements:
+        db.execute(text(statement))
 
 @pytest.fixture
 def sample_quiz_response_data() -> Dict[str, Any]:

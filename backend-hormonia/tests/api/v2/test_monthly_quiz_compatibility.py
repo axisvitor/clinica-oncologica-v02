@@ -1,3 +1,4 @@
+import logging
 import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -10,7 +11,10 @@ from app.middleware.csrf import get_csrf_token
 from app.domain.quizzes.session import TokenManager
 from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
 from app.utils.timezone import now_sao_paulo
-from tests.api.v2.security_boundary_helpers import create_message_ownership_boundary
+from tests.api.v2.security_boundary_helpers import (
+    assert_response_excludes_values,
+    create_message_ownership_boundary,
+)
 
 sqlite3.register_adapter(uuid.UUID, lambda value: str(value))
 
@@ -178,6 +182,26 @@ def _quiz_cookie_header(*, session_id=None, state=None):
     return {"cookie": "; ".join(cookies), "X-CSRF-Token": csrf_token}
 
 
+def _safe_log_blob(caplog) -> str:
+    parts: list[str] = []
+    for record in caplog.records:
+        parts.append(record.getMessage())
+        for attr in ("reason", "session_id", "patient_id", "quiz_template_id"):
+            value = getattr(record, attr, None)
+            if value is not None:
+                parts.append(str(value))
+    return "\n".join(parts)
+
+
+def _assert_logs_exclude_values(caplog, forbidden_values) -> str:
+    blob = _safe_log_blob(caplog)
+    for value in forbidden_values:
+        if value is None:
+            continue
+        assert str(value) not in blob
+    return blob
+
+
 def test_access_quiz_compatibility_sets_legacy_and_signed_state_cookies(
     client, db_session, mock_quiz
 ):
@@ -283,10 +307,12 @@ def test_signed_state_submit_writes_and_updates_expected_response(
 
 
 def test_raw_session_cookie_only_fails_recovery_and_submit_without_response_write(
-    client, db_session, mock_quiz
+    client, db_session, mock_quiz, caplog
 ):
     session, _token = _create_started_link_session(db_session, mock_quiz)
     client.cookies.set("quiz_session_id", str(session.id))
+    caplog.set_level(logging.WARNING)
+    caplog.clear()
 
     active_response = client.get("/api/v2/quiz-extensions/session/active")
     submit_response = _submit(
@@ -297,9 +323,18 @@ def test_raw_session_cookie_only_fails_recovery_and_submit_without_response_writ
     assert active_response.status_code == 401
     assert submit_response.status_code == 401
     assert _response_count(db_session, session.id) == 0
+    assert_response_excludes_values(active_response, [session.id, session.patient_id])
+    assert_response_excludes_values(submit_response, [session.id, session.patient_id])
+    log_blob = _assert_logs_exclude_values(
+        caplog,
+        [session.id, session.patient_id, "Question 1", "Question 2"],
+    )
+    assert "missing_session_state" in log_blob
 
 
-def test_forged_state_cookie_fails_without_response_write(client, db_session, mock_quiz):
+def test_forged_state_cookie_fails_without_response_write(
+    client, db_session, mock_quiz, caplog
+):
     session, token = _create_started_link_session(db_session, mock_quiz)
     access_response = _access(client, token)
     assert access_response.status_code == 200, access_response.text
@@ -308,6 +343,8 @@ def test_forged_state_cookie_fails_without_response_write(client, db_session, mo
     client.cookies.clear()
     client.cookies.set("quiz_session_id", str(session.id))
     client.cookies.set("quiz_session_state", tampered_state)
+    caplog.set_level(logging.WARNING)
+    caplog.clear()
 
     active_response = client.get("/api/v2/quiz-extensions/session/active")
     submit_response = _submit(
@@ -318,6 +355,13 @@ def test_forged_state_cookie_fails_without_response_write(client, db_session, mo
     assert active_response.status_code == 401
     assert submit_response.status_code == 401
     assert _response_count(db_session, session.id) == 0
+    assert_response_excludes_values(submit_response, [token, token[:12], tampered_state])
+    log_blob = _assert_logs_exclude_values(
+        caplog,
+        [token, token[:12], tampered_state, session.id, session.patient_id, "Question 1"],
+    )
+    assert "invalid_token" in log_blob
+    assert "session_state_invalid" in log_blob
 
 
 def test_session_state_raw_cookie_mismatch_fails_closed(client, db_session, mock_quiz):

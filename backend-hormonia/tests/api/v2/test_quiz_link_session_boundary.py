@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import timedelta
 from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
 
+from app.api.v2.routers.monthly_quiz_operations import public_security
 from app.middleware.csrf import get_csrf_token
 from app.domain.quizzes.session import TokenManager
 from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
@@ -78,6 +80,26 @@ def ensure_quiz_boundary_tables(db_session):
 
 def _body(response) -> str:
     return json.dumps(response.json(), ensure_ascii=False, default=str)
+
+
+def _safe_log_blob(caplog) -> str:
+    parts: list[str] = []
+    for record in caplog.records:
+        parts.append(record.getMessage())
+        for attr in ("reason", "session_id", "patient_id", "quiz_template_id"):
+            value = getattr(record, attr, None)
+            if value is not None:
+                parts.append(str(value))
+    return "\n".join(parts)
+
+
+def _assert_logs_exclude_values(caplog, forbidden_values) -> str:
+    blob = _safe_log_blob(caplog)
+    for value in forbidden_values:
+        if value is None:
+            continue
+        assert str(value) not in blob
+    return blob
 
 
 def _create_quiz_template(db_session) -> QuizTemplate:
@@ -257,6 +279,41 @@ def _public_submit(client, template_id, token: str, question_id: str = "q1"):
             "response_value": "7",
             "response_metadata": {"source": "boundary-test"},
         },
+    )
+
+
+def test_invalid_public_token_diagnostics_are_reason_only_and_redacted(
+    client, caplog
+):
+    token = "abc.def.ghi"
+    caplog.set_level(logging.WARNING)
+    caplog.clear()
+
+    response = _public_current(client, token)
+
+    assert response.status_code == 401
+    assert_response_excludes_values(response, [token, token[:12], "abc"])
+    log_blob = _assert_logs_exclude_values(caplog, [token, token[:12], "abc"])
+    assert "invalid_token" in log_blob
+    assert "jwt_invalid" in log_blob
+
+
+def test_public_denial_logging_failure_preserves_authorization_result(
+    client, monkeypatch
+):
+    token = "abc.def.ghi"
+
+    def _raise_from_warning(*args, **kwargs):
+        raise RuntimeError("logging backend exploded")
+
+    monkeypatch.setattr(public_security.logger, "warning", _raise_from_warning)
+
+    response = _public_current(client, token)
+
+    assert response.status_code == 401
+    assert_response_excludes_values(
+        response,
+        [token, token[:12], "logging backend exploded"],
     )
 
 
@@ -477,9 +534,11 @@ def test_public_token_path_quiz_mismatch_fails_without_response_write(
     assert_response_excludes_values(response, [token, token[:12], template.id])
 
 
-def test_token_hash_mismatch_fails_without_response_write(client, db_session):
-    _boundary, template, session, token = _create_public_link_fixture(client, db_session)
+def test_token_hash_mismatch_fails_without_response_write(client, db_session, caplog):
+    boundary, template, session, token = _create_public_link_fixture(client, db_session)
     _set_metadata(db_session, session, token_hash="not-the-current-token-hash")
+    caplog.set_level(logging.WARNING)
+    caplog.clear()
 
     current_response = _public_current(client, token)
     submit_response = _public_submit(client, template.id, token)
@@ -488,6 +547,14 @@ def test_token_hash_mismatch_fails_without_response_write(client, db_session):
     assert submit_response.status_code == 403
     assert _response_count(db_session, session.id) == 0
     assert_response_excludes_values(submit_response, [token, token[:12]])
+    log_blob = _assert_logs_exclude_values(
+        caplog,
+        [token, token[:12], boundary.patient_a.name, "Boundary question", "source"],
+    )
+    assert "token_hash_mismatch" in log_blob
+    assert str(session.id) in log_blob
+    assert str(session.patient_id) in log_blob
+    assert str(template.id) in log_blob
 
 
 @pytest.mark.parametrize("link_status", ["used", "cancelled", "expired"])

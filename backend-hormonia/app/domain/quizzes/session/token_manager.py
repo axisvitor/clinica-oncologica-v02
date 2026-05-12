@@ -82,10 +82,14 @@ class TokenManager:
             )
             return payload
         except jwt.ExpiredSignatureError:
-            logger.warning("Token expired", extra={"reason": "expired"})
+            logger.warning(
+                "Quiz token verification failed", extra={"reason": "expired_token"}
+            )
             raise
-        except jwt.InvalidTokenError as e:
-            logger.warning("Invalid token", extra={"reason": type(e).__name__})
+        except jwt.InvalidTokenError:
+            logger.warning(
+                "Quiz token verification failed", extra={"reason": "invalid_token"}
+            )
             raise
 
     def hash_token(self, token: str) -> str:
