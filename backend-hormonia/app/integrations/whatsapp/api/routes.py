@@ -19,12 +19,14 @@ from ..services.message_service import WhatsAppMessageService, MessageQueue
 from app.integrations.wuzapi import get_wuzapi_client
 from app.database import get_async_db
 from app.config import settings
+from app.dependencies.auth_dependencies import get_current_active_admin
 from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
 # This router is mounted under /api/v2 in the main v2 router.
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
+management_router = APIRouter(dependencies=[Depends(get_current_active_admin)])
 
 
 def _serialize_message_entry(msg, *, include_error_message: bool) -> dict:
@@ -106,7 +108,7 @@ async def get_message_service(
 
 
 # Message Management Endpoints
-@router.post("/messages", response_model=MessageResponse)
+@management_router.post("/messages", response_model=MessageResponse)
 async def send_message(
     request: MessageRequest,
     message_service: WhatsAppMessageService = Depends(get_message_service),
@@ -122,7 +124,7 @@ async def send_message(
         raise HTTPException(status_code=500, detail="Failed to send message")
 
 
-@router.get("/messages")
+@management_router.get("/messages")
 async def list_messages(
     instance: str,
     limit: int = Query(20, ge=1, le=100),
@@ -144,7 +146,7 @@ async def list_messages(
         logger.error(f"Error listing messages: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to list messages")
 
-@router.get("/messages/stats")
+@management_router.get("/messages/stats")
 async def get_message_stats_alias(
     instance: str,
     message_service: WhatsAppMessageService = Depends(get_message_service),
@@ -153,7 +155,7 @@ async def get_message_stats_alias(
     return await get_message_statistics(instance, message_service=message_service)
 
 
-@router.get("/messages/{instance_name}/statistics")
+@management_router.get("/messages/{instance_name}/statistics")
 async def get_message_statistics(
     instance_name: str,
     start_date: Optional[datetime] = None,
@@ -176,8 +178,8 @@ async def get_message_statistics(
         raise HTTPException(status_code=500, detail="Failed to get message statistics")
 
 
-@router.get("/messages/{instance_name}/history/{chat_id}")
-@router.get("/messages/{instance_name}/{chat_id}", include_in_schema=False)
+@management_router.get("/messages/{instance_name}/history/{chat_id}")
+@management_router.get("/messages/{instance_name}/{chat_id}", include_in_schema=False)
 async def get_message_history(
     instance_name: str,
     chat_id: str,
@@ -202,7 +204,7 @@ async def get_message_history(
 
 
 # Contact Management Endpoints
-@router.post("/contacts/{instance_name}/sync")
+@management_router.post("/contacts/{instance_name}/sync")
 async def sync_contacts(instance_name: str):
     """Contacts sync is not supported by WuzAPI.
 
@@ -219,7 +221,7 @@ async def sync_contacts(instance_name: str):
     )
 
 
-@router.get("/contacts/{instance_name}")
+@management_router.get("/contacts/{instance_name}")
 async def get_contacts(
     instance_name: str,
     limit: int = Query(100, ge=1, le=500),
@@ -270,7 +272,7 @@ async def get_contacts(
 
 
 # Queue Management Endpoints
-@router.get("/queue/stats")
+@management_router.get("/queue/stats")
 async def get_queue_stats():
     """Get message queue statistics."""
     message_queue = MessageQueue(redis_url=settings.REDIS_URL)
@@ -287,7 +289,7 @@ async def get_queue_stats():
             logger.warning("Failed to disconnect queue client: %s", disconnect_error)
 
 
-@router.post("/queue/process")
+@management_router.post("/queue/process")
 async def process_queue_batch(
     max_messages: int = Query(100, ge=1, le=1000),
     message_service: WhatsAppMessageService = Depends(get_message_service),
@@ -317,7 +319,7 @@ async def health_check():
     }
 
 
-@router.get("/instances")
+@management_router.get("/instances")
 async def list_instances(db: AsyncSession = Depends(get_async_db)):
     """List all WhatsApp instances."""
     try:
@@ -345,3 +347,6 @@ async def list_instances(db: AsyncSession = Depends(get_async_db)):
     except Exception as e:
         logger.error(f"Error listing instances: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to list instances")
+
+
+router.include_router(management_router)

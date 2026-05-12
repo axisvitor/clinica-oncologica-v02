@@ -1,0 +1,52 @@
+...F                                                                     [100%]
+=================================== FAILURES ===================================
+_______________ test_admin_session_reaches_mocked_send_operation _______________
+
+client = <tests.utils.async_test_client.AsyncTestClient object at 0x74cb1372c8f0>
+
+    def test_admin_session_reaches_mocked_send_operation(client):
+        sent_requests = []
+    
+        async def _admin_session(request: Request):
+            request.state.user_id = "admin-session-user"
+            request.state.user_role = "admin"
+            return {
+                "id": "admin-session-user",
+                "email": "admin@example.test",
+                "role": "admin",
+                "is_active": True,
+                "permissions": ["admin.read", "admin.write"],
+            }
+    
+        class _FakeMessageService:
+            async def send_message(self, request):
+                sent_requests.append(request)
+                return {
+                    "id": "msg-admin-1",
+                    "external_id": "wuzapi-admin-1",
+                    "status": "sent",
+                    "message": "sent by fake service",
+                    "timestamp": datetime.now(timezone.utc),
+                    "message_data": {"test": "admin-auth"},
+                }
+    
+        async def _fake_message_service():
+            return _FakeMessageService()
+    
+        app.dependency_overrides[get_current_user_from_session] = _admin_session
+        app.dependency_overrides[whatsapp_routes.get_message_service] = _fake_message_service
+    
+        response = client.post("/api/v2/whatsapp/messages", json=VALID_SEND_BODY)
+    
+>       assert response.status_code == 200, response.text
+E       AssertionError: {"error":"csrf_token_missing","message":"CSRF token required in X-CSRF-Token header"}
+E       assert 403 == 200
+E        +  where 403 = <Response [403 Forbidden]>.status_code
+
+backend-hormonia/tests/integration/whatsapp/test_whatsapp_management_auth.py:136: AssertionError
+----------------------------- Captured stderr call -----------------------------
+2026-05-12 14:20:10 - app.middleware.csrf - WARNING - CSRF token missing in header: POST /api/v2/whatsapp/messages from 127.0.0.1 (python-httpx/0.28.1)
+------------------------------ Captured log call -------------------------------
+WARNING  app.middleware.csrf:csrf.py:292 CSRF token missing in header: POST /api/v2/whatsapp/messages from 127.0.0.1 (python-httpx/0.28.1)
+=========================== short test summary info ============================
+FAILED backend-hormonia/tests/integration/whatsapp/test_whatsapp_management_auth.py::test_admin_session_reaches_mocked_send_operation

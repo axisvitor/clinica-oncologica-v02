@@ -1,0 +1,18 @@
+{
+  "id": "a2d7882c-327d-4823-b4f7-fd3d12c55eb6",
+  "runtime": "bash",
+  "purpose": "Find cd commands in M013 research files",
+  "script_chars": 179,
+  "started_at": "2026-05-12T16:58:27.363Z",
+  "finished_at": "2026-05-12T16:58:27.394Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 31,
+  "stdout_bytes": 1475,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/a2d7882c-327d-4823-b4f7-fd3d12c55eb6.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/a2d7882c-327d-4823-b4f7-fd3d12c55eb6.stderr"
+}

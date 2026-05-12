@@ -1,0 +1,483 @@
+S02 likely files
+backend-hormonia/app/agents/communication/message_composer/agent.py
+backend-hormonia/app/agents/communication/message_composer/composer.py
+backend-hormonia/app/agents/communication/message_composer/context_builder.py
+backend-hormonia/app/agents/communication/message_composer/__init__.py
+backend-hormonia/app/agents/communication/message_composer/__pycache__/agent.cpython-312.pyc
+backend-hormonia/app/agents/communication/message_composer/__pycache__/composer.cpython-312.pyc
+backend-hormonia/app/agents/communication/message_composer/__pycache__/context_builder.cpython-312.pyc
+backend-hormonia/app/agents/communication/message_composer/__pycache__/__init__.cpython-312.pyc
+backend-hormonia/app/agents/communication/message_composer/__pycache__/templates.cpython-312.pyc
+backend-hormonia/app/agents/communication/message_composer/__pycache__/tone_adapter.cpython-312.pyc
+backend-hormonia/app/agents/communication/message_composer/templates.py
+backend-hormonia/app/agents/communication/message_composer/tone_adapter.py
+backend-hormonia/app/agents/patient/flow_coordinator/constants.py
+backend-hormonia/app/agents/patient/flow_coordinator/coordinator.py
+backend-hormonia/app/agents/patient/flow_coordinator/decision_engine.py
+backend-hormonia/app/agents/patient/flow_coordinator/__init__.py
+backend-hormonia/app/agents/patient/flow_coordinator/message_generator.py
+backend-hormonia/app/agents/patient/flow_coordinator/models.py
+backend-hormonia/app/agents/patient/flow_coordinator/__pycache__/consensus_manager.cpython-312.pyc
+backend-hormonia/app/agents/patient/flow_coordinator/__pycache__/constants.cpython-312.pyc
+backend-hormonia/app/agents/patient/flow_coordinator/__pycache__/coordinator.cpython-312.pyc
+backend-hormonia/app/agents/patient/flow_coordinator/__pycache__/decision_engine.cpython-312.pyc
+backend-hormonia/app/agents/patient/flow_coordinator/__pycache__/__init__.cpython-312.pyc
+backend-hormonia/app/agents/patient/flow_coordinator/__pycache__/message_generator.cpython-312.pyc
+backend-hormonia/app/agents/patient/flow_coordinator/__pycache__/models.cpython-312.pyc
+backend-hormonia/app/agents/patient/flow_coordinator/__pycache__/state_manager.cpython-312.pyc
+backend-hormonia/app/agents/patient/flow_coordinator/__pycache__/transition_handler.cpython-312.pyc
+backend-hormonia/app/agents/patient/flow_coordinator/state_manager.py
+backend-hormonia/app/agents/patient/flow_coordinator/transition_handler.py
+backend-hormonia/app/agents/patient/__init__.py
+backend-hormonia/app/agents/patient/patient_monitor.py
+backend-hormonia/app/agents/patient/__pycache__/__init__.cpython-312.pyc
+backend-hormonia/app/agents/patient/__pycache__/patient_monitor.cpython-312.pyc
+backend-hormonia/app/api/v2/flows/advanced.py
+backend-hormonia/app/api/v2/flows/analytics.py
+backend-hormonia/app/api/v2/flows/cache.py
+backend-hormonia/app/api/v2/flows/cursor.py
+backend-hormonia/app/api/v2/flows/__init__.py
+backend-hormonia/app/api/v2/flows/state.py
+backend-hormonia/app/api/v2/flows/templates.py
+backend-hormonia/app/api/v2/messages/analytics.py
+backend-hormonia/app/api/v2/messages/bulk.py
+backend-hormonia/app/api/v2/messages/conversations.py
+backend-hormonia/app/api/v2/messages/crud.py
+backend-hormonia/app/api/v2/messages/helpers.py
+backend-hormonia/app/api/v2/messages/__init__.py
+backend-hormonia/app/api/v2/messages/__pycache__/analytics.cpython-312.pyc
+backend-hormonia/app/api/v2/messages/__pycache__/bulk.cpython-312.pyc
+backend-hormonia/app/api/v2/messages/__pycache__/conversations.cpython-312.pyc
+backend-hormonia/app/api/v2/messages/__pycache__/crud.cpython-312.pyc
+backend-hormonia/app/api/v2/messages/__pycache__/helpers.cpython-312.pyc
+backend-hormonia/app/api/v2/messages/__pycache__/__init__.cpython-312.pyc
+backend-hormonia/app/api/v2/messages/__pycache__/retry.cpython-312.pyc
+backend-hormonia/app/api/v2/messages/__pycache__/send.cpython-312.pyc
+backend-hormonia/app/api/v2/messages/__pycache__/stats.cpython-312.pyc
+backend-hormonia/app/api/v2/messages/__pycache__/templates.cpython-312.pyc
+backend-hormonia/app/api/v2/messages/retry.py
+backend-hormonia/app/api/v2/messages/send.py
+backend-hormonia/app/api/v2/messages/stats.py
+backend-hormonia/app/api/v2/messages/templates.py
+backend-hormonia/app/api/v2/patients_shared_helpers.py
+backend-hormonia/app/api/v2/patients_utils.py
+backend-hormonia/app/api/v2/__pycache__/patients_shared_helpers.cpython-312.pyc
+backend-hormonia/app/api/v2/__pycache__/patients_utils.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/admin_extensions/flow_health.py
+backend-hormonia/app/api/v2/routers/admin_extensions/flow_ops.py
+backend-hormonia/app/api/v2/routers/admin_extensions/__pycache__/flow_health.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/admin_extensions/__pycache__/flow_ops.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/analytics/patient_analytics.py
+backend-hormonia/app/api/v2/routers/analytics/__pycache__/patient_analytics.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/enhanced_messages/analytics.py
+backend-hormonia/app/api/v2/routers/enhanced_messages/bulk.py
+backend-hormonia/app/api/v2/routers/enhanced_messages/dependencies.py
+backend-hormonia/app/api/v2/routers/enhanced_messages/__init__.py
+backend-hormonia/app/api/v2/routers/enhanced_messages/__pycache__/analytics.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/enhanced_messages/__pycache__/bulk.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/enhanced_messages/__pycache__/dependencies.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/enhanced_messages/__pycache__/__init__.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/enhanced_messages/__pycache__/scheduling.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/enhanced_messages/__pycache__/templates.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/enhanced_messages/scheduling.py
+backend-hormonia/app/api/v2/routers/enhanced_messages/templates.py
+backend-hormonia/app/api/v2/routers/flows.py
+backend-hormonia/app/api/v2/routers/flow_templates.py
+backend-hormonia/app/api/v2/routers/messages.py
+backend-hormonia/app/api/v2/routers/patients/base.py
+backend-hormonia/app/api/v2/routers/patients/crud.py
+backend-hormonia/app/api/v2/routers/patients/flow_overrides.py
+backend-hormonia/app/api/v2/routers/patients/flow.py
+backend-hormonia/app/api/v2/routers/patients/flow_responses.py
+backend-hormonia/app/api/v2/routers/patients/import_export.py
+backend-hormonia/app/api/v2/routers/patients/__init__.py
+backend-hormonia/app/api/v2/routers/patients/integrity.py
+backend-hormonia/app/api/v2/routers/patients/__pycache__/base.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/patients/__pycache__/crud.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/patients/__pycache__/flow.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/patients/__pycache__/flow_responses.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/patients/__pycache__/import_export.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/patients/__pycache__/__init__.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/patients/__pycache__/integrity.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/patients/README.md
+backend-hormonia/app/api/v2/routers/patients/services/__init__.py
+backend-hormonia/app/api/v2/routers/patients/services/__pycache__/__init__.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/physicians/patients.py
+backend-hormonia/app/api/v2/routers/__pycache__/flows.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/__pycache__/flow_templates.cpython-312.pyc
+backend-hormonia/app/api/v2/routers/__pycache__/messages.cpython-312.pyc
+backend-hormonia/app/config/messages.py
+backend-hormonia/app/config/__pycache__/messages.cpython-312.pyc
+backend-hormonia/app/dependencies/flow_services.py
+backend-hormonia/app/dependencies/patient_services.py
+backend-hormonia/app/dependencies/__pycache__/flow_services.cpython-312.pyc
+backend-hormonia/app/dependencies/__pycache__/patient_services.cpython-312.pyc
+backend-hormonia/app/domain/agents/quiz/message_service.py
+backend-hormonia/app/domain/agents/quiz/__pycache__/message_service.cpython-312.pyc
+backend-hormonia/app/domain/errors/flows/audit_logger.py
+backend-hormonia/app/domain/errors/flows/classifier.py
+backend-hormonia/app/domain/errors/flows/error_handler.py
+backend-hormonia/app/domain/errors/flows/__init__.py
+backend-hormonia/app/domain/errors/flows/__pycache__/audit_logger.cpython-312.pyc
+backend-hormonia/app/domain/errors/flows/__pycache__/classifier.cpython-312.pyc
+backend-hormonia/app/domain/errors/flows/__pycache__/error_handler.cpython-312.pyc
+backend-hormonia/app/domain/errors/flows/__pycache__/__init__.cpython-312.pyc
+backend-hormonia/app/domain/errors/flows/__pycache__/recovery_strategy.cpython-312.pyc
+backend-hormonia/app/domain/errors/flows/__pycache__/redis_scan.cpython-312.pyc
+backend-hormonia/app/domain/errors/flows/__pycache__/retry_manager.cpython-312.pyc
+backend-hormonia/app/domain/errors/flows/recovery_strategy.py
+backend-hormonia/app/domain/errors/flows/redis_scan.py
+backend-hormonia/app/domain/errors/flows/REFACTORING_SUMMARY.md
+backend-hormonia/app/domain/errors/flows/retry_manager.py
+backend-hormonia/app/domain/messaging/core/message_base.py
+backend-hormonia/app/domain/messaging/core/message_factory.py
+backend-hormonia/app/domain/messaging/core/message_service/config.py
+backend-hormonia/app/domain/messaging/core/message_service/exceptions.py
+backend-hormonia/app/domain/messaging/core/message_service/factory.py
+backend-hormonia/app/domain/messaging/core/message_service/__init__.py
+backend-hormonia/app/domain/messaging/core/message_service/__pycache__/config.cpython-312.pyc
+backend-hormonia/app/domain/messaging/core/message_service/__pycache__/exceptions.cpython-312.pyc
+backend-hormonia/app/domain/messaging/core/message_service/__pycache__/factory.cpython-312.pyc
+backend-hormonia/app/domain/messaging/core/message_service/__pycache__/__init__.cpython-312.pyc
+backend-hormonia/app/domain/messaging/core/message_service/__pycache__/scheduler.cpython-312.pyc
+backend-hormonia/app/domain/messaging/core/message_service/__pycache__/service.cpython-312.pyc
+backend-hormonia/app/domain/messaging/core/message_service/__pycache__/templates.cpython-312.pyc
+backend-hormonia/app/domain/messaging/core/message_service/scheduler.py
+backend-hormonia/app/domain/messaging/core/message_service/service.py
+backend-hormonia/app/domain/messaging/core/message_service/templates.py
+backend-hormonia/app/domain/messaging/core/__pycache__/message_factory.cpython-312.pyc
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/ARCHITECTURE.md
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/config.py
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/__init__.py
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/metrics.py
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/models.py
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/__pycache__/config.cpython-312.pyc
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/__pycache__/__init__.cpython-312.pyc
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/__pycache__/metrics.cpython-312.pyc
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/__pycache__/models.cpython-312.pyc
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/__pycache__/retry_handler.cpython-312.pyc
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/__pycache__/scheduler.cpython-312.pyc
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/__pycache__/shared.cpython-312.pyc
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/__pycache__/task_scheduler.cpython-312.pyc
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/__pycache__/timezone_handler.cpython-312.pyc
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/REFACTORING_SUMMARY.md
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/retry_handler.py
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/scheduler.py
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/shared.py
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/task_scheduler.py
+backend-hormonia/app/domain/messaging/scheduling/message_scheduler/timezone_handler.py
+backend-hormonia/app/domain/patient/onboarding/cache_helpers.py
+backend-hormonia/app/domain/patient/onboarding/completion_service.py
+backend-hormonia/app/domain/patient/onboarding/coordinator.py
+backend-hormonia/app/domain/patient/onboarding/creation_service.py
+backend-hormonia/app/domain/patient/onboarding/__init__.py
+backend-hormonia/app/domain/patient/onboarding/notification_service.py
+backend-hormonia/app/domain/patient/onboarding/__pycache__/cache_helpers.cpython-312.pyc
+backend-hormonia/app/domain/patient/onboarding/__pycache__/completion_service.cpython-312.pyc
+backend-hormonia/app/domain/patient/onboarding/__pycache__/coordinator.cpython-312.pyc
+backend-hormonia/app/domain/patient/onboarding/__pycache__/creation_service.cpython-312.pyc
+backend-hormonia/app/domain/patient/onboarding/__pycache__/__init__.cpython-312.pyc
+backend-hormonia/app/domain/patient/onboarding/__pycache__/notification_service.cpython-312.pyc
+backend-hormonia/app/domain/patient/onboarding/__pycache__/validation_service.cpython-312.pyc
+
+ownership/auth patterns
+backend-hormonia/tests/test_cleanup_expired_quiz_sessions_task.py:242:        assert 'patient_id' in session_detail
+backend-hormonia/tests/test_cleanup_expired_quiz_sessions_task.py:263:                Alert.patient_id == sample_expired_session.patient_id,
+backend-hormonia/tests/test_cleanup_expired_quiz_sessions_task.py:271:        assert alert.patient_id == sample_expired_session.patient_id
+backend-hormonia/tests/test_cleanup_expired_quiz_sessions_task.py:292:                Alert.patient_id == sample_expired_session.patient_id,
+backend-hormonia/tests/test_cleanup_expired_quiz_sessions_task.py:310:            patient_id=sample_flow_state.patient_id,
+backend-hormonia/tests/test_cleanup_expired_quiz_sessions_task.py:324:            patient_id=uuid4(),
+backend-hormonia/tests/test_cleanup_expired_quiz_sessions_task.py:360:        patient_id=patient.id,
+backend-hormonia/tests/test_cleanup_expired_quiz_sessions_task.py:397:        patient_id=patient.id,
+backend-hormonia/tests/test_cleanup_expired_quiz_sessions_task.py:432:        patient_id=patient.id,
+backend-hormonia/tests/test_cleanup_expired_quiz_sessions_task.py:467:        patient_id=patient.id,
+backend-hormonia/tests/test_cleanup_expired_quiz_sessions_task.py:522:        patient_id=sample_patient.id,
+backend-hormonia/app/models/__init__.py:6:from app.models.user import User, UserRole, AuthProvider
+backend-hormonia/app/models/__init__.py:74:# Structured patient flow responses (M007-S04)
+backend-hormonia/app/models/__init__.py:75:from app.models.patient_flow_response import PatientFlowResponse
+backend-hormonia/app/models/__init__.py:82:    "UserRole",
+backend-hormonia/app/models/__init__.py:165:    # Structured patient flow responses (M007-S04)
+backend-hormonia/app/dependencies/__init__.py:4:    get_current_user,
+backend-hormonia/app/dependencies/__init__.py:5:    get_current_user_from_session,
+backend-hormonia/app/dependencies/__init__.py:6:    get_current_user_object_from_session,
+backend-hormonia/app/dependencies/__init__.py:9:    get_admin_user,
+backend-hormonia/app/dependencies/__init__.py:10:    get_current_active_admin,
+backend-hormonia/app/dependencies/__init__.py:11:    get_permissions_for_role,
+backend-hormonia/app/dependencies/__init__.py:16:    validate_patient_access,
+backend-hormonia/app/dependencies/__init__.py:166:    "get_current_user",
+backend-hormonia/app/dependencies/__init__.py:167:    "get_current_user_from_session",
+backend-hormonia/app/dependencies/__init__.py:168:    "get_current_user_object_from_session",
+backend-hormonia/app/dependencies/__init__.py:171:    "get_admin_user",
+backend-hormonia/app/dependencies/__init__.py:172:    "get_current_active_admin",
+backend-hormonia/app/dependencies/__init__.py:173:    "get_permissions_for_role",
+backend-hormonia/app/dependencies/__init__.py:176:    "validate_patient_access",
+backend-hormonia/app/api/websockets.py:213:            role=user_data.get("role") or session_data.get("role") or "doctor",
+backend-hormonia/app/api/websockets.py:227:                user_role=str(authenticated_user.role),
+backend-hormonia/app/api/websockets.py:361:                user_role=authenticated_user.role.value
+backend-hormonia/app/api/websockets.py:362:                if authenticated_user and hasattr(authenticated_user.role, "value")
+backend-hormonia/app/api/websockets.py:363:                else str(authenticated_user.role)
+backend-hormonia/app/api/websockets.py:529:            user_role=authenticated_user.role.value
+backend-hormonia/app/api/websockets.py:530:            if authenticated_user and hasattr(authenticated_user.role, "value")
+backend-hormonia/app/api/websockets.py:531:            else str(authenticated_user.role)
+backend-hormonia/app/api/websockets.py:562:            connection_id, str(join_request.patient_id)
+backend-hormonia/app/api/websockets.py:567:            patient_id=join_request.patient_id if success else None,
+backend-hormonia/app/api/websockets.py:568:            message=f"Joined patient room {join_request.patient_id}"
+backend-hormonia/app/api/websockets.py:596:        patient_id = payload.get("patient_id")
+backend-hormonia/app/api/websockets.py:597:        if not patient_id:
+backend-hormonia/app/api/websockets.py:598:            raise ValueError("patient_id is required")
+backend-hormonia/app/api/websockets.py:601:            connection_id, str(patient_id)
+backend-hormonia/app/api/websockets.py:606:            "patient_id": patient_id,
+backend-hormonia/app/api/websockets.py:607:            "message": f"Left patient room {patient_id}",
+backend-hormonia/app/api/websockets.py:650:@router.websocket("/patient/{patient_id}")
+backend-hormonia/app/api/websockets.py:653:    patient_id: str,
+backend-hormonia/app/api/websockets.py:663:        patient_id: UUID of the patient to monitor
+backend-hormonia/app/api/websockets.py:680:            "patient_id": None,
+backend-hormonia/app/api/websockets.py:727:            connection_id, patient_id
+backend-hormonia/app/api/websockets.py:749:                "patient_id": patient_id,
+backend-hormonia/app/api/websockets.py:750:                "message": f"Connected to patient {patient_id} monitoring",
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:12:from app.models.user import User, UserRole
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:38:def _ensure_doctor(session: Session, doctor_id: UUID) -> None:
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:39:    existing = session.query(User).filter(User.id == doctor_id).first()
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:45:            id=doctor_id,
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:46:            email=f"doctor-{doctor_id}@example.com",
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:48:            role=UserRole.DOCTOR,
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:65:    doctor_id = uuid4()
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:66:    _ensure_doctor(db_session, doctor_id)
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:81:        doctor_id=doctor_id,
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:92:    doctor_id = uuid4()
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:93:    _ensure_doctor(db_session, doctor_id)
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:117:        doctor_id=doctor_id,
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:132:    doctor_id = uuid4()
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:133:    _ensure_doctor(db_session, doctor_id)
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:152:        doctor_id=doctor_id,
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:171:    doctor_id = uuid4()
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:173:        _ensure_doctor(session, doctor_id)
+backend-hormonia/tests/performance/test_saga_transaction_duration.py:182:                doctor_id=doctor_id,
+backend-hormonia/tests/test_cache_key_security.py:27:        patient_id = str(uuid4())
+backend-hormonia/tests/test_cache_key_security.py:32:            patient_id=patient_id,
+backend-hormonia/tests/test_cache_key_security.py:43:        patient_id = str(uuid4())
+backend-hormonia/tests/test_cache_key_security.py:50:            patient_id=patient_id,
+backend-hormonia/tests/test_cache_key_security.py:58:            patient_id=patient_id,
+backend-hormonia/tests/test_cache_key_security.py:69:        patient_id = str(uuid4())
+backend-hormonia/tests/test_cache_key_security.py:74:            patient_id=patient_id,
+backend-hormonia/tests/test_cache_key_security.py:82:            patient_id=patient_id,
+backend-hormonia/tests/test_cache_key_security.py:93:        patient_id = str(uuid4())
+backend-hormonia/tests/test_cache_key_security.py:98:            patient_id=patient_id,
+backend-hormonia/tests/test_cache_key_security.py:106:            patient_id=patient_id,
+backend-hormonia/tests/test_cache_key_security.py:120:        patient_id = str(uuid4())
+backend-hormonia/tests/test_cache_key_security.py:125:            patient_id=patient_id,
+backend-hormonia/tests/test_cache_key_security.py:145:                patient_id=str(uuid4()),
+backend-hormonia/tests/test_cache_key_security.py:158:            "patient_id": str(uuid4()),
+backend-hormonia/tests/test_cache_key_security.py:176:            patient_id="patient456",
+backend-hormonia/tests/test_cache_key_security.py:191:            patient_id=None,  # Can be None for general messages
+backend-hormonia/tests/test_cache_key_security.py:200:        patient_id = str(uuid4())
+backend-hormonia/tests/test_cache_key_security.py:206:            patient_id=patient_id,
+backend-hormonia/tests/test_cache_key_security.py:216:            patient_id=patient_id,
+backend-hormonia/tests/test_cache_key_security.py:226:    def test_no_patient_id_leakage_in_cache_key(self):
+backend-hormonia/tests/test_cache_key_security.py:228:        patient_id = "SECRET_PATIENT_123"
+backend-hormonia/tests/test_cache_key_security.py:234:            patient_id=patient_id,
+backend-hormonia/tests/test_cache_key_security.py:238:        assert patient_id not in cache_key, "Patient ID should be hashed, not exposed"
+backend-hormonia/tests/test_cache_key_security.py:243:        patient_id = str(uuid4())
+backend-hormonia/tests/test_cache_key_security.py:248:            patient_id=patient_id,
+backend-hormonia/tests/test_cache_key_security.py:257:        patient_id = str(uuid4())
+backend-hormonia/tests/test_cache_key_security.py:262:            patient_id=patient_id,
+backend-hormonia/tests/auth/test_user_conversion.py:13:from app.models.user import User, UserRole
+backend-hormonia/tests/auth/test_user_conversion.py:29:            role=UserRole.DOCTOR,
+backend-hormonia/tests/auth/test_user_conversion.py:44:        assert result["role"] == "doctor"
+backend-hormonia/tests/auth/test_user_conversion.py:58:            role=UserRole.DOCTOR,
+backend-hormonia/tests/auth/test_user_conversion.py:73:    def test_converts_admin_role_enum_to_string(self):
+backend-hormonia/tests/auth/test_user_conversion.py:74:        """Test that admin role enum is converted to string value."""
+backend-hormonia/tests/auth/test_user_conversion.py:78:            firebase_uid="admin_uid",
+backend-hormonia/tests/auth/test_user_conversion.py:79:            email="admin@example.com",
+backend-hormonia/tests/auth/test_user_conversion.py:81:            role=UserRole.ADMIN,
+backend-hormonia/tests/auth/test_user_conversion.py:89:        assert result["role"] == "admin"
+backend-hormonia/tests/auth/test_user_conversion.py:90:        assert isinstance(result["role"], str)
+backend-hormonia/tests/auth/test_user_conversion.py:92:    def test_converts_doctor_role_enum_to_string(self):
+backend-hormonia/tests/auth/test_user_conversion.py:93:        """Test that doctor role enum is converted to string value."""
+backend-hormonia/tests/auth/test_user_conversion.py:100:            role=UserRole.DOCTOR,
+backend-hormonia/tests/auth/test_user_conversion.py:108:        assert result["role"] == "doctor"
+backend-hormonia/tests/auth/test_user_conversion.py:109:        assert isinstance(result["role"], str)
+backend-hormonia/tests/auth/test_user_conversion.py:119:            role=UserRole.DOCTOR,
+backend-hormonia/tests/auth/test_user_conversion.py:138:            role=UserRole.DOCTOR,
+backend-hormonia/tests/auth/test_user_conversion.py:158:            role=UserRole.DOCTOR,
+backend-hormonia/tests/auth/test_user_conversion.py:171:    def test_handles_role_without_value_attribute(self):
+backend-hormonia/tests/auth/test_user_conversion.py:172:        """Test fallback when role doesn't have .value attribute."""
+backend-hormonia/tests/auth/test_user_conversion.py:179:            role=UserRole.DOCTOR,
+backend-hormonia/tests/auth/test_user_conversion.py:182:        # Simulate role without .value by mocking
+backend-hormonia/tests/auth/test_user_conversion.py:183:        user.role = "doctor"  # String instead of enum
+backend-hormonia/tests/auth/test_user_conversion.py:189:        assert result["role"] == "doctor"
+backend-hormonia/tests/validation/test_vulnerability_scenarios.py:64:            "../../admin",
+backend-hormonia/tests/validation/test_vulnerability_scenarios.py:170:            "admin'--",
+backend-hormonia/tests/validation/test_vulnerability_scenarios.py:275:            "session_id=valid-id; admin=true",
+backend-hormonia/tests/validation/test_vulnerability_scenarios.py:276:            "session_id=valid-id\r\nSet-Cookie: admin=true",
+backend-hormonia/tests/validation/test_vulnerability_scenarios.py:277:            "session_id=valid-id%0d%0aSet-Cookie: admin=true",
+backend-hormonia/tests/test_ai_simulation_guards.py:37:        user.role = "physician"
+backend-hormonia/tests/test_ai_simulation_guards.py:61:            patient_id=uuid4(),
+backend-hormonia/tests/test_ai_simulation_guards.py:85:            patient_id=uuid4(),
+backend-hormonia/tests/test_ai_simulation_guards.py:138:            patient_id=uuid4(),
+backend-hormonia/tests/test_ai_simulation_guards.py:147:                "app.api.v2.routers.ai.analysis.validate_patient_access"
+backend-hormonia/tests/test_ai_simulation_guards.py:210:    async def test_simulation_allowed_with_override(
+backend-hormonia/tests/test_ai_simulation_guards.py:213:        """Test simulation can be allowed in production with explicit override."""
+backend-hormonia/tests/test_ai_simulation_guards.py:220:            mock_settings.ALLOW_AI_SIMULATION = True  # Explicit override
+backend-hormonia/tests/test_ai_simulation_guards.py:228:                # Should work with override, but log warning
+backend-hormonia/tests/performance/test_performance_benchmarks.py:48:                doctor_id=test_user_obj.id,
+backend-hormonia/tests/performance/test_performance_benchmarks.py:417:            "doctor_id": str(uuid4()),
+backend-hormonia/tests/validation/test_security_comprehensive.py:170:            "admin'--",
+backend-hormonia/app/models/webhook.py:170:    Records administrative actions and major state changes.
+backend-hormonia/tests/migrations/test_canonical_schema_head_convergence.py:19:TARGET_ENUMS = ("audit_event_type", "user_role")
+backend-hormonia/tests/migrations/test_canonical_schema_head_convergence.py:27:    "role",
+backend-hormonia/tests/security/test_sql_injection_fixes.py:73:            patient_id=test_patient.id,
+backend-hormonia/tests/security/test_sql_injection_fixes.py:100:            patient_id=test_patient.id,
+backend-hormonia/tests/security/test_sql_injection_fixes.py:110:            # Test with patient_id filter (common attack vector)
+backend-hormonia/tests/security/test_sql_injection_fixes.py:113:                params={"patient_id": malicious_input, "limit": 10}
+backend-hormonia/tests/security/test_sql_injection_fixes.py:158:            params={"patient_id": non_existent_uuid}
+backend-hormonia/tests/security/test_sql_injection_fixes.py:187:                patient_id=test_patient.id,
+backend-hormonia/tests/security/test_sql_injection_fixes.py:359:                params={"patient_id": malicious_input}
+backend-hormonia/tests/auth/test_session_role_enforcement.py:4:Validates that session-based authentication respects stored user roles.
+backend-hormonia/tests/auth/test_session_role_enforcement.py:14:    get_admin_user,
+backend-hormonia/tests/auth/test_session_role_enforcement.py:15:    get_current_user_from_session,
+backend-hormonia/tests/auth/test_session_role_enforcement.py:16:    get_permissions_for_role,
+backend-hormonia/tests/auth/test_session_role_enforcement.py:18:from app.models.user import User, UserRole
+backend-hormonia/tests/auth/test_session_role_enforcement.py:25:def _make_user_data(firebase_uid: str, role: str) -> dict:
+backend-hormonia/tests/auth/test_session_role_enforcement.py:29:        "email": f"{role}@example.com",
+backend-hormonia/tests/auth/test_session_role_enforcement.py:30:        "full_name": f"{role.title()} User",
+backend-hormonia/tests/auth/test_session_role_enforcement.py:31:        "role": role,
+backend-hormonia/tests/auth/test_session_role_enforcement.py:37:async def test_session_admin_permissions():
+backend-hormonia/tests/auth/test_session_role_enforcement.py:43:    redis_cache.get_user_by_uid.return_value = _make_user_data(firebase_uid, "admin")
+backend-hormonia/tests/auth/test_session_role_enforcement.py:45:    user_data = await get_current_user_from_session(
+backend-hormonia/tests/auth/test_session_role_enforcement.py:49:        x_session_id="session_admin",
+backend-hormonia/tests/auth/test_session_role_enforcement.py:53:    assert user_data["role"] == "admin"
+backend-hormonia/tests/auth/test_session_role_enforcement.py:54:    assert "admin.read" in user_data["permissions"]
+backend-hormonia/tests/auth/test_session_role_enforcement.py:55:    assert user_data["permissions"] == get_permissions_for_role("admin")
+backend-hormonia/tests/auth/test_session_role_enforcement.py:67:    user_data = await get_current_user_from_session(
+backend-hormonia/tests/auth/test_session_role_enforcement.py:75:    assert user_data["role"] == "doctor"
+backend-hormonia/tests/auth/test_session_role_enforcement.py:76:    assert "admin.read" not in user_data["permissions"]
+backend-hormonia/tests/auth/test_session_role_enforcement.py:77:    assert user_data["permissions"] == get_permissions_for_role("doctor")
+backend-hormonia/tests/auth/test_session_role_enforcement.py:81:async def test_session_doctor_cannot_access_admin_endpoint():
+backend-hormonia/tests/auth/test_session_role_enforcement.py:87:        role=UserRole.DOCTOR,
+backend-hormonia/tests/auth/test_session_role_enforcement.py:92:        await get_admin_user(current_user=doctor_user)
+backend-hormonia/tests/performance/test_n1_queries.py:269:        medications = repo.get_active(patient_id=test_patient.id, limit=100, eager_load=True)
+backend-hormonia/tests/performance/test_n1_queries.py:382:        role="doctor"
+backend-hormonia/tests/performance/test_n1_queries.py:398:        doctor_id=test_doctor.id
+backend-hormonia/tests/migrations/test_alembic_operability.py:27:    "016_validate_patient_metadata",
+backend-hormonia/tests/migrations/test_alembic_operability.py:251:            "016_validate_patient_metadata",
+backend-hormonia/tests/auth/test_role_resolution.py:5:from app.dependencies.auth_dependencies import _resolve_user_role
+backend-hormonia/tests/auth/test_role_resolution.py:6:from app.models.user import UserRole
+backend-hormonia/tests/auth/test_role_resolution.py:9:def test_resolve_role_from_firebase_claims_admin():
+backend-hormonia/tests/auth/test_role_resolution.py:10:    role = _resolve_user_role(
+backend-hormonia/tests/auth/test_role_resolution.py:11:        firebase_custom_claims={"role": "admin"},
+backend-hormonia/tests/auth/test_role_resolution.py:12:        db_role=UserRole.DOCTOR,
+backend-hormonia/tests/auth/test_role_resolution.py:14:    assert role == UserRole.ADMIN
+backend-hormonia/tests/auth/test_role_resolution.py:17:def test_resolve_role_from_firebase_claims_doctor():
+backend-hormonia/tests/auth/test_role_resolution.py:18:    role = _resolve_user_role(
+backend-hormonia/tests/auth/test_role_resolution.py:19:        firebase_custom_claims={"role": "doctor"},
+backend-hormonia/tests/auth/test_role_resolution.py:20:        db_role=UserRole.ADMIN,
+backend-hormonia/tests/auth/test_role_resolution.py:22:    assert role == UserRole.DOCTOR
+backend-hormonia/tests/auth/test_role_resolution.py:25:def test_resolve_role_from_firebase_roles_list():
+backend-hormonia/tests/auth/test_role_resolution.py:26:    role = _resolve_user_role(
+backend-hormonia/tests/auth/test_role_resolution.py:27:        firebase_custom_claims={"roles": ["doctor", "admin"]},
+backend-hormonia/tests/auth/test_role_resolution.py:28:        db_role=UserRole.ADMIN,
+backend-hormonia/tests/auth/test_role_resolution.py:30:    assert role == UserRole.DOCTOR
+backend-hormonia/tests/auth/test_role_resolution.py:33:def test_resolve_role_falls_back_to_db_admin():
+backend-hormonia/tests/auth/test_role_resolution.py:34:    role = _resolve_user_role(
+backend-hormonia/tests/auth/test_role_resolution.py:36:        db_role=UserRole.ADMIN,
+backend-hormonia/tests/auth/test_role_resolution.py:38:    assert role == UserRole.ADMIN
+backend-hormonia/tests/auth/test_role_resolution.py:41:def test_resolve_role_falls_back_to_db_doctor():
+backend-hormonia/tests/auth/test_role_resolution.py:42:    role = _resolve_user_role(
+backend-hormonia/tests/auth/test_role_resolution.py:44:        db_role=UserRole.DOCTOR,
+backend-hormonia/tests/auth/test_role_resolution.py:46:    assert role == UserRole.DOCTOR
+backend-hormonia/tests/auth/test_role_resolution.py:49:def test_invalid_firebase_role_falls_back_to_db():
+backend-hormonia/tests/auth/test_role_resolution.py:50:    role = _resolve_user_role(
+backend-hormonia/tests/auth/test_role_resolution.py:51:        firebase_custom_claims={"role": "superuser"},
+backend-hormonia/tests/auth/test_role_resolution.py:52:        db_role=UserRole.ADMIN,
+backend-hormonia/tests/auth/test_role_resolution.py:54:    assert role == UserRole.ADMIN
+backend-hormonia/tests/auth/test_role_resolution.py:57:def test_missing_role_defaults_to_doctor():
+backend-hormonia/tests/auth/test_role_resolution.py:58:    role = _resolve_user_role()
+backend-hormonia/tests/auth/test_role_resolution.py:59:    assert role == UserRole.DOCTOR
+backend-hormonia/tests/integrations/wuzapi/test_wuzapi_webhook.py:29:    async def _override_db():
+backend-hormonia/tests/integrations/wuzapi/test_wuzapi_webhook.py:38:    app.dependency_overrides[get_async_db] = _override_db
+backend-hormonia/tests/integrations/wuzapi/test_wuzapi_webhook.py:398:    """Normal inbound message finds patient and creates inbound message + flow response."""
+backend-hormonia/tests/integrations/wuzapi/test_wuzapi_webhook.py:438:    assert body["patient_id"] == "patient-flow-1"
+backend-hormonia/app/api/v2/_quiz_shared.py:15:from app.models.user import User, UserRole
+backend-hormonia/app/api/v2/_quiz_shared.py:17:from app.dependencies.auth_dependencies import get_current_user_object_from_session
+backend-hormonia/app/api/v2/_quiz_shared.py:29:async def _get_current_user_simple(
+backend-hormonia/app/api/v2/_quiz_shared.py:30:    current_user: User = Depends(get_current_user_object_from_session),
+backend-hormonia/app/api/v2/_quiz_shared.py:33:    if not current_user:
+backend-hormonia/app/api/v2/_quiz_shared.py:38:    return current_user
+backend-hormonia/app/api/v2/_quiz_shared.py:41:async def _check_patient_access(
+backend-hormonia/app/api/v2/_quiz_shared.py:42:    db: AsyncSession, current_user: User, patient_id: UUID
+backend-hormonia/app/api/v2/_quiz_shared.py:45:    result = await db.execute(select(Patient).where(Patient.id == patient_id))
+backend-hormonia/app/api/v2/_quiz_shared.py:53:    if current_user.role == UserRole.ADMIN:
+backend-hormonia/app/api/v2/_quiz_shared.py:56:    # Doctors can access assigned patients
+backend-hormonia/app/api/v2/_quiz_shared.py:57:    if current_user.role == UserRole.DOCTOR and patient.doctor_id == current_user.id:
+backend-hormonia/app/api/v2/_quiz_shared.py:60:    # FIXED: Removed UserRole.PATIENT check - only ADMIN and DOCTOR roles exist
+backend-hormonia/tests/performance/test_follow_up_performance.py:20:        _ = {"patient_id": uuid4(), "content": "Follow-up check-in"}
+backend-hormonia/tests/performance/test_follow_up_performance.py:53:        patient_id=patient.id,
+backend-hormonia/app/models/user.py:2:User model for healthcare providers (doctors, admins).
+backend-hormonia/app/models/user.py:19:class UserRole(enum.Enum):
+backend-hormonia/app/models/user.py:20:    """User role enumeration."""
+backend-hormonia/app/models/user.py:22:    ADMIN = "admin"
+backend-hormonia/app/models/user.py:42:    role = Column(
+backend-hormonia/app/models/user.py:44:            UserRole,
+backend-hormonia/app/models/user.py:45:            name="user_role",
+backend-hormonia/app/models/user.py:50:        default=UserRole.DOCTOR,
+backend-hormonia/app/models/user.py:78:    # Surviving live boundary for local-auth/password-reset/admin flows.
+backend-hormonia/app/models/user.py:212:    # Stores array of permission strings like ["patients:read", "patients:write", "reports:admin"]
+backend-hormonia/app/models/user.py:218:        "MedicalReport", back_populates="generated_by_user"
+backend-hormonia/app/models/user.py:226:        foreign_keys="[Treatment.doctor_id]",
+backend-hormonia/app/models/user.py:385:        return f"<User(email='{self.email}', role='{self.role.value}')>"
+backend-hormonia/tests/fixtures/saga_fixtures.py:38:        "doctor_id": uuid.uuid4(),
+backend-hormonia/tests/fixtures/saga_fixtures.py:108:        patient_id=None,  # Failed before patient creation
+backend-hormonia/tests/fixtures/saga_fixtures.py:109:        doctor_id=test_patient_data["doctor_id"],
+backend-hormonia/tests/fixtures/saga_fixtures.py:146:        doctor_id=test_patient_data["doctor_id"],
+backend-hormonia/tests/fixtures/saga_fixtures.py:202:        patient_id=completed_patient_record.id,
+backend-hormonia/tests/fixtures/saga_fixtures.py:228:        PatientOnboardingSaga in FAILED status with patient_id set
+backend-hormonia/tests/fixtures/saga_fixtures.py:232:        patient_id=completed_patient_record.id,
+backend-hormonia/tests/fixtures/saga_fixtures.py:233:        doctor_id=completed_patient_record.doctor_id,
+backend-hormonia/tests/security/test_security_fixes_p0.py:43:        malicious_patient_id = "1'; DROP TABLE patients; --"
+backend-hormonia/tests/security/test_security_fixes_p0.py:49:            WHERE qr.patient_id = :patient_id
+backend-hormonia/tests/security/test_security_fixes_p0.py:52:                WHERE p.id = qr.patient_id
+backend-hormonia/tests/security/test_security_fixes_p0.py:57:        db_session.execute(safe_query, {"patient_id": malicious_patient_id})
+backend-hormonia/tests/security/test_security_fixes_p0.py:65:        assert "patient_id" in str(call_args[0][1])  # Check positional args, not kwargs
+backend-hormonia/tests/security/test_security_fixes_p0.py:92:        malicious_conv_id = "123'; UPDATE users SET role='admin'; --"
+backend-hormonia/tests/security/test_security_fixes_p0.py:96:            SELECT c.id, c.patient_id, c.started_at, c.ended_at
+backend-hormonia/tests/security/test_security_fixes_p0.py:245:                "https://admin.example.com"
+backend-hormonia/tests/security/test_security_fixes_p0.py:271:            "https://admin.example.com"
+backend-hormonia/tests/security/test_security_fixes_p0.py:283:            "https://admin.example.com"
+backend-hormonia/tests/security/test_rbac_authorization.py:15:from app.api.v2.routers.admin.dependencies import _require_admin
+backend-hormonia/tests/security/test_rbac_authorization.py:17:from app.models.user import UserRole
+backend-hormonia/tests/security/test_rbac_authorization.py:19:    get_current_user_from_session,
+backend-hormonia/tests/security/test_rbac_authorization.py:20:    get_current_user_object_from_session,
+backend-hormonia/tests/security/test_rbac_authorization.py:21:    get_permissions_for_role,
+backend-hormonia/tests/security/test_rbac_authorization.py:27:    role = user.role.value if hasattr(user.role, "value") else str(user.role)
+backend-hormonia/tests/security/test_rbac_authorization.py:32:        "role": role,
+backend-hormonia/tests/security/test_rbac_authorization.py:34:        "permissions": get_permissions_for_role(role),
+backend-hormonia/tests/security/test_rbac_authorization.py:39:def admin_user(db):
+backend-hormonia/tests/security/test_rbac_authorization.py:42:        email="admin_rbac@test.com",
+backend-hormonia/tests/security/test_rbac_authorization.py:44:        role=UserRole.ADMIN,
+backend-hormonia/tests/security/test_rbac_authorization.py:54:        role=UserRole.DOCTOR,
+backend-hormonia/tests/security/test_rbac_authorization.py:59:def admin_headers(client: TestClient, admin_user):
+backend-hormonia/tests/security/test_rbac_authorization.py:60:    session_user = _build_session_user(admin_user)
+backend-hormonia/tests/security/test_rbac_authorization.py:62:    async def _override_session_user(*args, **kwargs):
+backend-hormonia/tests/security/test_rbac_authorization.py:65:    async def _override_user_object(*args, **kwargs):
+backend-hormonia/tests/security/test_rbac_authorization.py:66:        return admin_user
+backend-hormonia/tests/security/test_rbac_authorization.py:68:    app.dependency_overrides[get_current_user_from_session] = _override_session_user
+backend-hormonia/tests/security/test_rbac_authorization.py:69:    app.dependency_overrides[get_current_user_object_from_session] = _override_user_object
+backend-hormonia/tests/security/test_rbac_authorization.py:72:    app.dependency_overrides.pop(get_current_user_from_session, None)
+backend-hormonia/tests/security/test_rbac_authorization.py:73:    app.dependency_overrides.pop(get_current_user_object_from_session, None)
+backend-hormonia/tests/security/test_rbac_authorization.py:80:    async def _override_session_user(*args, **kwargs):
+backend-hormonia/tests/security/test_rbac_authorization.py:83:    async def _override_user_object(*args, **kwargs):
+backend-hormonia/tests/security/test_rbac_authorization.py:86:    app.dependency_overrides[get_current_user_from_session] = _override_session_user
+backend-hormonia/tests/security/test_rbac_authorization.py:87:    app.dependency_overrides[get_current_user_object_from_session] = _override_user_object
+backend-hormonia/tests/security/test_rbac_authorization.py:90:    app.dependency_overrides.pop(get_current_user_from_session, None)
+backend-hormonia/tests/security/test_rbac_authorization.py:91:    app.dependency_overrides.pop(get_current_user_object_from_session, None)
+backend-hormonia/tests/security/test_rbac_authorization.py:97:    def test_admin_endpoints_reject_doctor(self, doctor_user):
+backend-hormonia/tests/security/test_rbac_authorization.py:99:            _require_admin(doctor_user)
+backend-hormonia/tests/security/test_rbac_authorization.py:102:    def test_admin_endpoints_accept_admin(self, admin_user):
+backend-hormonia/tests/security/test_rbac_authorization.py:103:        _require_admin(admin_user)
+backend-hormonia/tests/security/test_rbac_authorization.py:109:    def test_role_escalation_prevention(self, client: TestClient, doctor_headers):
+backend-hormonia/tests/security/test_rbac_authorization.py:111:            "/api/v2/admin/users",
+backend-hormonia/tests/security/test_rbac_authorization.py:115:                "role": "admin",
+backend-hormonia/tests/performance/test_audit_n_plus_one.py:53:                doctor_id=doctor.id
+backend-hormonia/tests/performance/test_audit_n_plus_one.py:68:                filters={"doctor_id": doctor.id},
+backend-hormonia/tests/performance/test_audit_n_plus_one.py:98:            p = Patient(name=f"P {i}", doctor_id=doctor.id)

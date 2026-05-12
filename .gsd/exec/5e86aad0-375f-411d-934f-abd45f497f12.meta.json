@@ -1,0 +1,18 @@
+{
+  "id": "5e86aad0-375f-411d-934f-abd45f497f12",
+  "runtime": "python",
+  "purpose": "locate auth dependency, client fixture, and whatsapp tests",
+  "script_chars": 793,
+  "started_at": "2026-05-12T17:12:10.174Z",
+  "finished_at": "2026-05-12T17:12:11.380Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 1206,
+  "stdout_bytes": 1599,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/5e86aad0-375f-411d-934f-abd45f497f12.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/5e86aad0-375f-411d-934f-abd45f497f12.stderr"
+}

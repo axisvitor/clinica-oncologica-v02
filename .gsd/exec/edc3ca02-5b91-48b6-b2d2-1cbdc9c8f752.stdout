@@ -1,0 +1,9 @@
+## backend-hormonia/tests/conftest.py
+## backend-hormonia/app/integrations/whatsapp/models/message.py
+107: class MessageRequest(BaseModel):
+122: class MessageResponse(BaseModel):
+## backend-hormonia/app/integrations/whatsapp/api/routes.py
+13:     MessageRequest,
+14:     MessageResponse,
+109: @router.post("/messages", response_model=MessageResponse)
+111:     request: MessageRequest,

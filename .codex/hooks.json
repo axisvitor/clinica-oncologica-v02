@@ -1,0 +1,45 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node 'C:\\Meu Projetos\\clinica-oncologica-v02-1\\.codex\\hooks\\gsd-context-monitor.js'"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node 'C:\\Meu Projetos\\clinica-oncologica-v02-1\\.codex\\hooks\\gsd-check-update.js'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"ok\": true}'",
+            "timeout": 1000
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node 'C:\\Meu Projetos\\clinica-oncologica-v02-1\\.codex\\hooks\\synapse-engine.js'"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "51d58915-f47c-44db-aad0-e59b8358eb84",
+  "runtime": "bash",
+  "purpose": "focused whatsapp management auth pytest",
+  "script_chars": 159,
+  "started_at": "2026-05-12T17:19:24.813Z",
+  "finished_at": "2026-05-12T17:19:25.023Z",
+  "exit_code": 127,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 210,
+  "stdout_bytes": 0,
+  "stderr_bytes": 40,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/51d58915-f47c-44db-aad0-e59b8358eb84.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/51d58915-f47c-44db-aad0-e59b8358eb84.stderr"
+}

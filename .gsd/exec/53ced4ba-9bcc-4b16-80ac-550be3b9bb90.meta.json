@@ -1,0 +1,18 @@
+{
+  "id": "53ced4ba-9bcc-4b16-80ac-550be3b9bb90",
+  "runtime": "bash",
+  "purpose": "M013 S04 code scan uploads reports static serving",
+  "script_chars": 421,
+  "started_at": "2026-05-12T16:45:13.552Z",
+  "finished_at": "2026-05-12T16:45:15.258Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 1706,
+  "stdout_bytes": 48516,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/53ced4ba-9bcc-4b16-80ac-550be3b9bb90.stdout",
+  "stderr_path": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/53ced4ba-9bcc-4b16-80ac-550be3b9bb90.stderr"
+}

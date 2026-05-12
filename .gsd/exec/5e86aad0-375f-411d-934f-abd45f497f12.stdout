@@ -1,0 +1,32 @@
+## backend-hormonia/app/dependencies/auth_dependencies.py
+457: async def get_current_user_from_session(
+510:     user_data: Dict = Depends(get_current_user_from_session),
+549:     session_user_data = await get_current_user_from_session(
+600: async def get_current_active_admin(
+601:     current_user: Dict = Depends(get_current_user_from_session),
+## backend-hormonia/tests/conftest.py
+65:     get_current_user_from_session,
+214: def _ensure_patients_whatsapp_opt_out_column(engine):
+1030: @pytest.fixture(scope="session")
+1081:     _ensure_patients_whatsapp_opt_out_column(engine)
+1094: @pytest.fixture(scope="function")
+1108: @pytest.fixture
+1235: @pytest.fixture
+1236: def client(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> AsyncTestClient:
+1438: @pytest.fixture
+1443: @pytest.fixture(autouse=True)
+1545: @pytest.fixture
+1553: @pytest.fixture
+1573: @pytest.fixture
+1578: @pytest.fixture
+1603:     app.dependency_overrides[get_current_user_from_session] = _override_session
+1610: @pytest.fixture
+1652:     app.dependency_overrides[get_current_user_from_session] = _override_session
+1666:     app.dependency_overrides.pop(get_current_user_from_session, None)
+1673: @pytest.fixture
+## existing whatsapp tests
+backend-hormonia/tests/integration/whatsapp/test_circuit_breaker_scenarios.py
+backend-hormonia/tests/integration/whatsapp/test_evolution_integration.py
+backend-hormonia/tests/integration/whatsapp/test_queue_dlq_flow.py
+backend-hormonia/tests/integration/whatsapp/test_webhook_fail_closed_and_queue_batch.py
+backend-hormonia/tests/integration/whatsapp/test_webhook_scenarios.py
