@@ -248,10 +248,10 @@ class TestConversations:
 class TestBulkOperations:
     """Test bulk message operations."""
 
-    def test_bulk_send_messages(self, client: TestClient, auth_headers: dict):
-        """Test sending messages to multiple patients."""
+    def test_bulk_send_messages(self, client: TestClient, auth_headers: dict, test_patient: Patient):
+        """Test sending messages to owned patients."""
         payload = {
-            "patient_ids": [str(uuid4()), str(uuid4())],
+            "patient_ids": [str(test_patient.id)],
             "content": "Bulk message",
             "type": "text"
         }
@@ -262,10 +262,10 @@ class TestBulkOperations:
         )
         assert response.status_code in [200, 201]
 
-    def test_bulk_send_rate_limited(self, client: TestClient, auth_headers: dict):
+    def test_bulk_send_rate_limited(self, client: TestClient, auth_headers: dict, test_patient: Patient):
         """Test rate limiting on bulk operations."""
         payload = {
-            "patient_ids": [str(uuid4())],
+            "patient_ids": [str(test_patient.id)],
             "content": "Test",
             "type": "text"
         }

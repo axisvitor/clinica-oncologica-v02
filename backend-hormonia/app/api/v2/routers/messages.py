@@ -165,6 +165,34 @@ def _message_actor_scope(current_user: Any) -> Dict[str, str]:
     }
 
 
+def _message_actor_cache_prefix(prefix: str, current_user: Any) -> str:
+    """Make actor ownership visible in cache keys so invalidation is user-scoped."""
+    actor_scope = _message_actor_scope(current_user)
+    return f"{prefix}:{actor_scope['actor_role']}:{actor_scope['actor_id']}"
+
+
+def _message_actor_cache_pattern(prefix: str, current_user: Any) -> str:
+    return f"v2:{_message_actor_cache_prefix(prefix, current_user)}:*"
+
+
+async def _invalidate_message_actor_caches(
+    redis_cache: Any,
+    current_user: Any,
+    *,
+    context: str,
+) -> None:
+    """Invalidate only the current actor's message cache keys after owned mutations."""
+    for prefix in ("messages_list", "conversation", "message_single"):
+        try:
+            await redis_cache.delete_pattern(
+                _message_actor_cache_pattern(prefix, current_user)
+            )
+        except Exception as cache_err:
+            logger.debug(
+                f"{context} cache invalidation failed for {prefix} (non-critical): {cache_err}"
+            )
+
+
 def _get_message_actor_role_and_uuid(current_user: Any) -> tuple[UserRole, UUID]:
     """Extract the authenticated message actor, failing closed on malformed contexts."""
     actor_role, actor_id = extract_user_context_sync(current_user)
@@ -202,6 +230,42 @@ def _assert_message_patient_access(message: Message, current_user: Any) -> None:
         patient_doctor_id=getattr(patient, "doctor_id", None),
         patient_id=getattr(message, "patient_id", None),
     )
+
+
+async def _load_patients_with_access(
+    db: AsyncSession,
+    patient_ids: list[str],
+    current_user: Any,
+) -> dict[UUID, Patient]:
+    """Load and authorize a bounded list of patients without per-patient DB queries."""
+    parsed_patient_ids: list[UUID] = []
+    for patient_id in patient_ids:
+        patient_uuid = ensure_uuid_sync(patient_id)
+        if patient_uuid is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid patient_id UUID format",
+            )
+        parsed_patient_ids.append(patient_uuid)
+
+    unique_patient_ids = list(dict.fromkeys(parsed_patient_ids))
+    if not unique_patient_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+
+    result = await db.execute(select(Patient).where(Patient.id.in_(unique_patient_ids)))
+    patients_by_id = {patient.id: patient for patient in result.scalars().all()}
+    if len(patients_by_id) != len(unique_patient_ids):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    for patient_id in unique_patient_ids:
+        patient = patients_by_id[patient_id]
+        assert_admin_or_assigned_doctor(
+            current_user=current_user,
+            patient_doctor_id=getattr(patient, "doctor_id", None),
+            patient_id=getattr(patient, "id", patient_id),
+        )
+
+    return patients_by_id
 
 
 def _map_status_to_v1(status_v2: MessageStatusV2) -> MessageStatus:
@@ -334,7 +398,7 @@ async def list_messages(
 
         actor_scope = _message_actor_scope(current_user)
         cache_key = _generate_cache_key(
-            "messages_list",
+            _message_actor_cache_prefix("messages_list", current_user),
             actor_role=actor_scope["actor_role"],
             actor_id=actor_scope["actor_id"],
             cursor=cursor,
@@ -601,11 +665,17 @@ async def process_inbound_message(
 async def bulk_send_messages(
     request: Request,
     payload: BulkMessageV2Request,
+    db: AsyncSession = Depends(get_async_db),
     current_user: dict = Depends(get_current_user_from_session),
+    redis_cache=Depends(get_redis_cache),
 ):
     _enforce_test_rate_limit(request, current_user, scope="bulk_send", limit=10)
+    await _load_patients_with_access(db, payload.patient_ids, current_user)
 
     total = len(payload.patient_ids)
+    await _invalidate_message_actor_caches(
+        redis_cache, current_user, context="Bulk message"
+    )
     return BulkMessageV2Response(
         success=True,
         batch_id=str(uuid4()),
@@ -739,6 +809,8 @@ async def mark_conversation_read(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid patient_id UUID format")
 
+    await load_patient_with_access(db, pid, current_user)
+
     update_result = await db.execute(
         update(Message)
         .where(
@@ -754,11 +826,9 @@ async def mark_conversation_read(
     await db.commit()
     updated_count = update_result.rowcount or 0
 
-    try:
-        await redis_cache.delete_pattern("v2:conversation:*")
-        await redis_cache.delete_pattern("v2:messages_list:*")
-    except Exception as cache_err:
-        logger.debug(f"Conversation cache invalidation failed (non-critical): {cache_err}")
+    await _invalidate_message_actor_caches(
+        redis_cache, current_user, context="Conversation"
+    )
 
     return {"success": True, "count": updated_count}
 
@@ -809,7 +879,7 @@ async def get_message(
 
     actor_scope = _message_actor_scope(current_user)
     cache_key = _generate_cache_key(
-        "message_single",
+        _message_actor_cache_prefix("message_single", current_user),
         actor_role=actor_scope["actor_role"],
         actor_id=actor_scope["actor_id"],
         id=id,
@@ -852,17 +922,14 @@ async def send_message(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid patient_id UUID format")
 
+    patient = await load_patient_with_access(db, pid, current_user)
+
     # QW-004: Validate message length for WhatsApp
     if message_data.content and len(message_data.content) > MAX_WHATSAPP_MESSAGE_LENGTH:
         raise HTTPException(
             status_code=400,
             detail=f"Message content exceeds maximum length of {MAX_WHATSAPP_MESSAGE_LENGTH} characters",
         )
-
-    patient_result = await db.execute(select(Patient).where(Patient.id == pid))
-    patient = patient_result.scalar_one_or_none()
-    if not patient:
-        raise HTTPException(status_code=404)
 
     scheduled_time = (message_data.scheduled_for or now_sao_paulo()).replace(microsecond=0)
     if scheduled_time.tzinfo is None:
@@ -896,10 +963,9 @@ async def send_message(
         # Use background task with its own async session
         background_tasks.add_task(send_message_background, message.id)
 
-    try:
-        await redis_cache.delete_pattern("v2:messages_list:*")
-    except Exception as cache_err:
-        logger.debug(f"Cache invalidation failed (non-critical): {cache_err}")
+    await _invalidate_message_actor_caches(
+        redis_cache, current_user, context="Message send"
+    )
 
     data = _serialize_message(message, include_patient=True)
     return MessageV2Response(**data)
@@ -919,10 +985,14 @@ async def mark_message_as_read(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid message ID UUID format")
 
-    result = await db.execute(select(Message).where(Message.id == mid))
+    result = await db.execute(
+        select(Message).where(Message.id == mid).options(selectinload(Message.patient))
+    )
     msg = result.scalar_one_or_none()
     if not msg:
         raise HTTPException(status_code=404)
+
+    _assert_message_patient_access(msg, current_user)
 
     if msg.status not in [MessageStatus.DELIVERED, MessageStatus.SENT]:
         raise HTTPException(status_code=400, detail="Cannot mark as read")
@@ -932,10 +1002,9 @@ async def mark_message_as_read(
     await db.commit()
     await db.refresh(msg)
 
-    try:
-        await redis_cache.delete_pattern("v2:messages_list:*")
-    except Exception as cache_err:
-        logger.debug(f"Cache invalidation failed (non-critical): {cache_err}")
+    await _invalidate_message_actor_caches(
+        redis_cache, current_user, context="Message read-state"
+    )
 
     data = _serialize_message(msg)
     return MessageV2Response(**data)
@@ -955,10 +1024,14 @@ async def delete_message(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid message ID UUID format")
 
-    result = await db.execute(select(Message).where(Message.id == mid))
+    result = await db.execute(
+        select(Message).where(Message.id == mid).options(selectinload(Message.patient))
+    )
     msg = result.scalar_one_or_none()
     if not msg:
         raise HTTPException(status_code=404)
+
+    _assert_message_patient_access(msg, current_user)
 
     if msg.status not in [MessageStatus.PENDING, MessageStatus.SCHEDULED]:
         raise HTTPException(status_code=400, detail="Cannot delete sent message")
@@ -966,10 +1039,9 @@ async def delete_message(
     msg.status = MessageStatus.CANCELLED
     await db.commit()
 
-    try:
-        await redis_cache.delete_pattern("v2:messages_list:*")
-    except Exception as cache_err:
-        logger.debug(f"Cache invalidation failed (non-critical): {cache_err}")
+    await _invalidate_message_actor_caches(
+        redis_cache, current_user, context="Message delete"
+    )
     return None
 
 
@@ -1002,7 +1074,7 @@ async def get_patient_conversation(
 
     actor_scope = _message_actor_scope(current_user)
     cache_key = _generate_cache_key(
-        "conversation",
+        _message_actor_cache_prefix("conversation", current_user),
         actor_role=actor_scope["actor_role"],
         actor_id=actor_scope["actor_id"],
         pid=patient_id,
@@ -1070,9 +1142,12 @@ async def send_bulk_messages(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_async_db),
     current_user: dict = Depends(get_current_user_from_session),
+    redis_cache=Depends(get_redis_cache),
 ):
     if not bulk_data.patient_ids or len(bulk_data.patient_ids) > 1000:
         raise HTTPException(status_code=400)
+
+    await _load_patients_with_access(db, bulk_data.patient_ids, current_user)
 
     batch_id = hashlib.sha256(
         f"{now_sao_paulo()}:{len(bulk_data.patient_ids)}".encode()
@@ -1081,9 +1156,15 @@ async def send_bulk_messages(
     # In a real refactor, this loop should be pushed to a Service method "process_bulk"
     # Keeping it minimal here.
 
-    return {
-        "batch_id": batch_id,
-        "scheduled_count": len(bulk_data.patient_ids),  # Mock
-        "failed_count": 0,
-        "failed_patients": [],
-    }
+    await _invalidate_message_actor_caches(
+        redis_cache, current_user, context="Bulk message"
+    )
+    return BulkMessageV2Response(
+        success=True,
+        batch_id=batch_id,
+        total_messages=len(bulk_data.patient_ids),
+        scheduled_count=len(bulk_data.patient_ids),  # Mock
+        failed_count=0,
+        failed_patients=[],
+        estimated_completion=None,
+    )
