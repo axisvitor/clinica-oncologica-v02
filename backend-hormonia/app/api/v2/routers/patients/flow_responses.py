@@ -20,11 +20,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v2.patients_shared_helpers import load_patient_with_access
 from app.core.authorization import require_doctor_or_admin
-from app.core.exceptions import PatientNotFoundError
 from app.database import get_async_db
 from app.dependencies.auth_dependencies import get_current_user_from_session
-from app.models.patient import Patient
 from app.models.patient_flow_response import PatientFlowResponse
 from app.utils.rate_limiter import limiter
 
@@ -84,16 +83,10 @@ async def list_flow_responses(
         List[FlowResponseItem] ordered by responded_at ASC.
 
     Raises:
-        PatientNotFoundError: 404 if patient does not exist.
-        HTTPException: 403 if user lacks doctor_or_admin role.
+        HTTPException: 404 if patient does not exist.
+        HTTPException: 403 if user lacks doctor_or_admin role or patient ownership.
     """
-    # Verify patient exists
-    patient_result = await db.execute(
-        select(Patient).filter(Patient.id == patient_id)
-    )
-    patient = patient_result.scalar_one_or_none()
-    if not patient:
-        raise PatientNotFoundError(str(patient_id))
+    await load_patient_with_access(db, patient_id, current_user)
 
     # Build query
     stmt = (

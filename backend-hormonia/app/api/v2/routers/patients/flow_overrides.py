@@ -15,10 +15,11 @@ Endpoints:
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v2.patients_shared_helpers import load_patient_with_access
 from app.api.v2.routers.flow_templates import _project_steps_to_day_configs
 from app.core.authorization import require_doctor_or_admin
 from app.database import get_async_db
@@ -37,6 +38,7 @@ from app.schemas.v2.patient_overrides import (
     MergedDayListResponse,
     OverrideDayUpdateRequest,
 )
+from app.utils.auth_helpers import get_user_uuid
 from app.utils.rate_limiter import limiter
 
 logger = logging.getLogger(__name__)
@@ -44,6 +46,17 @@ router = APIRouter(tags=["patient-flow-overrides"])
 
 
 # ── Helpers ──────────────────────────────────────────────────────
+
+
+def _resolve_override_actor_id(current_user) -> UUID:
+    """Return the authenticated actor UUID for override audit attribution."""
+    actor_id = get_user_uuid(current_user)
+    if actor_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions to access this patient",
+        )
+    return actor_id
 
 
 async def _get_active_flow_state(
@@ -190,6 +203,7 @@ async def get_flow_overrides(
     Raises:
         HTTPException 404: No active flow state for this patient.
     """
+    await load_patient_with_access(db, patient_id, current_user)
     flow_state = await _get_active_flow_state(patient_id, db)
     return await _build_merged_days(flow_state, db)
 
@@ -223,6 +237,8 @@ async def put_flow_overrides(
         HTTPException 404: No active flow state.
         HTTPException 400: Attempt to override a past/current day.
     """
+    await load_patient_with_access(db, patient_id, current_user)
+    actor_id = _resolve_override_actor_id(current_user)
     flow_state = await _get_active_flow_state(patient_id, db)
 
     step_data = flow_state.step_data or {}
@@ -255,7 +271,7 @@ async def put_flow_overrides(
                 message_type=day.message_type,
                 expects_response=day.expects_response,
                 skip=day.skip,
-                created_by=current_user.id,
+                created_by=actor_id,
             )
         )
 
