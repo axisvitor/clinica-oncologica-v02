@@ -48,15 +48,39 @@ class TestPatientsRBAC:
         admin_auth_headers
     ):
         """Admin can see all patients regardless of doctor_id."""
-        # Create two doctors
-        doctor_a = create_test_user(db_session, email="doctor_a@test.com", role=UserRole.DOCTOR)
-        doctor_b = create_test_user(db_session, email="doctor_b@test.com", role=UserRole.DOCTOR)
+        unique = str(admin_user.id).replace("-", "")
+
+        # Create two doctors with unique emails so this regression remains
+        # independent from any rows created by broader focused suites.
+        doctor_a = create_test_user(
+            db_session,
+            email=f"doctor_a_{unique}@test.com",
+            role=UserRole.DOCTOR,
+        )
+        doctor_b = create_test_user(
+            db_session,
+            email=f"doctor_b_{unique}@test.com",
+            role=UserRole.DOCTOR,
+        )
         
-        # Create patients for each doctor
-        patient_a = create_test_patient(db_session, doctor=doctor_a, name="Patient A")
-        patient_b = create_test_patient(db_session, doctor=doctor_b, name="Patient B")
+        # Create patients for each doctor with a shared unique search prefix.
+        search_prefix = f"Admin RBAC {unique}"
+        patient_a = create_test_patient(
+            db_session,
+            doctor=doctor_a,
+            name=f"{search_prefix} Patient A",
+        )
+        patient_b = create_test_patient(
+            db_session,
+            doctor=doctor_b,
+            name=f"{search_prefix} Patient B",
+        )
         
-        response = client.get("/api/v2/patients", headers=admin_auth_headers)
+        response = client.get(
+            "/api/v2/patients",
+            params={"search": search_prefix, "limit": 10},
+            headers=admin_auth_headers,
+        )
         
         assert response.status_code == 200
         data = response.json()["data"]
