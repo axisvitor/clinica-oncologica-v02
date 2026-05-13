@@ -38,6 +38,14 @@ os.environ.setdefault("ENVIRONMENT", "development")
 os.environ.setdefault("TESTING", "1")
 os.environ.setdefault("ENCRYPTION_KEY", "32byte-secret-key-for-testing-123")
 os.environ.setdefault("ENCRYPTION_SALT", "test-salt-16bytes")
+os.environ.setdefault(
+    "SECURITY_CSRF_SECRET_KEY",
+    "u4vT9qW2eR8yU6iO1pA7sD3fG5hJ9kL2zX4cV6bN8mQ0",
+)
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql://test_user:test_password@db.invalid:5432/hormonia_test",
+)
 
 from sqlalchemy import create_engine, TypeDecorator, Text, Index, ARRAY, text, inspect as sa_inspect
 from sqlalchemy.orm import Session, sessionmaker
@@ -45,11 +53,15 @@ from sqlalchemy.pool import StaticPool
 from sqlalchemy.dialects.postgresql import JSONB, INET, BYTEA, UUID as PGUUID
 from fastapi import Request
 
-# Load environment variables
+# Do not auto-load local .env during pytest. Test proof commands must run from
+# explicit environment variables and in-file defaults so they cannot accidentally
+# read gitignored secrets or production database URLs. Developers may opt in for
+# ad-hoc local debugging with PYTEST_LOAD_LOCAL_DOTENV=1.
 _env_path = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", ".env")
 )
-if os.path.exists(_env_path):
+_load_local_dotenv = os.environ.get("PYTEST_LOAD_LOCAL_DOTENV", "").lower() in {"1", "true", "yes"}
+if _load_local_dotenv and os.path.exists(_env_path):
     load_dotenv(_env_path)
 
 from app.database import Base

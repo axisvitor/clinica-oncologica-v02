@@ -1,8 +1,57 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
-from fastapi import status
-from fastapi.testclient import TestClient
+from fastapi import Request, status
+
+from app.dependencies.auth_dependencies import get_current_user_from_session
+from app.main import app
+from app.middleware.csrf import get_csrf_token
+from tests.utils.async_test_client import AsyncTestClient
+
+
+@pytest.fixture(autouse=True)
+def seed_flow_templates():
+    """ADK route tests do not need DB-backed flow template seeding."""
+    yield
+
+
+@pytest.fixture
+def client():
+    """Use a DB-free ASGI client for ADK route tests with explicit dependency overrides."""
+    test_client = AsyncTestClient(app)
+    yield test_client
+    test_client.close()
+    app.dependency_overrides.pop(get_current_user_from_session, None)
+
+
+@pytest.fixture(name="test_doctor_user")
+def fixture_test_doctor_user() -> dict[str, Any]:
+    return {
+        "id": "adk-api-doctor-user",
+        "email": "doctor@example.com",
+        "full_name": "ADK API Doctor",
+        "role": "doctor",
+        "is_active": True,
+    }
+
+
+@pytest.fixture
+def auth_headers(test_doctor_user: dict[str, Any]) -> dict[str, str]:
+    async def _override_session(request: Request) -> dict[str, Any]:
+        request.state.user_id = test_doctor_user["id"]
+        request.state.user_role = test_doctor_user["role"]
+        return test_doctor_user
+
+    app.dependency_overrides[get_current_user_from_session] = _override_session
+    csrf_token = get_csrf_token()
+    return {
+        "X-Session-ID": f"adk-session-{test_doctor_user['id']}",
+        "Authorization": f"Bearer adk-token-{test_doctor_user['id']}",
+        "X-CSRF-Token": csrf_token,
+        "Cookie": f"csrf_token={csrf_token}",
+    }
 
 
 def _current_user_id(test_user: object) -> str:
@@ -28,7 +77,7 @@ def _deterministic_runtime_result(runtime_status: str) -> dict[str, object]:
 
 
 def test_adk_run_accepts_payload_and_returns_normalized_response(
-    client: TestClient,
+    client: AsyncTestClient,
     monkeypatch: pytest.MonkeyPatch,
     auth_headers: dict[str, str],
     test_doctor_user: object,
@@ -66,7 +115,7 @@ def test_adk_run_accepts_payload_and_returns_normalized_response(
 
 
 def test_adk_run_calls_wrapper_safe_run_once(
-    client: TestClient,
+    client: AsyncTestClient,
     monkeypatch: pytest.MonkeyPatch,
     auth_headers: dict[str, str],
     test_doctor_user: object,
@@ -133,7 +182,7 @@ def test_adk_run_calls_wrapper_safe_run_once(
 
 
 def test_adk_run_preserves_canonical_policy_block_response_envelope(
-    client: TestClient,
+    client: AsyncTestClient,
     monkeypatch: pytest.MonkeyPatch,
     auth_headers: dict[str, str],
     test_doctor_user: object,
@@ -189,7 +238,7 @@ def test_adk_run_preserves_canonical_policy_block_response_envelope(
     ["policy_block", "tool_error", "upstream_error"],
 )
 def test_adk_run_preserves_repeated_deterministic_response_envelopes(
-    client: TestClient,
+    client: AsyncTestClient,
     monkeypatch: pytest.MonkeyPatch,
     auth_headers: dict[str, str],
     test_doctor_user: object,
@@ -253,7 +302,7 @@ def test_adk_run_preserves_repeated_deterministic_response_envelopes(
 
 
 def test_adk_run_rejects_missing_prompt_for_run_actions(
-    client: TestClient,
+    client: AsyncTestClient,
     monkeypatch: pytest.MonkeyPatch,
     auth_headers: dict[str, str],
 ) -> None:
@@ -283,7 +332,7 @@ def test_adk_run_rejects_missing_prompt_for_run_actions(
 
 
 def test_adk_run_rejects_close_without_session_id(
-    client: TestClient,
+    client: AsyncTestClient,
     monkeypatch: pytest.MonkeyPatch,
     auth_headers: dict[str, str],
 ) -> None:
@@ -310,7 +359,7 @@ def test_adk_run_rejects_close_without_session_id(
 
 
 def test_adk_run_rejects_cancel_without_invocation_id(
-    client: TestClient,
+    client: AsyncTestClient,
     monkeypatch: pytest.MonkeyPatch,
     auth_headers: dict[str, str],
 ) -> None:
@@ -340,7 +389,7 @@ def test_adk_run_rejects_cancel_without_invocation_id(
 
 
 def test_adk_run_rejects_cancel_and_create_combination(
-    client: TestClient,
+    client: AsyncTestClient,
     monkeypatch: pytest.MonkeyPatch,
     auth_headers: dict[str, str],
 ) -> None:
@@ -371,7 +420,7 @@ def test_adk_run_rejects_cancel_and_create_combination(
 
 
 def test_adk_run_rejects_mismatched_session_ids(
-    client: TestClient,
+    client: AsyncTestClient,
     monkeypatch: pytest.MonkeyPatch,
     auth_headers: dict[str, str],
 ) -> None:
@@ -487,7 +536,7 @@ def test_adk_run_rejects_mismatched_session_ids(
     ],
 )
 def test_adk_run_normalizes_runtime_lifecycle_statuses(
-    client: TestClient,
+    client: AsyncTestClient,
     monkeypatch: pytest.MonkeyPatch,
     auth_headers: dict[str, str],
     test_doctor_user: object,
