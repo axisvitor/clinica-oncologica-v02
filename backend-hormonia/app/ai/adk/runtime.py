@@ -172,6 +172,36 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
         _record_metrics(cancel_result)
         return cancel_result
 
+    requested_invocation_id = request.invocation.invocation_id or request.invocation_id
+    if requested_invocation_id is not None:
+        existing_invocation = await store.get_invocation(requested_invocation_id)
+        if existing_invocation is not None:
+            ownership_error = _ownership_error_type(
+                existing_invocation,
+                request_user_id=request.user_id,
+                resource="invocation",
+            )
+            if ownership_error is not None:
+                duplicate_result = _ownership_error_result(
+                    resource="invocation",
+                    error_type=ownership_error,
+                    resource_id=requested_invocation_id,
+                    tool_name=tool_name,
+                    lifecycle_action="run",
+                    context=request.context,
+                )
+            else:
+                duplicate_result = _build_result(
+                    status="error",
+                    result={
+                        "message": "Invocation already exists",
+                        "type": "invocation_exists",
+                    },
+                    session_id=existing_invocation.get("session_id"),
+                )
+            _record_metrics(duplicate_result)
+            return duplicate_result
+
     session_resolution = await _resolve_session(store=store, request=request, tool_name=tool_name)
     if "status" in session_resolution:
         _record_metrics(session_resolution)
@@ -211,13 +241,49 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
         ),
     )
 
-    await store.register_invocation(
+    reserved_invocation, reserved = await store.reserve_invocation(
         invocation_id=invocation_id,
         session_id=session_id,
         tool_name=tool_name,
         user_id=request.user_id,
         runtime=runtime_payload,
     )
+    if not reserved:
+        if reserved_invocation is not None:
+            ownership_error = _ownership_error_type(
+                reserved_invocation,
+                request_user_id=request.user_id,
+                resource="invocation",
+            )
+            if ownership_error is not None:
+                duplicate_result = _ownership_error_result(
+                    resource="invocation",
+                    error_type=ownership_error,
+                    resource_id=invocation_id,
+                    tool_name=tool_name,
+                    lifecycle_action="run",
+                    context=merged_context,
+                )
+            else:
+                duplicate_result = _build_result(
+                    status="error",
+                    result={
+                        "message": "Invocation already exists",
+                        "type": "invocation_exists",
+                    },
+                    session_id=reserved_invocation.get("session_id"),
+                )
+        else:
+            duplicate_result = _build_result(
+                status="error",
+                result={
+                    "message": "Invocation already exists",
+                    "type": "invocation_exists",
+                },
+                session_id=session_id,
+            )
+        _record_metrics(duplicate_result)
+        return duplicate_result
     await store.mark_invocation_running(invocation_id)
     _register_in_flight(invocation_id, asyncio.current_task())
     ADK_INVOCATIONS_IN_FLIGHT.labels(tool_name=tool_name).inc()
@@ -659,11 +725,24 @@ async def _resolve_session(
     if session_controls.action == "create" and session_id is not None:
         existing = await store.get_session(session_id)
         if existing is not None and existing.get("status") != "expired":
+            ownership_error = _ownership_error_type(
+                existing,
+                request_user_id=request.user_id,
+                resource="session",
+            )
+            if ownership_error is not None:
+                return _ownership_error_result(
+                    resource="session",
+                    error_type=ownership_error,
+                    resource_id=session_id,
+                    tool_name=tool_name,
+                    lifecycle_action="create",
+                    context=request_context,
+                )
             return _build_result(
                 status="error",
                 result={
-                    "message": f"Session '{session_id}' already exists",
-                    "session_id": session_id,
+                    "message": "Session already exists",
                     "type": "session_exists",
                 },
                 session_id=session_id,

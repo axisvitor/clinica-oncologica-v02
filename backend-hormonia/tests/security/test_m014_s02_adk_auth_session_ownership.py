@@ -506,6 +506,143 @@ async def test_runtime_same_user_resume_reaches_mocked_handler(
 
 
 @pytest.mark.asyncio
+async def test_runtime_foreign_run_invocation_id_denies_before_session_or_invocation_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    calls = {"handler": 0, "execute_request": 0, "create_session": 0}
+    _install_runtime_tool_registry(monkeypatch, calls=calls)
+    _block_runtime_execute_request(monkeypatch, calls=calls)
+    await adk_runtime_store.register_invocation(
+        invocation_id="runtime-invocation-foreign-run",
+        session_id="runtime-session-existing-run-owner",
+        tool_name="sentiment",
+        user_id="stored-run-owner-secret",
+        runtime={"timeout_seconds": 5, "max_llm_calls": 4},
+    )
+
+    async def fail_create_session(*args, **kwargs):
+        calls["create_session"] += 1
+        raise AssertionError("Foreign duplicate invocation ids must deny before session creation")
+
+    monkeypatch.setattr(adk_runtime_store, "create_session", fail_create_session)
+
+    result = await run_adk_tool(
+        ADKToolRunRequest(
+            prompt="foreign run invocation prompt Paciente Rosa must not echo",
+            tool_name="sentiment",
+            deps=AIDeps(gemini_api_key="k"),
+            user_id="caller-run-owner-secret",
+            invocation=ADKInvocationControls(
+                action="run",
+                invocation_id="runtime-invocation-foreign-run",
+            ),
+        )
+    )
+
+    assert result["status"] == "error"
+    assert result["result"]["type"] == "invocation_owner_mismatch"
+    assert calls == {"handler": 0, "execute_request": 0, "create_session": 0}
+    invocation = await adk_runtime_store.get_invocation("runtime-invocation-foreign-run")
+    assert invocation is not None
+    assert invocation["user_id"] == "stored-run-owner-secret"
+    assert invocation["session_id"] == "runtime-session-existing-run-owner"
+    assert invocation["status"] == "pending"
+    serialized = json.dumps(result, ensure_ascii=False)
+    for unsafe_value in [
+        "runtime-invocation-foreign-run",
+        "stored-run-owner-secret",
+        "caller-run-owner-secret",
+        "foreign run invocation prompt",
+        "Paciente Rosa",
+    ]:
+        assert unsafe_value not in serialized
+
+
+@pytest.mark.asyncio
+async def test_runtime_same_owner_duplicate_run_invocation_id_rejects_without_overwrite(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    calls = {"handler": 0, "execute_request": 0}
+    _install_runtime_tool_registry(monkeypatch, calls=calls)
+    _block_runtime_execute_request(monkeypatch, calls=calls)
+    await adk_runtime_store.register_invocation(
+        invocation_id="runtime-invocation-duplicate-run",
+        session_id="runtime-session-original-duplicate",
+        tool_name="sentiment",
+        user_id="same-run-owner-secret",
+        runtime={"timeout_seconds": 5, "max_llm_calls": 4},
+    )
+
+    result = await run_adk_tool(
+        ADKToolRunRequest(
+            prompt="duplicate invocation prompt must not execute",
+            tool_name="sentiment",
+            deps=AIDeps(gemini_api_key="k"),
+            user_id="same-run-owner-secret",
+            invocation=ADKInvocationControls(
+                action="run",
+                invocation_id="runtime-invocation-duplicate-run",
+            ),
+        )
+    )
+
+    assert result["status"] == "error"
+    assert result["result"] == {
+        "message": "Invocation already exists",
+        "type": "invocation_exists",
+    }
+    assert calls == {"handler": 0, "execute_request": 0}
+    invocation = await adk_runtime_store.get_invocation("runtime-invocation-duplicate-run")
+    assert invocation is not None
+    assert invocation["user_id"] == "same-run-owner-secret"
+    assert invocation["session_id"] == "runtime-session-original-duplicate"
+    assert invocation["status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_runtime_foreign_create_existing_session_denies_without_existence_leak(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    calls = {"handler": 0, "execute_request": 0}
+    _install_runtime_tool_registry(monkeypatch, calls=calls)
+    _block_runtime_execute_request(monkeypatch, calls=calls)
+    await adk_runtime_store.create_session(
+        tool_name="sentiment",
+        user_id="stored-create-owner-secret",
+        session_id="runtime-session-foreign-create",
+    )
+
+    result = await run_adk_tool(
+        ADKToolRunRequest(
+            prompt="create existing session prompt Paciente Bia must not echo",
+            tool_name="sentiment",
+            deps=AIDeps(gemini_api_key="k"),
+            user_id="caller-create-owner-secret",
+            session=ADKSessionControls(
+                action="create",
+                session_id="runtime-session-foreign-create",
+            ),
+        )
+    )
+
+    assert result["status"] == "error"
+    assert result["result"]["type"] == "session_owner_mismatch"
+    assert calls == {"handler": 0, "execute_request": 0}
+    serialized = json.dumps(result, ensure_ascii=False)
+    for unsafe_value in [
+        "runtime-session-foreign-create",
+        "stored-create-owner-secret",
+        "caller-create-owner-secret",
+        "create existing session prompt",
+        "Paciente Bia",
+    ]:
+        assert unsafe_value not in serialized
+
+
+@pytest.mark.asyncio
 async def test_runtime_foreign_resume_denies_before_execute_request_and_logs_safely(
     monkeypatch: pytest.MonkeyPatch,
     adk_runtime_store: ADKSessionStore,
