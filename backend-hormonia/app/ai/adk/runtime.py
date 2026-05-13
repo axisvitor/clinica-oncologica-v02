@@ -453,12 +453,7 @@ def _ownership_error_result(
         "message": f"{label} cannot be accessed by the current user",
         "type": error_type,
     }
-    if resource == "session":
-        payload["session_id"] = resource_id
-        return _build_result(status="error", result=payload, session_id=resource_id)
-
-    payload["invocation_id"] = resource_id
-    return _build_result(status="error", result=payload, invocation_id=resource_id)
+    return _build_result(status="error", result=payload)
 
 
 async def _cancel_invocation(
@@ -564,14 +559,13 @@ async def _resolve_session(
             )
         payload = await store.get_session(session_id)
         if payload is None:
-            return _build_result(
-                status="error",
-                result={
-                    "message": f"Session '{session_id}' was not found",
-                    "session_id": session_id,
-                    "type": "session_not_found",
-                },
+            return _session_error(
+                "not_found",
                 session_id=session_id,
+                requested_tool=tool_name,
+                stored_tool=None,
+                context=request_context,
+                lifecycle_action="close",
             )
         ownership_error = _ownership_error_type(
             payload,
@@ -588,16 +582,13 @@ async def _resolve_session(
                 context=request_context,
             )
         if payload.get("tool_name") != tool_name:
-            return _build_result(
-                status="error",
-                result={
-                    "message": "Session belongs to a different ADK tool",
-                    "session_id": session_id,
-                    "requested_tool": tool_name,
-                    "stored_tool": payload.get("tool_name"),
-                    "type": "session_tool_mismatch",
-                },
+            return _session_error(
+                "tool_mismatch",
                 session_id=session_id,
+                requested_tool=tool_name,
+                stored_tool=payload.get("tool_name"),
+                context=request_context,
+                lifecycle_action="close",
             )
         payload = await store.close_session(session_id)
         return _build_result(
@@ -628,6 +619,8 @@ async def _resolve_session(
                 session_id=session_id,
                 requested_tool=tool_name,
                 stored_tool=None,
+                context=request_context,
+                lifecycle_action="resume",
             )
         ownership_error = _ownership_error_type(
             payload,
@@ -654,6 +647,8 @@ async def _resolve_session(
                 session_id=session_id,
                 requested_tool=tool_name,
                 stored_tool=payload.get("tool_name") if payload else None,
+                context=request_context,
+                lifecycle_action="resume",
             )
         context = store.build_run_context(
             request_context=request_context,
@@ -693,39 +688,40 @@ def _session_error(
     session_id: str,
     requested_tool: str,
     stored_tool: str | None,
+    context: dict[str, Any] | None = None,
+    lifecycle_action: str = "resume",
 ) -> dict[str, Any]:
     if reason == "closed":
-        message = f"Session '{session_id}' is closed and cannot be reused"
+        message = "Session is closed and cannot be reused"
         error_type = "session_closed"
     elif reason == "expired":
-        message = f"Session '{session_id}' expired due to inactivity"
+        message = "Session expired due to inactivity"
         error_type = "session_expired"
     elif reason == "tool_mismatch":
         message = "Session belongs to a different ADK tool"
         error_type = "session_tool_mismatch"
     elif reason == "oversized":
-        message = (
-            f"Session '{session_id}' exceeds the configured state budget and must be restarted"
-        )
+        message = "Session exceeds the configured state budget and must be restarted"
         error_type = "session_state_limit_exceeded"
     else:
-        message = f"Session '{session_id}' was not found"
+        message = "Session was not found"
         error_type = "session_not_found"
 
+    _log_adk_runtime_denial(
+        reason=error_type,
+        tool_name=requested_tool,
+        lifecycle_action=lifecycle_action,
+        context=context,
+    )
     payload: dict[str, Any] = {
         "message": message,
-        "session_id": session_id,
         "type": error_type,
     }
     if stored_tool is not None and stored_tool != requested_tool:
         payload["requested_tool"] = requested_tool
         payload["stored_tool"] = stored_tool
 
-    return _build_result(
-        status="error",
-        result=payload,
-        session_id=session_id,
-    )
+    return _build_result(status="error", result=payload)
 
 
 async def _execute_request(

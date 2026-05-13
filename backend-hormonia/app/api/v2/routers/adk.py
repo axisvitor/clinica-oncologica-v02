@@ -16,6 +16,17 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 _SAFE_LOG_LABEL = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
+_PRIVATE_CONTEXT_SESSION_ERROR_TYPES = frozenset(
+    {
+        "session_owner_missing",
+        "session_owner_mismatch",
+        "session_not_found",
+        "session_closed",
+        "session_expired",
+        "session_state_limit_exceeded",
+        "session_tool_mismatch",
+    }
+)
 
 
 def _safe_hash(value: str) -> str:
@@ -52,6 +63,10 @@ def _log_adk_route_denial(
                 getattr(request.state, "request_id", None)
                 or request.headers.get("X-Request-ID")
             ),
+            "correlation_id": _safe_log_label(
+                getattr(request.state, "correlation_id", None)
+                or request.headers.get("X-Correlation-ID")
+            ),
         },
     )
 
@@ -80,6 +95,22 @@ def _deny_adk_route(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Forbidden",
     )
+
+
+def _response_session_id(normalized: dict, context: dict) -> str | None:
+    raw_session_id = normalized.get("session_id")
+    if raw_session_id:
+        return str(raw_session_id)
+
+    result = normalized.get("result")
+    result_type = result.get("type") if isinstance(result, dict) else None
+    if (
+        str(normalized.get("status", "")).lower() == "error"
+        and result_type in _PRIVATE_CONTEXT_SESSION_ERROR_TYPES
+    ):
+        return None
+
+    return str(context.get("session_id") or "") or None
 
 
 def _canonical_authenticated_user_id(
@@ -168,7 +199,6 @@ async def run_adk(
     return ADKRunResponse(
         status=str(normalized.get("status", "success")),
         tool_name=payload.tool_name,
-        session_id=str(normalized.get("session_id") or context.get("session_id") or "")
-        or None,
+        session_id=_response_session_id(normalized, context),
         output=normalized.get("result", normalized),
     )

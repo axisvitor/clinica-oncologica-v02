@@ -79,6 +79,44 @@ def _runtime_denial_records(caplog: pytest.LogCaptureFixture) -> list[logging.Lo
     ]
 
 
+_LOG_EXTRA_KEYS = (
+    "event_type",
+    "reason",
+    "route",
+    "method",
+    "tool_name",
+    "lifecycle_action",
+    "request_id",
+    "correlation_id",
+)
+
+
+def _diagnostic_records_text(records: list[logging.LogRecord]) -> str:
+    payload = []
+    for record in records:
+        payload.append(
+            {
+                "message": record.getMessage(),
+                **{
+                    key: getattr(record, key)
+                    for key in _LOG_EXTRA_KEYS
+                    if hasattr(record, key)
+                },
+            }
+        )
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+def _assert_diagnostics_exclude(
+    records: list[logging.LogRecord],
+    unsafe_values: list[str],
+) -> str:
+    diagnostics = _diagnostic_records_text(records)
+    for unsafe_value in unsafe_values:
+        assert unsafe_value not in diagnostics
+    return diagnostics
+
+
 @pytest.fixture
 def adk_runtime_store(monkeypatch: pytest.MonkeyPatch) -> ADKSessionStore:
     session_store_module._MEMORY_SESSIONS.clear()
@@ -179,18 +217,39 @@ def test_adk_run_payload_user_mismatch_returns_403_before_wrapper(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    _install_auth_override({"id": "user-a", "role": "doctor"})
+    route_owner = "user-a"
+    payload_owner = "user-b"
+    route_prompt = "payload mismatch prompt Paciente Maria must not echo"
+    route_payload_text = "payload text Paciente Maria Silva câncer de mama"
+    route_cookie = "session_token=raw-route-cookie-secret"
+    route_gemini_key = "AIzaSyRouteSecretShouldNotLog"
+    raw_request_id = "Route request Paciente Maria 123"
+    raw_correlation_id = "Route correlation Paciente Maria 456"
+    _install_auth_override({"id": route_owner, "role": "doctor"})
     calls = _install_denied_side_effect_sentries(monkeypatch)
     caplog.set_level(logging.WARNING, logger="app.api.v2.routers.adk")
+    headers = _csrf_headers()
+    headers["Cookie"] = f"{headers['Cookie']}; {route_cookie}"
+    headers["X-Request-ID"] = raw_request_id
+    headers["X-Correlation-ID"] = raw_correlation_id
 
     response = client.post(
         ADK_ROUTE,
-        headers=_csrf_headers(),
+        headers=headers,
         json={
-            "prompt": "payload mismatch prompt must not echo",
+            "prompt": route_prompt,
             "tool_name": "sentiment",
-            "user_id": "user-b",
+            "user_id": payload_owner,
             "session": {"action": "resume", "session_id": "session-a"},
+            "context": {
+                "payload_note": route_payload_text,
+                "cookie": route_cookie,
+                "gemini_api_key": route_gemini_key,
+                "patient_context": {
+                    "patient_name": "Paciente Maria Silva",
+                    "diagnosis": "carcinoma de mama",
+                },
+            },
         },
     )
 
@@ -198,9 +257,18 @@ def test_adk_run_payload_user_mismatch_returns_403_before_wrapper(
     body = response.json()
     assert body["detail"] == "Forbidden"
     assert calls == {"aideps": 0, "safe_run": 0}
-    assert "payload mismatch prompt" not in response.text
-    assert "user-a" not in response.text
-    assert "user-b" not in response.text
+    for unsafe_value in [
+        route_prompt,
+        route_payload_text,
+        route_cookie,
+        route_gemini_key,
+        route_owner,
+        payload_owner,
+        "Paciente Maria Silva",
+        "carcinoma de mama",
+        "csrf_token",
+    ]:
+        assert unsafe_value not in response.text
 
     records = _denial_records(caplog)
     assert len(records) == 1
@@ -209,9 +277,25 @@ def test_adk_run_payload_user_mismatch_returns_403_before_wrapper(
     assert record.route == ADK_ROUTE
     assert record.tool_name == "sentiment"
     assert record.lifecycle_action == "authorize"
-    assert "payload mismatch prompt" not in caplog.text
-    assert "user-a" not in caplog.text
-    assert "user-b" not in caplog.text
+    assert record.request_id.startswith("hashed-")
+    assert record.correlation_id.startswith("hashed-")
+    diagnostics = _assert_diagnostics_exclude(
+        records,
+        [
+            route_prompt,
+            route_payload_text,
+            route_cookie,
+            route_gemini_key,
+            route_owner,
+            payload_owner,
+            raw_request_id,
+            raw_correlation_id,
+            "Paciente Maria Silva",
+            "carcinoma de mama",
+            "csrf_token",
+        ],
+    )
+    assert "payload_user_mismatch" in diagnostics
 
 
 def test_adk_run_blank_canonical_user_denies_before_wrapper(
@@ -430,23 +514,47 @@ async def test_runtime_foreign_resume_denies_before_execute_request_and_logs_saf
     calls = {"handler": 0, "execute_request": 0}
     _install_runtime_tool_registry(monkeypatch, calls=calls)
     _block_runtime_execute_request(monkeypatch, calls=calls)
-    await adk_runtime_store.create_session(
+    stored_owner = "stored-owner-secret"
+    caller_owner = "caller-owner-secret"
+    runtime_session_id = "runtime-session-token-foreign-resume"
+    runtime_prompt = "foreign resume PHI prompt Paciente Julia must not echo"
+    runtime_session_state = "session state Paciente Julia ciclo 3 terapia"
+    runtime_cookie = "session_token=runtime-cookie-secret"
+    runtime_gemini_key = "AIzaSyRuntimeSecretShouldNotLog"
+    raw_request_id = "Runtime request Paciente Julia 123"
+    raw_correlation_id = "Runtime correlation Paciente Julia 456"
+    session = await adk_runtime_store.create_session(
         tool_name="sentiment",
-        user_id="stored-owner-secret",
-        session_id="runtime-session-foreign-resume",
+        user_id=stored_owner,
+        session_id=runtime_session_id,
+    )
+    session["state"] = {
+        "patient_context": {
+            "patient_name": "Paciente Julia Souza",
+            "summary": runtime_session_state,
+        }
+    }
+    await adk_runtime_store._write_session(
+        session,
+        ttl_seconds=adk_runtime_store.session_ttl_seconds,
     )
     caplog.set_level(logging.WARNING, logger="app.ai.adk.runtime")
 
     result = await run_adk_tool(
         ADKToolRunRequest(
-            prompt="foreign resume PHI prompt must not echo",
+            prompt=runtime_prompt,
             tool_name="sentiment",
-            deps=AIDeps(gemini_api_key="k"),
-            user_id="caller-owner-secret",
-            context={"request_id": "runtime-request-1"},
+            deps=AIDeps(gemini_api_key=runtime_gemini_key),
+            user_id=caller_owner,
+            context={
+                "request_id": raw_request_id,
+                "correlation_id": raw_correlation_id,
+                "cookie": runtime_cookie,
+                "payload_note": runtime_session_state,
+            },
             session=ADKSessionControls(
                 action="resume",
-                session_id="runtime-session-foreign-resume",
+                session_id=runtime_session_id,
             ),
         )
     )
@@ -455,9 +563,17 @@ async def test_runtime_foreign_resume_denies_before_execute_request_and_logs_saf
     assert result["result"]["type"] == "session_owner_mismatch"
     assert calls == {"handler": 0, "execute_request": 0}
     serialized = json.dumps(result, ensure_ascii=False)
-    assert "stored-owner-secret" not in serialized
-    assert "caller-owner-secret" not in serialized
-    assert "foreign resume PHI prompt" not in serialized
+    for unsafe_value in [
+        stored_owner,
+        caller_owner,
+        runtime_session_id,
+        runtime_prompt,
+        runtime_session_state,
+        runtime_cookie,
+        runtime_gemini_key,
+        "Paciente Julia Souza",
+    ]:
+        assert unsafe_value not in serialized
 
     records = _runtime_denial_records(caplog)
     assert len(records) == 1
@@ -465,10 +581,24 @@ async def test_runtime_foreign_resume_denies_before_execute_request_and_logs_saf
     assert record.reason == "session_owner_mismatch"
     assert record.tool_name == "sentiment"
     assert record.lifecycle_action == "resume"
-    assert record.request_id == "runtime-request-1"
-    assert "stored-owner-secret" not in caplog.text
-    assert "caller-owner-secret" not in caplog.text
-    assert "foreign resume PHI prompt" not in caplog.text
+    assert record.request_id.startswith("hashed-")
+    assert record.correlation_id.startswith("hashed-")
+    diagnostics = _assert_diagnostics_exclude(
+        records,
+        [
+            stored_owner,
+            caller_owner,
+            runtime_session_id,
+            runtime_prompt,
+            runtime_session_state,
+            runtime_cookie,
+            runtime_gemini_key,
+            raw_request_id,
+            raw_correlation_id,
+            "Paciente Julia Souza",
+        ],
+    )
+    assert "session_owner_mismatch" in diagnostics
 
 
 @pytest.mark.asyncio
@@ -621,30 +751,44 @@ async def test_runtime_missing_owner_session_denies_fail_closed_before_side_effe
 async def test_runtime_expired_same_owner_session_denies_before_execution(
     monkeypatch: pytest.MonkeyPatch,
     adk_runtime_store: ADKSessionStore,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     calls = {"handler": 0, "execute_request": 0}
     _install_runtime_tool_registry(monkeypatch, calls=calls)
     _block_runtime_execute_request(monkeypatch, calls=calls)
+    runtime_session_id = "runtime-session-token-expired-same-owner"
+    runtime_owner = "expired-owner-secret"
+    runtime_prompt = "expired prompt Paciente Lia must not execute"
+    runtime_state = "expired session state Paciente Lia terapia alvo"
+    runtime_gemini_key = "AIzaSyExpiredRuntimeSecretShouldNotLog"
+    raw_request_id = "Expired request Paciente Lia 123"
+    raw_correlation_id = "Expired correlation Paciente Lia 456"
     session = await adk_runtime_store.create_session(
         tool_name="sentiment",
-        user_id="expired-owner",
-        session_id="runtime-session-expired-same-owner",
+        user_id=runtime_owner,
+        session_id=runtime_session_id,
     )
     session["expires_at"] = "2000-01-01T00:00:00-03:00"
+    session["state"] = {"patient_context": {"summary": runtime_state}}
     await adk_runtime_store._write_session(
         session,
         ttl_seconds=adk_runtime_store.session_ttl_seconds,
     )
+    caplog.set_level(logging.WARNING, logger="app.ai.adk.runtime")
 
     result = await run_adk_tool(
         ADKToolRunRequest(
-            prompt="expired prompt must not execute",
+            prompt=runtime_prompt,
             tool_name="sentiment",
-            deps=AIDeps(gemini_api_key="k"),
-            user_id="expired-owner",
+            deps=AIDeps(gemini_api_key=runtime_gemini_key),
+            user_id=runtime_owner,
+            context={
+                "request_id": raw_request_id,
+                "correlation_id": raw_correlation_id,
+            },
             session=ADKSessionControls(
                 action="resume",
-                session_id="runtime-session-expired-same-owner",
+                session_id=runtime_session_id,
             ),
         )
     )
@@ -652,6 +796,37 @@ async def test_runtime_expired_same_owner_session_denies_before_execution(
     assert result["status"] == "error"
     assert result["result"]["type"] == "session_expired"
     assert calls == {"handler": 0, "execute_request": 0}
+    serialized = json.dumps(result, ensure_ascii=False)
+    for unsafe_value in [
+        runtime_session_id,
+        runtime_owner,
+        runtime_prompt,
+        runtime_state,
+        runtime_gemini_key,
+    ]:
+        assert unsafe_value not in serialized
+
+    records = _runtime_denial_records(caplog)
+    assert len(records) == 1
+    record = records[0]
+    assert record.reason == "session_expired"
+    assert record.tool_name == "sentiment"
+    assert record.lifecycle_action == "resume"
+    assert record.request_id.startswith("hashed-")
+    assert record.correlation_id.startswith("hashed-")
+    diagnostics = _assert_diagnostics_exclude(
+        records,
+        [
+            runtime_session_id,
+            runtime_owner,
+            runtime_prompt,
+            runtime_state,
+            runtime_gemini_key,
+            raw_request_id,
+            raw_correlation_id,
+        ],
+    )
+    assert "session_expired" in diagnostics
 
 
 @pytest.mark.asyncio
