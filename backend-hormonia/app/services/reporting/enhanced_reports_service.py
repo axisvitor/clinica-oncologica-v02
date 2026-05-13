@@ -4,6 +4,7 @@ Business logic for advanced reporting, custom builders, and scheduled delivery.
 """
 
 import hashlib
+import json
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
@@ -26,6 +27,7 @@ from app.schemas.v2.enhanced_reports import (
 )
 from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.services.cache.json_cache_mixin import RedisJsonCacheMixin
+from app.services.reporting.report_access import assert_report_access
 from app.utils.logging import get_logger
 from app.utils.timezone import now_sao_paulo
 
@@ -36,6 +38,16 @@ TEMPLATE_CACHE_TTL = 3600
 REPORT_CACHE_TTL = 1800
 SCHEDULED_CACHE_TTL = 600
 DASHBOARD_CACHE_TTL = 300
+
+
+def _build_legacy_enhanced_cache_key(prefix: str, resource_id: UUID) -> str:
+    return f"enhanced_reports:{prefix}:{resource_id}"
+
+
+def _build_base_report_cache_key(report_id: UUID) -> str:
+    param_str = json.dumps({"report_id": str(report_id)}, sort_keys=True, default=str)
+    param_hash = hashlib.sha256(param_str.encode()).hexdigest()[:32]
+    return f"reports:v2:report:{param_hash}"
 
 
 class EnhancedReportsService(RedisJsonCacheMixin):
@@ -57,13 +69,75 @@ class EnhancedReportsService(RedisJsonCacheMixin):
         except Exception as e:
             logger.warning(f"Cache invalidation failed: {e}")
 
-    def _check_report_access(
-        self, role: UserRole, user_id: UUID, report_id: UUID
-    ) -> bool:
-        if role == UserRole.ADMIN:
-            return True
-        # Mock implementation for now
-        return True
+    async def _load_raw_report_metadata(
+        self,
+        report_id: UUID,
+    ) -> tuple[Dict[str, Any] | None, str]:
+        for cache_key, metadata_source in self._report_access_cache_candidates(report_id):
+            cached = await self._get_cached_result(cache_key)
+            if cached is not None:
+                return cached, metadata_source
+        return None, "db"
+
+    async def _load_raw_export_metadata(
+        self,
+        export_id: UUID,
+    ) -> tuple[Dict[str, Any] | None, str]:
+        for cache_key, metadata_source in self._export_access_cache_candidates(export_id):
+            cached = await self._get_cached_result(cache_key)
+            if cached is not None:
+                return cached, metadata_source
+        return None, "service_cache:export"
+
+    def _report_access_cache_candidates(
+        self,
+        report_id: UUID,
+    ) -> list[tuple[str, str]]:
+        return [
+            (
+                self._get_cache_key("builder_report", builder_id=str(report_id)),
+                "service_cache:builder_report",
+            ),
+            (
+                self._get_cache_key("report", report_id=str(report_id)),
+                "service_cache:report",
+            ),
+            (_build_legacy_enhanced_cache_key("builder", report_id), "router_cache:builder"),
+            (_build_legacy_enhanced_cache_key("report", report_id), "router_cache:report"),
+            (_build_base_report_cache_key(report_id), "base_report_cache:report"),
+        ]
+
+    def _export_access_cache_candidates(
+        self,
+        export_id: UUID,
+    ) -> list[tuple[str, str]]:
+        return [
+            (_build_legacy_enhanced_cache_key("export", export_id), "router_cache:export"),
+            (
+                self._get_cache_key("export", export_id=str(export_id)),
+                "service_cache:export",
+            ),
+        ]
+
+    async def _assert_report_access(
+        self,
+        role: UserRole,
+        user_id: UUID,
+        report_id: UUID,
+        *,
+        access_checked: bool = False,
+    ) -> None:
+        if access_checked:
+            return
+        raw_metadata, metadata_source = await self._load_raw_report_metadata(report_id)
+        await assert_report_access(
+            self.db,
+            role=role,
+            user_id=user_id,
+            raw_metadata=raw_metadata,
+            report_id=report_id,
+            metadata_source=metadata_source,
+        )
 
     def _normalize_export_response(
         self,
@@ -144,9 +218,11 @@ class EnhancedReportsService(RedisJsonCacheMixin):
             "download_url": f"/api/v2/enhanced-reports/builder/{builder_id}/download",
         }
 
-        # Simulate saving result to cache for retrieval later (as per original implementation pattern)
-        # In reality, this would trigger the background task.
-        # We keep the original pattern of just returning the metadata immediately.
+        # Persist raw owner metadata under both service and legacy router keys so
+        # follow-up get/download/share/export checks resolve evidence before any
+        # normalization can default ownership to the requester.
+        for cache_key, _metadata_source in self._report_access_cache_candidates(builder_id):
+            await self._set_cached_result(cache_key, response, REPORT_CACHE_TTL)
 
         return response
 
@@ -158,10 +234,19 @@ class EnhancedReportsService(RedisJsonCacheMixin):
         return cached
 
     async def create_visualization(
-        self, data: VisualizationCreate, user_id: UUID, role: UserRole
+        self,
+        data: VisualizationCreate,
+        user_id: UUID,
+        role: UserRole,
+        *,
+        access_checked: bool = False,
     ) -> Dict[str, Any]:
-        if not self._check_report_access(role, user_id, data.report_id):
-            raise HTTPException(status_code=403, detail="Access denied")
+        await self._assert_report_access(
+            role,
+            user_id,
+            data.report_id,
+            access_checked=access_checked,
+        )
 
         viz_id = uuid4()
         viz_data = self._generate_visualization_data(
@@ -217,10 +302,19 @@ class EnhancedReportsService(RedisJsonCacheMixin):
         await self._invalidate_cache_pattern(f"*visualization*{visualization_id}*")
 
     async def create_delivery_schedule(
-        self, data: DeliveryConfigCreate, user_id: UUID, role: UserRole
+        self,
+        data: DeliveryConfigCreate,
+        user_id: UUID,
+        role: UserRole,
+        *,
+        access_checked: bool = False,
     ) -> Dict[str, Any]:
-        if not self._check_report_access(role, user_id, data.report_id):
-            raise HTTPException(status_code=403, detail="Access denied")
+        await self._assert_report_access(
+            role,
+            user_id,
+            data.report_id,
+            access_checked=access_checked,
+        )
 
         schedule_id = uuid4()
         response = {
@@ -264,10 +358,19 @@ class EnhancedReportsService(RedisJsonCacheMixin):
         await self._invalidate_cache_pattern(f"*delivery_schedule*{schedule_id}*")
 
     async def share_report(
-        self, data: ReportShareCreate, user_id: UUID, role: UserRole
+        self,
+        data: ReportShareCreate,
+        user_id: UUID,
+        role: UserRole,
+        *,
+        access_checked: bool = False,
     ) -> List[Dict[str, Any]]:
-        if not self._check_report_access(role, user_id, data.report_id):
-            raise HTTPException(status_code=403, detail="Access denied")
+        await self._assert_report_access(
+            role,
+            user_id,
+            data.report_id,
+            access_checked=access_checked,
+        )
 
         shares = []
         for shared_user_id in data.user_ids:
@@ -288,10 +391,19 @@ class EnhancedReportsService(RedisJsonCacheMixin):
         return shares
 
     async def create_public_link(
-        self, data: PublicLinkCreate, user_id: UUID, role: UserRole
+        self,
+        data: PublicLinkCreate,
+        user_id: UUID,
+        role: UserRole,
+        *,
+        access_checked: bool = False,
     ) -> Dict[str, Any]:
-        if not self._check_report_access(role, user_id, data.report_id):
-            raise HTTPException(status_code=403, detail="Access denied")
+        await self._assert_report_access(
+            role,
+            user_id,
+            data.report_id,
+            access_checked=access_checked,
+        )
 
         link_id = uuid4()
         token = hashlib.sha256(str(link_id).encode()).hexdigest()[:32]
@@ -314,10 +426,19 @@ class EnhancedReportsService(RedisJsonCacheMixin):
         return response
 
     async def export_multi_format(
-        self, data: MultiFormatExportRequest, user_id: UUID, role: UserRole
+        self,
+        data: MultiFormatExportRequest,
+        user_id: UUID,
+        role: UserRole,
+        *,
+        access_checked: bool = False,
     ) -> Dict[str, Any]:
-        if not self._check_report_access(role, user_id, data.report_id):
-            raise HTTPException(status_code=403, detail="Access denied")
+        await self._assert_report_access(
+            role,
+            user_id,
+            data.report_id,
+            access_checked=access_checked,
+        )
 
         export_id = uuid4()
         response = {
@@ -339,10 +460,19 @@ class EnhancedReportsService(RedisJsonCacheMixin):
         return self._normalize_export_response(cached, export_id=export_id)
 
     async def get_report_history(
-        self, report_id: UUID, user_id: UUID, role: UserRole
+        self,
+        report_id: UUID,
+        user_id: UUID,
+        role: UserRole,
+        *,
+        access_checked: bool = False,
     ) -> Dict[str, Any]:
-        if not self._check_report_access(role, user_id, report_id):
-            raise HTTPException(status_code=403, detail="Access denied")
+        await self._assert_report_access(
+            role,
+            user_id,
+            report_id,
+            access_checked=access_checked,
+        )
 
         # Mock history
         versions = [
@@ -365,10 +495,20 @@ class EnhancedReportsService(RedisJsonCacheMixin):
         }
 
     async def restore_report_version(
-        self, report_id: UUID, data: ReportRestoreRequest, user_id: UUID, role: UserRole
+        self,
+        report_id: UUID,
+        data: ReportRestoreRequest,
+        user_id: UUID,
+        role: UserRole,
+        *,
+        access_checked: bool = False,
     ) -> Dict[str, Any]:
-        if not self._check_report_access(role, user_id, report_id):
-            raise HTTPException(status_code=403, detail="Access denied")
+        await self._assert_report_access(
+            role,
+            user_id,
+            report_id,
+            access_checked=access_checked,
+        )
 
         return {
             "id": str(report_id),

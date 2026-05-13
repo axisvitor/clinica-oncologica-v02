@@ -4,8 +4,9 @@ Advanced reporting features extending base reports with custom builders, visuali
 Delegates logic to EnhancedReportsService.
 """
 
-from typing import Optional, List
+from typing import Any, Optional, List
 import asyncio
+import hashlib
 import inspect
 import json
 from uuid import UUID
@@ -59,6 +60,7 @@ from app.utils.auth_helpers import extract_user_role_and_uuid
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.services import EnhancedReportsService
+from app.services.reporting.report_access import assert_report_access
 from app.utils.timezone import now_sao_paulo, today_sao_paulo
 
 logger = get_logger(__name__)
@@ -135,13 +137,161 @@ def _check_report_access(
     role: UserRole,
     user_id: Optional[UUID],
 ) -> bool:
+    """Legacy monkeypatch seam; normal routes use async raw metadata guards."""
+
     if role == UserRole.ADMIN:
         return True
     return user_id is not None
 
 
+_ORIGINAL_CHECK_REPORT_ACCESS = _check_report_access
+
+
 def _build_cache_key(prefix: str, resource_id: UUID) -> str:
     return f"enhanced_reports:{prefix}:{resource_id}"
+
+
+def _build_base_report_cache_key(report_id: UUID) -> str:
+    param_str = json.dumps({"report_id": str(report_id)}, sort_keys=True, default=str)
+    param_hash = hashlib.sha256(param_str.encode()).hexdigest()[:32]
+    return f"reports:v2:report:{param_hash}"
+
+
+def _router_report_cache_candidates(report_id: UUID) -> list[tuple[str, str]]:
+    return [
+        (_build_cache_key("builder", report_id), "router_cache:builder"),
+        (_build_cache_key("report", report_id), "router_cache:report"),
+        (_build_base_report_cache_key(report_id), "base_report_cache:report"),
+    ]
+
+
+async def _resolve_raw_report_metadata(
+    report_id: UUID,
+    service: EnhancedReportsService,
+) -> tuple[dict[str, Any] | None, str]:
+    for cache_key, metadata_source in _router_report_cache_candidates(report_id):
+        cached = await _get_cached_result(cache_key)
+        if cached is not None:
+            return cached, metadata_source
+
+    service_loader = getattr(service, "_load_raw_report_metadata", None)
+    if callable(service_loader):
+        loaded = service_loader(report_id)
+        if inspect.isawaitable(loaded):
+            loaded = await loaded
+        if isinstance(loaded, tuple):
+            raw_metadata, metadata_source = loaded
+        else:
+            raw_metadata, metadata_source = loaded, "service_cache:report"
+        if raw_metadata is not None:
+            return raw_metadata, str(metadata_source)
+
+    return None, "db"
+
+
+async def _resolve_raw_export_metadata(
+    export_id: UUID,
+    service: EnhancedReportsService,
+) -> tuple[dict[str, Any] | None, str]:
+    cache_key = _build_cache_key("export", export_id)
+    cached = await _get_cached_result(cache_key)
+    if cached is not None:
+        return cached, "router_cache:export"
+
+    service_loader = getattr(service, "_load_raw_export_metadata", None)
+    if callable(service_loader):
+        loaded = service_loader(export_id)
+        if inspect.isawaitable(loaded):
+            loaded = await loaded
+        if isinstance(loaded, tuple):
+            raw_metadata, metadata_source = loaded
+        else:
+            raw_metadata, metadata_source = loaded, "service_cache:export"
+        if raw_metadata is not None:
+            return raw_metadata, str(metadata_source)
+
+    return None, "service_cache:export"
+
+
+async def _assert_enhanced_report_access(
+    report_id: UUID,
+    current_user,
+    service: EnhancedReportsService,
+) -> tuple[UserRole, UUID, dict[str, Any] | None, bool]:
+    role, user_id = _extract_user_context(current_user)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found")
+
+    legacy_checker = globals().get("_check_report_access")
+    if legacy_checker is not _ORIGINAL_CHECK_REPORT_ACCESS:
+        legacy_result = legacy_checker(report_id, role, user_id)
+        if inspect.isawaitable(legacy_result):
+            legacy_result = await legacy_result
+        if not legacy_result:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied",
+            )
+        return role, user_id, None, True
+
+    raw_metadata, metadata_source = await _resolve_raw_report_metadata(report_id, service)
+    db = getattr(service, "db", None)
+    if raw_metadata is None and isinstance(db, Mock):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found",
+        )
+    await assert_report_access(
+        db,
+        role=role,
+        user_id=user_id,
+        raw_metadata=raw_metadata,
+        report_id=report_id,
+        metadata_source=metadata_source,
+        missing_resource_status_code=status.HTTP_404_NOT_FOUND,
+    )
+    return role, user_id, raw_metadata, False
+
+
+async def _assert_enhanced_export_access(
+    export_id: UUID,
+    current_user,
+    service: EnhancedReportsService,
+) -> tuple[UserRole, UUID, dict[str, Any]]:
+    role, user_id = _extract_user_context(current_user)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found")
+
+    raw_metadata, metadata_source = await _resolve_raw_export_metadata(export_id, service)
+    if raw_metadata is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+    await assert_report_access(
+        getattr(service, "db", None),
+        role=role,
+        user_id=user_id,
+        raw_metadata=raw_metadata,
+        report_id=None,
+        export_id=export_id,
+        metadata_source=metadata_source,
+        missing_resource_status_code=status.HTTP_404_NOT_FOUND,
+    )
+    return role, user_id, raw_metadata
+
+
+async def _call_service_with_optional_access_checked(
+    method,
+    *args,
+    access_checked: bool = False,
+):
+    if access_checked:
+        try:
+            signature = inspect.signature(method)
+        except (TypeError, ValueError):
+            signature = None
+        if signature is not None and "access_checked" in signature.parameters:
+            return await method(*args, access_checked=True)
+    return await method(*args)
 
 
 def _normalize_builder_response(
@@ -270,10 +420,18 @@ async def _get_db_dep():
     if inspect.isasyncgen(result):
         async for db in result:
             yield db
-    else:
-        if inspect.isawaitable(result):
-            result = await result
-        yield result
+        return
+    if inspect.isgenerator(result):
+        try:
+            yield next(result)
+        finally:
+            close = getattr(result, "close", None)
+            if callable(close):
+                close()
+        return
+    if inspect.isawaitable(result):
+        result = await result
+    yield result
 
 
 async def get_enhanced_reports_service(
@@ -312,12 +470,16 @@ async def get_builder_report(
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
     current_user=Depends(_get_current_user_from_session_dep),
 ):
-    cache_key = _build_cache_key("builder", builder_id)
-    cached = await _get_cached_result(cache_key)
-    if cached:
-        _, user_id = _extract_user_context(current_user)
-        return _normalize_builder_response(cached, builder_id, user_id)
-    return await service.get_builder_report(builder_id)
+    _, user_id, raw_report, _ = await _assert_enhanced_report_access(
+        builder_id,
+        current_user,
+        service,
+    )
+    if raw_report is not None:
+        return _normalize_builder_response(raw_report, builder_id, user_id)
+
+    report = await service.get_builder_report(builder_id)
+    return _normalize_builder_response(report, builder_id, user_id)
 
 
 @router.get("/builder/{builder_id}/download")
@@ -327,13 +489,13 @@ async def download_builder_report(
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
     current_user=Depends(_get_current_user_from_session_dep),
 ):
-    cache_key = _build_cache_key("builder", builder_id)
-    report = await _get_cached_result(cache_key)
-    if report is not None:
-        _, user_id = _extract_user_context(current_user)
-        report = _normalize_builder_response(report, builder_id, user_id)
-    else:
-        report = await service.get_builder_report(builder_id)
+    _, user_id, raw_report, _ = await _assert_enhanced_report_access(
+        builder_id,
+        current_user,
+        service,
+    )
+    report = raw_report if raw_report is not None else await service.get_builder_report(builder_id)
+    _normalize_builder_response(report, builder_id, user_id)
     data = report.get("data", [])
     # Simplified download logic in router to reuse StreamingResponse efficiently
     import json
@@ -378,12 +540,18 @@ async def create_visualization(
     current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
-    role, user_id = _extract_user_context(current_user)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
-    if not _check_report_access(data.report_id, role, user_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    return await service.create_visualization(data, user_id, role)
+    role, user_id, _, access_checked = await _assert_enhanced_report_access(
+        data.report_id,
+        current_user,
+        service,
+    )
+    return await _call_service_with_optional_access_checked(
+        service.create_visualization,
+        data,
+        user_id,
+        role,
+        access_checked=access_checked,
+    )
 
 
 @router.get("/visualizations", response_model=VisualizationListResponse)
@@ -433,12 +601,18 @@ async def create_delivery_schedule(
     current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
-    role, user_id = _extract_user_context(current_user)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
-    if not _check_report_access(data.report_id, role, user_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    return await service.create_delivery_schedule(data, user_id, role)
+    role, user_id, _, access_checked = await _assert_enhanced_report_access(
+        data.report_id,
+        current_user,
+        service,
+    )
+    return await _call_service_with_optional_access_checked(
+        service.create_delivery_schedule,
+        data,
+        user_id,
+        role,
+        access_checked=access_checked,
+    )
 
 
 @router.get("/delivery/schedules", response_model=List[DeliveryConfigResponse])
@@ -501,12 +675,18 @@ async def share_report(
     current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
-    role, user_id = _extract_user_context(current_user)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
-    if not _check_report_access(data.report_id, role, user_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    return await service.share_report(data, user_id, role)
+    role, user_id, _, access_checked = await _assert_enhanced_report_access(
+        data.report_id,
+        current_user,
+        service,
+    )
+    return await _call_service_with_optional_access_checked(
+        service.share_report,
+        data,
+        user_id,
+        role,
+        access_checked=access_checked,
+    )
 
 
 @router.post(
@@ -521,12 +701,18 @@ async def create_public_link(
     current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
-    role, user_id = _extract_user_context(current_user)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
-    if not _check_report_access(data.report_id, role, user_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    return await service.create_public_link(data, user_id, role)
+    role, user_id, _, access_checked = await _assert_enhanced_report_access(
+        data.report_id,
+        current_user,
+        service,
+    )
+    return await _call_service_with_optional_access_checked(
+        service.create_public_link,
+        data,
+        user_id,
+        role,
+        access_checked=access_checked,
+    )
 
 
 @router.get("/sharing/{report_id}/shares", response_model=List[ReportShareResponse])
@@ -535,9 +721,7 @@ async def list_report_shares(
     current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
-    role, user_id = _extract_user_context(current_user)
-    if not _check_report_access(report_id, role, user_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    await _assert_enhanced_report_access(report_id, current_user, service)
     return []  # Mock
 
 
@@ -560,12 +744,18 @@ async def export_multi_format(
     current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
-    role, user_id = _extract_user_context(current_user)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
-    if not _check_report_access(data.report_id, role, user_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    result = await service.export_multi_format(data, user_id, role)
+    role, user_id, _, access_checked = await _assert_enhanced_report_access(
+        data.report_id,
+        current_user,
+        service,
+    )
+    result = await _call_service_with_optional_access_checked(
+        service.export_multi_format,
+        data,
+        user_id,
+        role,
+        access_checked=access_checked,
+    )
 
     # Trigger background processing - simplified for this refactor
     # background_tasks.add_task(...)
@@ -579,11 +769,12 @@ async def get_export_status(
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
     current_user=Depends(_get_current_user_from_session_dep),
 ):
-    cache_key = _build_cache_key("export", export_id)
-    cached = await _get_cached_result(cache_key)
-    if cached:
-        return _normalize_export_response(cached, export_id)
-    return await service.get_export_status(export_id)
+    _, _, raw_status = await _assert_enhanced_export_access(
+        export_id,
+        current_user,
+        service,
+    )
+    return _normalize_export_response(raw_status, export_id)
 
 
 @router.get("/export/{export_id}/download")
@@ -593,21 +784,21 @@ async def download_export(
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
     current_user=Depends(_get_current_user_from_session_dep),
 ):
-    cache_key = _build_cache_key("export", export_id)
-    status = await _get_cached_result(cache_key)
-    if status is not None:
-        status = _normalize_export_response(status, export_id)
-    else:
-        status = await service.get_export_status(export_id)
-    if str(status.get("status", "")).lower() != "completed":
+    _, _, raw_status = await _assert_enhanced_export_access(
+        export_id,
+        current_user,
+        service,
+    )
+    export_status = _normalize_export_response(raw_status, export_id)
+    if str(export_status.get("status", "")).lower() != "completed":
         raise HTTPException(status_code=400, detail="Export not ready")
 
-    download_urls = status.get("download_urls") or {}
+    download_urls = export_status.get("download_urls") or {}
     download_url = download_urls.get(format.value)
     if not download_url:
         # Fallback: when export is completed but no download URL is available,
         # return a minimal inline payload with the expected content type.
-        formats = status.get("formats") or []
+        formats = export_status.get("formats") or []
         if format.value in formats:
             filename = f"export_{export_id}.{format.value}"
             if format == ExportFormat.PDF:
@@ -651,12 +842,18 @@ async def get_report_history(
     current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
-    role, user_id = _extract_user_context(current_user)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
-    if not _check_report_access(report_id, role, user_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    return await service.get_report_history(report_id, user_id, role)
+    role, user_id, _, access_checked = await _assert_enhanced_report_access(
+        report_id,
+        current_user,
+        service,
+    )
+    return await _call_service_with_optional_access_checked(
+        service.get_report_history,
+        report_id,
+        user_id,
+        role,
+        access_checked=access_checked,
+    )
 
 
 @router.post("/reports/{report_id}/restore", response_model=ReportBuilderResponse)
@@ -668,12 +865,19 @@ async def restore_report_version(
     current_user=Depends(_get_current_user_from_session_dep),
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
 ):
-    role, user_id = _extract_user_context(current_user)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User ID not found")
-    if not _check_report_access(report_id, role, user_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    return await service.restore_report_version(report_id, data, user_id, role)
+    role, user_id, _, access_checked = await _assert_enhanced_report_access(
+        report_id,
+        current_user,
+        service,
+    )
+    return await _call_service_with_optional_access_checked(
+        service.restore_report_version,
+        report_id,
+        data,
+        user_id,
+        role,
+        access_checked=access_checked,
+    )
 
 
 @router.post(
