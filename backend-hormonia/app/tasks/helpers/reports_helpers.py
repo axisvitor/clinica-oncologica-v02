@@ -1,13 +1,15 @@
 """Reports helpers extracted from app.tasks.reports."""
 
-import logging
+from __future__ import annotations
+
 from pathlib import Path
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-logger = logging.getLogger(__name__)
+from app.api.v2.routers.upload.config import get_private_upload_root
 
 _SYSTEM_ACTOR_UUID_SEED = "app.tasks.reports.system-actor"
 _DEFAULT_REPORT_TYPE = "medical"
+_REPORT_ARTIFACT_SUBDIR = "reports"
 
 
 def _get_system_actor_uuid() -> UUID:
@@ -23,10 +25,23 @@ def _sanitize_report_type(report_type: str) -> str:
     return normalized or _DEFAULT_REPORT_TYPE
 
 
-def _build_safe_report_path(base_dir: Path, patient_uuid: UUID, report_type: str) -> Path:
-    safe_filename = f"{patient_uuid}_{_sanitize_report_type(report_type)}.pdf"
-    output_path = (base_dir / safe_filename).resolve()
-    base_dir_resolved = base_dir.resolve()
-    if base_dir_resolved not in output_path.parents:
-        raise ValueError("Invalid report output path")
+def get_private_report_artifact_root(*, create: bool = True) -> Path:
+    """Return the private, unmounted root for generated report artifacts."""
+
+    report_root = get_private_upload_root(create=create) / _REPORT_ARTIFACT_SUBDIR
+    if create:
+        report_root.mkdir(parents=True, exist_ok=True)
+    return report_root
+
+
+def _build_safe_report_path(base_dir: Path, report_id: UUID, report_type: str) -> Path:
+    """Build a report PDF path that cannot expose patient identifiers or escape base_dir."""
+
+    safe_filename = f"{report_id}_{_sanitize_report_type(report_type)}.pdf"
+    output_path = (base_dir / safe_filename).resolve(strict=False)
+    base_dir_resolved = base_dir.resolve(strict=False)
+    try:
+        output_path.relative_to(base_dir_resolved)
+    except ValueError as exc:
+        raise ValueError("Invalid report output path") from exc
     return output_path

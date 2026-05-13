@@ -6,6 +6,7 @@ Delegates logic to EnhancedReportsService.
 
 from typing import Optional, List
 import asyncio
+import inspect
 import json
 from uuid import UUID
 from unittest.mock import Mock
@@ -62,6 +63,10 @@ from app.utils.timezone import now_sao_paulo, today_sao_paulo
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+# Compatibility seam for legacy tests/imports that patch enhanced_reports.get_db.
+# Runtime still delegates to the async database dependency unless patched.
+get_db = get_async_db
 
 # Rate limits
 RATE_LIMIT_STANDARD = "10/hour"
@@ -258,8 +263,21 @@ def _normalize_dashboard_response(
     }
 
 
+async def _get_db_dep():
+    """Resolve the database dependency through the module-level get_db seam."""
+
+    result = get_db()
+    if inspect.isasyncgen(result):
+        async for db in result:
+            yield db
+    else:
+        if inspect.isawaitable(result):
+            result = await result
+        yield result
+
+
 async def get_enhanced_reports_service(
-    db: AsyncSession = Depends(get_async_db),
+    db: AsyncSession = Depends(_get_db_dep),
 ) -> EnhancedReportsService:
     return EnhancedReportsService(db)
 

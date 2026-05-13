@@ -9,7 +9,7 @@ Key translation patterns from Celery → Taskiq:
   - `run_async()` bridge removed: ReportService.generate_report() called with `await` directly
   - `self.retry(exc=exc, countdown=300)` → SmartRetryMiddleware handles retry
   - `.apply_async(args=[pid, rtype])` → `await generate_patient_report.kiq(pid, rtype)`
-  - Pure helpers imported from app.tasks.reports (no duplication)
+  - Shared report helpers keep artifact path construction out of task orchestration
   - `get_scoped_session()` preserved for sync ORM (ReportService constructor, PDF gen)
   - Structured logging via log_task_start/success/error from taskiq_base
 
@@ -19,21 +19,19 @@ Schedule labels (1 of 2 tasks is periodic):
 
 import logging
 from datetime import date, timedelta
-from pathlib import Path
 from uuid import UUID
 
-from app.config import settings
 from app.database import get_scoped_session
 from app.schemas.report import ReportGenerationRequest
 from app.services.reporting import ReportService
 from app.taskiq_broker import broker
 from app.tasks.taskiq_base import log_task_error, log_task_start, log_task_success
 
-# Pure helpers imported from Celery module — zero logic duplication (D007).
 from app.tasks.helpers.reports_helpers import (
     _build_safe_report_path,
     _get_system_actor_uuid,
     _sanitize_report_type,
+    get_private_report_artifact_root,
 )
 
 logger = logging.getLogger("app.tasks.reports_taskiq")
@@ -61,24 +59,35 @@ async def generate_patient_report(patient_id: str, report_type: str) -> dict:
     Returns:
         Dict with report status, report_id, and output_path.
     """
+    safe_report_type = _sanitize_report_type(report_type)
     start_time = log_task_start(
-        "generate_patient_report", patient_id=patient_id, report_type=report_type
+        "generate_patient_report",
+        report_type=safe_report_type,
     )
+    report_id: str | None = None
 
     try:
         patient_uuid = UUID(patient_id)
     except ValueError:
         logger.warning(
             "Invalid patient_id for report generation",
-            extra={"patient_id": patient_id},
+            extra={
+                "task_name": "generate_patient_report",
+                "event": "task_validation_failed",
+                "reason": "invalid_patient_id",
+                "status": "failed",
+                "report_type": safe_report_type,
+            },
         )
         log_task_error(
             "generate_patient_report",
             ValueError("invalid_patient_id"),
             start_time,
-            patient_id=patient_id,
+            reason="invalid_patient_id",
+            status="failed",
+            report_type=safe_report_type,
         )
-        return {"status": "failed", "error": "invalid_patient_id", "patient_id": patient_id}
+        return {"status": "failed", "error": "invalid_patient_id"}
 
     try:
         with get_scoped_session() as db:
@@ -93,36 +102,43 @@ async def generate_patient_report(patient_id: str, report_type: str) -> dict:
                 request,
                 _get_system_actor_uuid(),
             )
+            report_id = str(report.id)
             pdf_content = service.generate_pdf_report(report.id)
-            reports_dir = Path(settings.UPLOAD_DIRECTORY) / "reports"
-            reports_dir.mkdir(parents=True, exist_ok=True)
-            output_path = _build_safe_report_path(reports_dir, patient_uuid, report_type)
-            with open(output_path, "wb") as f:
-                f.write(pdf_content)
+            reports_dir = get_private_report_artifact_root(create=True)
+            output_path = _build_safe_report_path(reports_dir, report.id, safe_report_type)
+            output_path.write_bytes(pdf_content)
 
             result = {
                 "status": "completed",
-                "report_id": str(report.id),
+                "report_id": report_id,
                 "output_path": str(output_path),
             }
 
             log_task_success(
                 "generate_patient_report",
                 start_time,
-                patient_id=patient_id,
-                report_id=result["report_id"],
+                report_id=report_id,
+                report_type=safe_report_type,
+                status="completed",
             )
             return result
 
     except Exception as exc:
+        log_context = {
+            "reason": "report_generation_failed",
+            "status": "failed",
+            "report_type": safe_report_type,
+            "failure_type": type(exc).__name__,
+        }
+        if report_id:
+            log_context["report_id"] = report_id
         log_task_error(
             "generate_patient_report",
-            exc,
+            RuntimeError("report_generation_failed"),
             start_time,
-            patient_id=patient_id,
-            report_type=report_type,
+            **log_context,
         )
-        raise
+        raise RuntimeError("report_generation_failed") from None
 
 
 # ===========================================================================
@@ -152,21 +168,26 @@ async def generate_scheduled_reports() -> dict:
             scheduled = service.get_scheduled_reports()
 
             dispatched_count = 0
+            dispatched_task_ids: list[str] = []
             for item in scheduled:
                 pid = str(item.get("patient_id"))
                 rtype = item.get("report_type", "medical")
-                await generate_patient_report.kiq(pid, rtype)
+                queued_task = await generate_patient_report.kiq(pid, rtype)
                 dispatched_count += 1
+                queued_task_id = getattr(queued_task, "id", None)
+                if queued_task_id:
+                    dispatched_task_ids.append(str(queued_task_id))
 
             result = {
                 "status": "scheduled",
+                "tasks": dispatched_task_ids,
                 "count": dispatched_count,
             }
 
             log_task_success(
                 "generate_scheduled_reports",
                 start_time,
-                dispatched_count=dispatched_count,
+                dispatched_count=result["count"],
             )
             return result
 
