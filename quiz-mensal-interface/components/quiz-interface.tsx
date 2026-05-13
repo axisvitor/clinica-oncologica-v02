@@ -1,6 +1,5 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
@@ -29,15 +28,9 @@ interface QuizInterfaceProps {
   session: QuizSession
   token?: string
   onComplete?: () => void
-  resumeFromSaved?: boolean
 }
 
-export default function QuizInterface({
-  session,
-  token,
-  onComplete,
-  resumeFromSaved = false,
-}: QuizInterfaceProps) {
+export default function QuizInterface({ session, token, onComplete }: QuizInterfaceProps) {
   const { toast } = useToast()
   const {
     currentQuestionIndex,
@@ -56,23 +49,7 @@ export default function QuizInterface({
     setAnswers,
     setOtherTexts,
     handleSubmitAnswer,
-  } = useQuizState({ session, initialToken: token, onComplete, resumeFromSaved })
-
-  // Reset selected answer when question changes
-  useEffect(() => {
-    const savedAnswer = answers.get(currentQuestion.id)
-    setSelectedAnswer(savedAnswer || null)
-    // Restore other text if it was saved
-    const savedOtherText = otherTexts.get(currentQuestion.id)
-    if (
-      savedOtherText &&
-      savedAnswer &&
-      typeof savedAnswer === 'object' &&
-      'value' in savedAnswer
-    ) {
-      // Text is already in the OtherAnswer object
-    }
-  }, [currentQuestionIndex, currentQuestion.id, answers, otherTexts, setSelectedAnswer])
+  } = useQuizState({ session, initialToken: token, onComplete })
 
   if (isCompleted) {
     return (

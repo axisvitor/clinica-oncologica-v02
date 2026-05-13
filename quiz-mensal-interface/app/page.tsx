@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Suspense } from 'react'
 import QuizInterface from '@/components/quiz-interface'
 import { useQuizSession } from '@/hooks/use-quiz-session'
@@ -9,15 +9,9 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AlertCircle, RefreshCcw } from 'lucide-react'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
-import { ResumeQuizDialog } from '@/components/quiz/ResumeQuizDialog'
 import { QuizSkeleton } from '@/components/quiz/QuizSkeleton'
 import { QUIZ_CENTERED_SHELL_CLASS, QUIZ_SHELL_CLASS } from '@/lib/quiz-shell'
-import {
-  loadQuizProgress,
-  clearQuizProgress,
-  cleanupOldProgress,
-  type QuizProgress,
-} from '@/lib/quiz-progress-storage'
+import { cleanupOldProgress } from '@/lib/quiz-progress-storage'
 
 /**
  * Quiz Page Component
@@ -26,28 +20,15 @@ import {
  * - CSRF token in RAM only (XSS immune)
  * - HttpOnly cookies for session (browser-managed)
  * - Direct connection to Python backend (no Next.js proxy)
+ * - Resume position comes from backend session.current_question_index only
  */
 function QuizPage() {
   const { session, isLoading, error, retry } = useQuizSession()
-  const [savedProgress, setSavedProgress] = useState<QuizProgress | null>(null)
-  const [showResumeDialog, setShowResumeDialog] = useState(false)
-  const [shouldResume, setShouldResume] = useState(false)
 
   useEffect(() => {
-    // Cleanup old progress data on mount
+    // Remove any legacy localStorage answer cache without reading or restoring it.
     cleanupOldProgress()
   }, [])
-
-  // Check for saved progress when session is loaded
-  useEffect(() => {
-    if (session?.quiz_session_id) {
-      const progress = loadQuizProgress(session.quiz_session_id)
-      if (progress && progress.currentQuestionIndex < (session.questions?.length ?? 0)) {
-        setSavedProgress(progress)
-        setShowResumeDialog(true)
-      }
-    }
-  }, [session])
 
   // Loading state - show skeleton for better perceived performance
   if (isLoading) {
@@ -89,33 +70,13 @@ function QuizPage() {
     )
   }
 
-  const handleResume = () => {
-    setShouldResume(true)
-    setShowResumeDialog(false)
-  }
-
-  const handleStartFresh = () => {
-    if (session) {
-      clearQuizProgress(session.quiz_session_id)
-    }
-    setShouldResume(false)
-    setShowResumeDialog(false)
-  }
-
   // Success state - show quiz
   if (session) {
     return (
       <ErrorBoundary>
         <main className={QUIZ_SHELL_CLASS}>
-          <ResumeQuizDialog
-            open={showResumeDialog}
-            progress={savedProgress}
-            onResume={handleResume}
-            onStartFresh={handleStartFresh}
-          />
           <QuizInterface
             session={session}
-            resumeFromSaved={shouldResume}
             onComplete={() => {
               // Quiz completed - could redirect or show completion message
               console.log('Quiz completed successfully!')

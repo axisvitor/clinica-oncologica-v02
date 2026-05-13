@@ -1,26 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { QuizSession, SingleAnswer, MultipleAnswer, QuizQuestion } from '@/types/quiz'
-import {
-  saveQuizProgress,
-  loadQuizProgress,
-  clearQuizProgress,
-  type QuizProgress,
-} from '@/lib/quiz-progress-storage'
+import { clearQuizProgress } from '@/lib/quiz-progress-storage'
 import { api } from '@/lib/api-client'
 
 interface UseQuizStateProps {
   session: QuizSession
   initialToken?: string
   onComplete?: () => void
-  resumeFromSaved?: boolean
 }
 
-export function useQuizState({
-  session,
-  initialToken,
-  onComplete,
-  resumeFromSaved = false,
-}: UseQuizStateProps) {
+export function useQuizState({ session, onComplete }: UseQuizStateProps) {
   // Initialize with 0 fallback to prevent undefined -> 0 transitions that trigger useEffect
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(
     session.current_question_index ?? 0,
@@ -51,52 +40,10 @@ export function useQuizState({
   const progress = totalQuestions > 0 ? ((safeIndex + 1) / totalQuestions) * 100 : 0
   const isLastQuestion = hasValidQuestions && safeIndex === totalQuestions - 1
 
-  // Load saved progress on mount if resuming
+  // Remove any legacy client-side quiz progress on mount/session changes.
   useEffect(() => {
-    if (resumeFromSaved) {
-      const savedProgress = loadQuizProgress(session.quiz_session_id)
-      if (savedProgress) {
-        // Restore answers
-        const restoredAnswers = new Map(Object.entries(savedProgress.answers))
-        setAnswers(restoredAnswers)
-
-        // Restore other texts
-        const restoredOtherTexts = new Map(Object.entries(savedProgress.otherTexts || {}))
-        setOtherTexts(restoredOtherTexts)
-
-        // Restore question index
-        setCurrentQuestionIndex(savedProgress.currentQuestionIndex)
-
-        console.log(`Resumed quiz from question ${savedProgress.currentQuestionIndex + 1}`)
-      }
-    }
-  }, [resumeFromSaved, session.quiz_session_id])
-
-  // Save progress to localStorage whenever state changes
-  const saveProgress = useCallback(() => {
-    const progressData: QuizProgress = {
-      sessionId: session.quiz_session_id,
-      currentQuestionIndex: currentQuestionIndex || 0,
-      answers: Object.fromEntries(answers),
-      otherTexts: Object.fromEntries(otherTexts),
-      lastSaved: Date.now(),
-      patientName: session.patient_name,
-      templateName: session.template_name,
-      totalQuestions: session.questions.length,
-    }
-    saveQuizProgress(progressData)
-  }, [session, currentQuestionIndex, answers, otherTexts])
-
-  // Auto-save on state changes (debounced)
-  useEffect(() => {
-    if (answers.size > 0 && !isCompleted) {
-      const timeoutId = setTimeout(() => {
-        saveProgress()
-      }, 500) // Debounce 500ms
-
-      return () => clearTimeout(timeoutId)
-    }
-  }, [answers, currentQuestionIndex, saveProgress, isCompleted])
+    clearQuizProgress()
+  }, [session.quiz_session_id])
 
   // Reset selected answer when question changes (NOT when answers changes)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,8 +66,8 @@ export function useQuizState({
       // Handle completion
       if (result.is_last_question) {
         setIsCompleted(true)
-        // Clear progress on completion
-        clearQuizProgress(session.quiz_session_id)
+        // Clear legacy progress on completion
+        clearQuizProgress()
         onComplete?.()
       } else {
         setCurrentQuestionIndex((prev) => (prev || 0) + 1)
@@ -129,7 +76,7 @@ export function useQuizState({
 
       return result
     } catch (error) {
-      console.error('Error submitting answer:', error)
+      clearQuizProgress()
       throw error
     } finally {
       setIsSubmitting(false)
@@ -168,7 +115,6 @@ export function useQuizState({
     setIsSubmitting,
     setIsCompleted,
     handleSubmitAnswer,
-    saveProgress,
     goToNextQuestion,
     goToPreviousQuestion,
   }
