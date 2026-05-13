@@ -26,6 +26,10 @@ from typing import Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
+def _extension(file_path: Path) -> str:
+    return file_path.suffix.lower() or "none"
+
+
 @dataclass
 class ScanResult:
     """Virus scan result"""
@@ -105,7 +109,10 @@ class VirusScannerService:
 
             return self._clamd_available
         except Exception as e:
-            logger.warning(f"Failed to check ClamAV daemon: {e}")
+            logger.warning(
+                "Failed to check ClamAV daemon",
+                extra={"reason": e.__class__.__name__, "status": "unavailable"},
+            )
             self._clamd_available = False
             return False
 
@@ -123,13 +130,20 @@ class VirusScannerService:
 
         # Check if scanning is enabled
         if not self.enabled:
-            logger.debug(f"Virus scanning disabled, skipping: {file_path}")
+            logger.debug(
+                "Virus scanning disabled, skipping file",
+                extra={
+                    "extension": _extension(file_path),
+                    "scanner": "disabled",
+                    "status": "skipped",
+                },
+            )
             return ScanResult(clean=True, scanner_used="disabled", scan_time_ms=0.0)
 
         # Check file exists
         if not file_path.exists():
             return ScanResult(
-                clean=False, error=f"File not found: {file_path}", scanner_used="none"
+                clean=False, error="file_not_found", scanner_used="none"
             )
 
         # Try daemon first
@@ -137,7 +151,15 @@ class VirusScannerService:
             result = await self._scan_with_daemon(file_path)
             if result.error is None:
                 return result
-            logger.warning(f"Daemon scan failed, trying fallback: {result.error}")
+            logger.warning(
+                "Daemon scan failed, trying fallback",
+                extra={
+                    "extension": _extension(file_path),
+                    "reason": "daemon_scan_failed",
+                    "scanner": result.scanner_used,
+                    "status": "fallback",
+                },
+            )
 
         # Fallback to CLI
         if self.fallback_cli:
@@ -147,7 +169,7 @@ class VirusScannerService:
         logger.error("No virus scanner available (daemon down, CLI disabled)")
         return ScanResult(
             clean=True,  # Fail open for availability
-            error="No scanner available",
+            error="no_scanner_available",
             scanner_used="none",
         )
 
@@ -169,7 +191,7 @@ class VirusScannerService:
             if not cd.ping():
                 return ScanResult(
                     clean=False,
-                    error="ClamAV daemon not responding to ping",
+                    error="clamd_ping_failed",
                     scanner_used="clamd",
                 )
 
@@ -182,28 +204,36 @@ class VirusScannerService:
                 return ScanResult(
                     clean=True, scanner_used="clamd", scan_time_ms=scan_time
                 )
-            else:
-                # Threat found
-                threat = (
-                    result[str(file_path)][1]
-                    if str(file_path) in result
-                    else "Unknown threat"
-                )
-                return ScanResult(
-                    clean=False,
-                    threat_found=threat,
-                    scanner_used="clamd",
-                    scan_time_ms=scan_time,
-                )
+
+            # Threat found
+            threat = (
+                result[str(file_path)][1]
+                if str(file_path) in result
+                else "Unknown threat"
+            )
+            return ScanResult(
+                clean=False,
+                threat_found=threat,
+                scanner_used="clamd",
+                scan_time_ms=scan_time,
+            )
 
         except ImportError:
             logger.warning("pyclamd not installed, cannot use daemon")
             return ScanResult(
-                clean=False, error="pyclamd not installed", scanner_used="clamd"
+                clean=False, error="pyclamd_not_installed", scanner_used="clamd"
             )
         except Exception as e:
-            logger.error(f"Daemon scan error: {e}", exc_info=True)
-            return ScanResult(clean=False, error=str(e), scanner_used="clamd")
+            logger.error(
+                "Daemon scan error",
+                extra={
+                    "extension": _extension(file_path),
+                    "reason": e.__class__.__name__,
+                    "scanner": "clamd",
+                    "status": "error",
+                },
+            )
+            return ScanResult(clean=False, error=e.__class__.__name__, scanner_used="clamd")
 
     async def _scan_with_cli(self, file_path: Path) -> ScanResult:
         """Scan using clamdscan command-line tool"""
@@ -227,7 +257,7 @@ class VirusScannerService:
                 return ScanResult(
                     clean=True, scanner_used="clamdscan", scan_time_ms=scan_time
                 )
-            elif result.returncode == 1:
+            if result.returncode == 1:
                 # Parse threat name from output
                 threat = "Unknown threat"
                 for line in result.stdout.split("\n"):
@@ -243,30 +273,38 @@ class VirusScannerService:
                     scanner_used="clamdscan",
                     scan_time_ms=scan_time,
                 )
-            else:
-                # Error
-                return ScanResult(
-                    clean=False,
-                    error=f"clamdscan error: {result.stderr}",
-                    scanner_used="clamdscan",
-                )
+
+            # Error
+            return ScanResult(
+                clean=False,
+                error="clamdscan_error",
+                scanner_used="clamdscan",
+            )
 
         except FileNotFoundError:
             logger.warning("clamdscan command not found")
             return ScanResult(
                 clean=False,
-                error="clamdscan command not found",
+                error="clamdscan_not_found",
                 scanner_used="clamdscan",
             )
         except subprocess.TimeoutExpired:
             return ScanResult(
                 clean=False,
-                error=f"Scan timeout after {self.timeout}s",
+                error="scan_timeout",
                 scanner_used="clamdscan",
             )
         except Exception as e:
-            logger.error(f"CLI scan error: {e}", exc_info=True)
-            return ScanResult(clean=False, error=str(e), scanner_used="clamdscan")
+            logger.error(
+                "CLI scan error",
+                extra={
+                    "extension": _extension(file_path),
+                    "reason": e.__class__.__name__,
+                    "scanner": "clamdscan",
+                    "status": "error",
+                },
+            )
+            return ScanResult(clean=False, error=e.__class__.__name__, scanner_used="clamdscan")
 
     async def health_check(self) -> Tuple[bool, str]:
         """

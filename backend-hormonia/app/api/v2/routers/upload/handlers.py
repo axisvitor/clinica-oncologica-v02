@@ -42,6 +42,7 @@ from app.schemas.v2.upload import (
     ProcessingInfo,
 )
 from app.schemas.v2.common import FieldSelector
+from app.utils.download_responses import build_attachment_file_response
 from app.utils.logging import get_logger
 
 from . import config as upload_config
@@ -651,6 +652,28 @@ async def download_upload_handler(
             detail="Upload not found",
         )
 
+    try:
+        response = build_attachment_file_response(
+            resolved.path,
+            filename=_generic_download_filename(upload_record),
+            declared_media_type=upload_record.file_type,
+            storage_path=upload_record.storage_path,
+        )
+    except Exception as exc:
+        logger.warning(
+            "upload_download_denied",
+            extra={
+                "upload_id": str(upload_id),
+                "user_id": str(current_user.id),
+                "reason": exc.__class__.__name__,
+                "status": status.HTTP_404_NOT_FOUND,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload not found",
+        )
+
     logger.info(
         "upload_download_authorized",
         extra={
@@ -659,11 +682,7 @@ async def download_upload_handler(
             "status": status.HTTP_200_OK,
         },
     )
-    return FileResponse(
-        path=resolved.path,
-        media_type=upload_record.file_type or "application/octet-stream",
-        filename=_generic_download_filename(upload_record),
-    )
+    return response
 
 
 async def get_upload_info_handler(

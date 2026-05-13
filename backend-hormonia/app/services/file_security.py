@@ -29,6 +29,16 @@ from app.api.v2.routers.upload.active_content import (
 logger = logging.getLogger(__name__)
 
 
+def _extension(file_path: Path) -> str:
+    return file_path.suffix.lower() or "none"
+
+
+def _primary_reason(threats: List[str]) -> str:
+    if not threats:
+        return "none"
+    return threats[0].split(":", 1)[0].lower().replace(" ", "_")
+
+
 @dataclass
 class SecurityScanResult:
     """File security scan result."""
@@ -239,7 +249,7 @@ class FileSecurityService:
             # 2. Double extension check (.pdf.exe, .jpg.exe, etc.)
             filename = file_path.name
             if self._has_double_extension(filename):
-                threats.append(f"Double extension detected: {filename}")
+                threats.append("Double extension detected")
 
             # 3. Bounded active web-content signature check for any upload shape.
             if content is None:
@@ -278,15 +288,22 @@ class FileSecurityService:
                 logger.error(
                     "File security threats detected",
                     extra={
-                        "file_path": str(file_path),
-                        "threats": threats,
+                        "extension": _extension(file_path),
+                        "reason": _primary_reason(threats),
+                        "status": "denied",
+                        "threat_count": len(threats),
                         "scan_time_ms": scan_time_ms,
                     },
                 )
             else:
                 logger.info(
                     "File passed security scan",
-                    extra={"file_path": str(file_path), "scan_time_ms": scan_time_ms},
+                    extra={
+                        "extension": _extension(file_path),
+                        "reason": "clean",
+                        "status": "clean",
+                        "scan_time_ms": scan_time_ms,
+                    },
                 )
 
             return SecurityScanResult(
@@ -294,11 +311,18 @@ class FileSecurityService:
             )
 
         except Exception as e:
-            logger.error(f"Security scan failed: {e}", exc_info=True)
+            logger.error(
+                "Security scan failed",
+                extra={
+                    "extension": _extension(file_path),
+                    "reason": e.__class__.__name__,
+                    "status": "fail_open",
+                },
+            )
             # Fail open to prevent DoS
             return SecurityScanResult(
                 is_safe=True,
-                threats_found=[f"Scan error (fail-open): {str(e)}"],
+                threats_found=[f"Scan error (fail-open): {e.__class__.__name__}"],
                 scan_time_ms=0,
             )
 
@@ -364,7 +388,10 @@ class FileSecurityService:
                 logger.info("PDF contains form fields (potentially suspicious)")
 
         except Exception as e:
-            logger.error(f"PDF scan failed: {e}", exc_info=True)
+            logger.error(
+                "PDF scan failed",
+                extra={"reason": e.__class__.__name__, "status": "skipped"},
+            )
             # Don't fail the upload, just log
 
         return threats
@@ -387,12 +414,11 @@ class FileSecurityService:
 
                 with zipfile.ZipFile(file_path, "r") as zf:
                     for info in zf.filelist:
-                        filename = info.filename
-                        ext = Path(filename).suffix.lower()
+                        ext = Path(info.filename).suffix.lower()
 
                         if ext in self.DANGEROUS_EXTENSIONS:
                             threats.append(
-                                f"Archive contains dangerous file: {filename}"
+                                f"Archive contains dangerous file extension: {ext}"
                             )
 
             elif file_path.suffix.lower() == ".tar":
@@ -400,16 +426,22 @@ class FileSecurityService:
 
                 with tarfile.open(file_path, "r") as tf:
                     for member in tf.getmembers():
-                        filename = member.name
-                        ext = Path(filename).suffix.lower()
+                        ext = Path(member.name).suffix.lower()
 
                         if ext in self.DANGEROUS_EXTENSIONS:
                             threats.append(
-                                f"Archive contains dangerous file: {filename}"
+                                f"Archive contains dangerous file extension: {ext}"
                             )
 
         except Exception as e:
-            logger.error(f"Archive scan failed: {e}", exc_info=True)
+            logger.error(
+                "Archive scan failed",
+                extra={
+                    "extension": _extension(file_path),
+                    "reason": e.__class__.__name__,
+                    "status": "skipped",
+                },
+            )
 
         return threats
 
@@ -445,7 +477,10 @@ class FileSecurityService:
                     threats.append(f"Suspicious script pattern detected: {pattern}")
 
         except Exception as e:
-            logger.error(f"Script scan failed: {e}", exc_info=True)
+            logger.error(
+                "Script scan failed",
+                extra={"reason": e.__class__.__name__, "status": "skipped"},
+            )
 
         return threats
 

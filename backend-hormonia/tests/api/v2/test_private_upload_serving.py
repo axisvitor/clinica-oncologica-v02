@@ -117,6 +117,12 @@ def _assert_no_private_leak(response, *, private_bytes: bytes, forbidden_terms=(
         assert str(term).lower() not in body
 
 
+def _assert_attachment_security_headers(response) -> None:
+    assert response.headers["content-disposition"].lower().startswith("attachment")
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["cache-control"] == "no-store"
+
+
 @pytest.fixture(autouse=True)
 def upload_table_schema_guard(db_session):
     """Align local Postgres test schemas with the Upload ORM used by the API.
@@ -377,6 +383,7 @@ def test_gated_download_authorizes_owner_admin_and_rejects_anonymous_foreign_use
     assert owner_response.status_code == 200, owner_response.text
     assert owner_response.content == PRIVATE_BYTES
     assert owner_response.headers["content-type"].startswith("text/plain")
+    _assert_attachment_security_headers(owner_response)
 
     auth_context.as_user(other_doctor_user)
     foreign_response = client.get(download_url)
@@ -387,6 +394,8 @@ def test_gated_download_authorizes_owner_admin_and_rejects_anonymous_foreign_use
     admin_response = client.get(download_url)
     assert admin_response.status_code == 200, admin_response.text
     assert admin_response.content == PRIVATE_BYTES
+    assert admin_response.headers["content-type"].startswith("text/plain")
+    _assert_attachment_security_headers(admin_response)
 
 
 def test_private_upload_metadata_cache_miss_uses_database_without_public_url(

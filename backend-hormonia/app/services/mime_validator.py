@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from fastapi import status
+
 from app.api.v2.routers.upload.active_content import (
     REASON_ACTIVE_ACTUAL_MIME,
     detect_active_content_from_path,
@@ -25,6 +27,10 @@ from app.api.v2.routers.upload.active_content import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_extension(file_path: Path, file_extension: Optional[str] = None) -> str:
+    return (file_extension or file_path.suffix or "none").lower()
 
 
 @dataclass
@@ -151,7 +157,11 @@ class MimeTypeValidator:
         if active_check and active_check.is_active:
             logger.warning(
                 "Active web content denied during MIME validation",
-                extra=active_check.safe_log_extra(),
+                extra={
+                    **active_check.safe_log_extra(),
+                    "extension": _safe_extension(file_path, file_extension),
+                    "status": status.HTTP_400_BAD_REQUEST,
+                },
             )
             return MimeValidationResult(
                 is_valid=False,
@@ -190,6 +200,8 @@ class MimeTypeValidator:
                         "reason": REASON_ACTIVE_ACTUAL_MIME,
                         "declared_mime": declared_mime,
                         "actual_mime": actual_mime,
+                        "extension": extension,
+                        "status": status.HTTP_400_BAD_REQUEST,
                     },
                 )
                 return MimeValidationResult(
@@ -203,11 +215,13 @@ class MimeTypeValidator:
             # Block dangerous MIME types regardless of declared type
             if actual_normalized in self.DANGEROUS_MIMES:
                 logger.error(
-                    f"Dangerous MIME type detected: {actual_normalized}",
+                    "Dangerous MIME type detected",
                     extra={
-                        "file_path": str(file_path),
+                        "extension": extension,
                         "declared_mime": declared_mime,
                         "actual_mime": actual_mime,
+                        "reason": "dangerous_mime",
+                        "status": status.HTTP_400_BAD_REQUEST,
                     },
                 )
                 return MimeValidationResult(
@@ -243,11 +257,12 @@ class MimeTypeValidator:
             logger.warning(
                 "MIME type mismatch detected",
                 extra={
-                    "file_path": str(file_path),
                     "declared_mime": declared_mime,
                     "actual_mime": actual_mime,
                     "extension": extension,
                     "requires_strict": requires_strict,
+                    "reason": "mime_mismatch",
+                    "status": status.HTTP_400_BAD_REQUEST,
                 },
             )
 
@@ -260,13 +275,20 @@ class MimeTypeValidator:
             )
 
         except Exception as e:
-            logger.error(f"MIME validation failed: {e}", exc_info=True)
+            logger.error(
+                "MIME validation failed",
+                extra={
+                    "extension": _safe_extension(file_path, file_extension),
+                    "reason": e.__class__.__name__,
+                    "status": "fail_open",
+                },
+            )
             # Fail open (allow) on validation error to prevent DoS
             return MimeValidationResult(
                 is_valid=True,
                 declared_mime=declared_mime,
                 actual_mime="error",
-                message=f"Validation error (fail-open): {str(e)}",
+                message=f"Validation error (fail-open): {e.__class__.__name__}",
                 confidence=0.0,
             )
 

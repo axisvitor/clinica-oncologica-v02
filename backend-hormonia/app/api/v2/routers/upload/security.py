@@ -17,6 +17,10 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _extension(file_path: Path) -> str:
+    return file_path.suffix.lower() or "none"
+
+
 async def scan_virus(file_path: Path) -> bool:
     """
     Scan file for viruses using ClamAV.
@@ -40,9 +44,11 @@ async def scan_virus(file_path: Path) -> bool:
             logger.error(
                 "Virus detected in uploaded file",
                 extra={
-                    "file_path": str(file_path),
-                    "threat": result.threat_found,
+                    "extension": _extension(file_path),
+                    "reason": "malware_detected",
+                    "result_class": "infected",
                     "scanner": result.scanner_used,
+                    "status": status.HTTP_400_BAD_REQUEST,
                     "scan_time_ms": result.scan_time_ms,
                 },
             )
@@ -50,27 +56,43 @@ async def scan_virus(file_path: Path) -> bool:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Malware detected: {result.threat_found}",
             )
-        elif result.error:
+        if result.error:
             logger.warning(
                 "Virus scan failed",
                 extra={
-                    "file_path": str(file_path),
-                    "error": result.error,
+                    "extension": _extension(file_path),
+                    "reason": "scanner_error",
+                    "result_class": "error",
                     "scanner": result.scanner_used,
+                    "status": "skipped",
+                    "scan_time_ms": result.scan_time_ms,
                 },
             )
             # Fail open (allow upload) if scanner unavailable
             # This prevents DoS if ClamAV goes down
             return True
-        else:
-            logger.error("Unexpected scan result", extra={"result": result})
-            return True
+
+        logger.error(
+            "Unexpected scan result",
+            extra={
+                "extension": _extension(file_path),
+                "reason": "unexpected_scan_result",
+                "result_class": "unknown",
+                "scanner": result.scanner_used,
+                "status": "skipped",
+                "scan_time_ms": result.scan_time_ms,
+            },
+        )
+        return True
 
     logger.info(
         "File passed virus scan",
         extra={
-            "file_path": str(file_path),
+            "extension": _extension(file_path),
+            "reason": "clean",
+            "result_class": "clean",
             "scanner": result.scanner_used,
+            "status": "clean",
             "scan_time_ms": result.scan_time_ms,
         },
     )
@@ -100,10 +122,11 @@ async def validate_mime_type(file_path: Path, declared_mime: str) -> bool:
         logger.error(
             "MIME type validation failed",
             extra={
-                "file_path": str(file_path),
+                "extension": _extension(file_path),
                 "declared_mime": result.declared_mime,
                 "actual_mime": result.actual_mime,
-                "message": result.message,
+                "reason": "mime_validation_failed",
+                "status": status.HTTP_400_BAD_REQUEST,
             },
         )
         raise HTTPException(
@@ -142,8 +165,10 @@ async def scan_file_security(file_path: Path) -> bool:
         logger.error(
             "File security threats detected",
             extra={
-                "file_path": str(file_path),
-                "threats": result.threats_found,
+                "extension": _extension(file_path),
+                "reason": "security_threat_detected",
+                "status": status.HTTP_400_BAD_REQUEST,
+                "threat_count": len(result.threats_found),
                 "scan_time_ms": result.scan_time_ms,
             },
         )
@@ -154,6 +179,11 @@ async def scan_file_security(file_path: Path) -> bool:
 
     logger.info(
         "File passed security scan",
-        extra={"file_path": str(file_path), "scan_time_ms": result.scan_time_ms},
+        extra={
+            "extension": _extension(file_path),
+            "reason": "clean",
+            "status": "clean",
+            "scan_time_ms": result.scan_time_ms,
+        },
     )
     return True
