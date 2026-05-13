@@ -4,50 +4,6 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Active
 
-### R007 — PDFs e relatórios de paciente gerados por workers não podem ficar em caminho público determinístico sem autorização de download.
-- Class: compliance/security
-- Status: active
-- Description: PDFs e relatórios de paciente gerados por workers não podem ficar em caminho público determinístico sem autorização de download.
-- Why it matters: Relatórios de paciente são PHI concentrado; caminhos determinísticos sob `/uploads/reports` permitem acesso público se a URL for conhecida.
-- Source: report
-- Primary owning slice: M013/S04
-- Supporting slices: M013/S05, M013/S06
-- Validation: Pending: S04 closeout verification commands passed, but security closeout review found that free-form report_type can still enter generated PDF filenames/task result output_path/logs. R007 should only be validated after report artifacts use opaque/allowlisted non-PHI naming and PHI-safe outputs/logging are retested.
-- Notes: M013/S04 closeout reopened T03 for report artifact naming/logging remediation.
-
-### R008 — Downloads, exportações, compartilhamento e histórico de relatórios no escopo M013 devem validar ownership ou patient assignment antes de retornar dados.
-- Class: compliance/security
-- Status: active
-- Description: Downloads, exportações, compartilhamento e histórico de relatórios no escopo M013 devem validar ownership ou patient assignment antes de retornar dados.
-- Why it matters: Listagem filtrada não protege download direto por UUID; relatórios podem expor dados clínicos completos.
-- Source: report
-- Primary owning slice: M013/S05
-- Supporting slices: M013/S04, M013/S06
-- Validation: mapped
-- Notes: Cobre F-09 diretamente e fecha superfícies de relatório relacionadas quando usam o mesmo controle. F-22 médio pode ser parcialmente avançado se compartilhar helper.
-
-### R010 — O M013 deve deixar uma prova negativa reutilizável de isolamento médico/paciente com dois médicos, pacientes cruzados e endpoints críticos exercitados.
-- Class: quality-attribute
-- Status: active
-- Description: O M013 deve deixar uma prova negativa reutilizável de isolamento médico/paciente com dois médicos, pacientes cruzados e endpoints críticos exercitados.
-- Why it matters: Correções de autorização só são confiáveis quando o caminho proibido é exercitado e falha de forma verificável.
-- Source: inferred
-- Primary owning slice: M013/S06
-- Supporting slices: M013/S02, M013/S03, M013/S04, M013/S05
-- Validation: mapped
-- Notes: A matriz deve cobrir mensagens, quiz, flow responses, flow overrides, reports e upload/report serving conforme aplicável.
-
-### R011 — Falhas de autenticação, autorização, SSRF, arquivo privado e quiz inválido devem falhar fechado e emitir sinais diagnósticos sem PHI, tokens ou segredos.
-- Class: failure-visibility
-- Status: active
-- Description: Falhas de autenticação, autorização, SSRF, arquivo privado e quiz inválido devem falhar fechado e emitir sinais diagnósticos sem PHI, tokens ou segredos.
-- Why it matters: Segurança clínica precisa de bloqueio seguro e capacidade de investigar tentativas negadas sem vazar mais dados.
-- Source: inferred
-- Primary owning slice: M013/S06
-- Supporting slices: M013/S01, M013/S02, M013/S03, M013/S04, M013/S05
-- Validation: mapped
-- Notes: M013/S01 advanced failure visibility for WhatsApp auth and WuzAPI SSRF by failing closed and sanitizing unsafe/oversize media diagnostics; full R011 validation remains owned by M013/S06 across auth, authorization, private files and quiz boundaries.
-
 ## Validated
 
 ### R001 — A API de gestão WhatsApp deve exigir autenticação e autorização antes de permitir envio, leitura, histórico, contatos, filas ou instâncias.
@@ -116,6 +72,28 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: M013/S04 verified by `cd backend-hormonia && pytest tests/api/v2/test_private_upload_serving.py -q` (gsd_exec d7459df8-9e7f-4901-9d7f-28d9d12eb170). Proof covers private upload responses without public `/uploads` URLs, public static denial for private files/derivatives, owner/admin gated download success, and anonymous/foreign/deleted/missing/path-traversal failure cases.
 - Notes: Cobre F-07. Separar público/privado ou substituir serving privado por endpoint autenticado; sem fallback público para conteúdo PHI.
 
+### R007 — PDFs e relatórios de paciente gerados por workers não podem ficar em caminho público determinístico sem autorização de download.
+- Class: compliance/security
+- Status: validated
+- Description: PDFs e relatórios de paciente gerados por workers não podem ficar em caminho público determinístico sem autorização de download.
+- Why it matters: Relatórios de paciente são PHI concentrado; caminhos determinísticos sob `/uploads/reports` permitem acesso público se a URL for conhecida.
+- Source: report
+- Primary owning slice: M013/S04
+- Supporting slices: M013/S05, M013/S06
+- Validation: M013/S06 closed the generated-report artifact/log leakage gap. Fresh closeout evidence: `gsd_exec 0214b6c3-6df3-41f8-a0c9-e81f101ee3de` ran `cd backend-hormonia && pytest tests/tasks/test_reports_tasks.py -q` with exit 0, proving report artifacts use opaque report-id filenames under the private report root and Taskiq diagnostics omit free-form `report_type`; `gsd_exec 4f988569-f9c7-401d-b418-60f3415d9008` ran the full S06 integrated security pytest selection with exit 0; matrix validation `gsd_exec ae46a726-c6a3-412b-8305-58a1a316e379` passed.
+- Notes: S06/T01 implemented report-id-only `{report_id}.pdf` paths and PHI-safe task diagnostics that retain task/report/status/reason/failure_type observability without raw or sanitized report_type exposure.
+
+### R008 — Downloads, exportações, compartilhamento e histórico de relatórios no escopo M013 devem validar ownership ou patient assignment antes de retornar dados.
+- Class: compliance/security
+- Status: validated
+- Description: Downloads, exportações, compartilhamento e histórico de relatórios no escopo M013 devem validar ownership ou patient assignment antes de retornar dados.
+- Why it matters: Listagem filtrada não protege download direto por UUID; relatórios podem expor dados clínicos completos.
+- Source: report
+- Primary owning slice: M013/S05
+- Supporting slices: M013/S04, M013/S06
+- Validation: S05 report ownership closure passed focused and integrated backend pytest gates from `backend-hormonia`: `pytest tests/api/v2/test_report_ownership_closure.py -q` and `pytest tests/api/v2/test_report_ownership_closure.py tests/api/v2/test_enhanced_reports.py tests/services/test_report_service_task_compat.py tests/api/v2/test_private_upload_serving.py tests/tasks/test_reports_tasks.py -q`. These tests prove base/enhanced report download, export, share/public-link/share listing, builder, history and restore surfaces authorize against raw owner/patient evidence before data, redirects, or download URLs are returned.
+- Notes: Validated by M013/S05. Remaining milestone-wide evidence matrix and R010/R011 proof aggregation are left to S06.
+
 ### R009 — Respostas livres e overrides de fluxo do paciente devem exigir admin ou médico responsável pelo paciente antes de leitura ou alteração.
 - Class: compliance/security
 - Status: validated
@@ -126,6 +104,28 @@ This file is the explicit capability and coverage contract for the project.
 - Supporting slices: M013/S06
 - Validation: M013/S02 verified flow response and flow override GET/PUT ownership denial and assigned-doctor/admin positives with `cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py tests/api/v2/test_phase25_messages_quiz_async.py -q` (exit 0; boundary suite includes flow-response/override tests).
 - Notes: `flow_responses.py` and `flow_overrides.py` now call `load_patient_with_access` before patient-bound response/override queries or mutations; PUT audit attribution resolves actor UUID via shared auth utilities and fails closed when unresolved.
+
+### R010 — O M013 deve deixar uma prova negativa reutilizável de isolamento médico/paciente com dois médicos, pacientes cruzados e endpoints críticos exercitados.
+- Class: quality-attribute
+- Status: validated
+- Description: O M013 deve deixar uma prova negativa reutilizável de isolamento médico/paciente com dois médicos, pacientes cruzados e endpoints críticos exercitados.
+- Why it matters: Correções de autorização só são confiáveis quando o caminho proibido é exercitado e falha de forma verificável.
+- Source: inferred
+- Primary owning slice: M013/S06
+- Supporting slices: M013/S02, M013/S03, M013/S04, M013/S05
+- Validation: M013/S06 fresh integrated proof `gsd_exec 4f988569-f9c7-401d-b418-60f3415d9008` exited 0 for patient ownership helpers/boundaries, messages, RBAC, quiz link/session, private upload, report ownership, enhanced reports, report task, and compatibility suites. The evidence matrix validation `gsd_exec ae46a726-c6a3-412b-8305-58a1a316e379` confirmed F-01..F-11 and R001..R014 mapping with Fresh S06 exit-0 evidence and deferred R012-R014 called out.
+- Notes: S06 evidence matrix consolidates the reusable negative isolation proof inherited from S02/S03/S05 across two-doctor/two-patient patient ownership, messages, flow responses/overrides, quiz, uploads, and reports.
+
+### R011 — Falhas de autenticação, autorização, SSRF, arquivo privado e quiz inválido devem falhar fechado e emitir sinais diagnósticos sem PHI, tokens ou segredos.
+- Class: failure-visibility
+- Status: validated
+- Description: Falhas de autenticação, autorização, SSRF, arquivo privado e quiz inválido devem falhar fechado e emitir sinais diagnósticos sem PHI, tokens ou segredos.
+- Why it matters: Segurança clínica precisa de bloqueio seguro e capacidade de investigar tentativas negadas sem vazar mais dados.
+- Source: inferred
+- Primary owning slice: M013/S06
+- Supporting slices: M013/S01, M013/S02, M013/S03, M013/S04, M013/S05
+- Validation: M013/S06 fresh focused and integrated proof passed: `gsd_exec 0214b6c3-6df3-41f8-a0c9-e81f101ee3de` validated report-task PHI-safe artifact/log behavior; `gsd_exec 4f988569-f9c7-401d-b418-60f3415d9008` validated fail-closed auth, SSRF, ownership, quiz, private-file, and report boundaries; document validation `gsd_exec 4808c7f0-2d25-498d-b6b6-5bb59fe37ad0` and `gsd_exec ae46a726-c6a3-412b-8305-58a1a316e379` confirmed the matrix has no TODO/TBD or unsafe sentinel values and retains Fresh S06 exit-0 evidence.
+- Notes: S06 preserves failure visibility through allowed diagnostic fields and matrix notes while forbidding PHI, tokens, unsafe paths, patient-name sentinels, and report_type leakage in proof artifacts.
 
 ## Deferred
 
@@ -218,11 +218,11 @@ This file is the explicit capability and coverage contract for the project.
 | R004 | compliance/security | validated | M013/S03 | M013/S06 | S03 verified authenticated monthly-quiz link creation, status/history, and active-link listing with admin-or-assigned-doctor ownership. Evidence: focused ownership pytest selection exited 0; full S03 proof `tests/api/v2/test_quiz_link_session_boundary.py tests/api/v2/test_monthly_quiz_compatibility.py tests/api/v2/test_quiz_extensions.py tests/api/v2/test_phase25_messages_quiz_async.py -q` plus planning-artifact audit exited 0. |
 | R005 | compliance/security | validated | M013/S03 | M013/S06 | S03 verified public quiz current/access/submit/session/logout boundaries for token hash, active link state, signed compatibility session state, patient/template/session binding, and expiration. Evidence: focused public-token and compatibility pytest selections exited 0; full S03 proof `tests/api/v2/test_quiz_link_session_boundary.py tests/api/v2/test_monthly_quiz_compatibility.py tests/api/v2/test_quiz_extensions.py tests/api/v2/test_phase25_messages_quiz_async.py -q` plus planning-artifact audit exited 0. |
 | R006 | compliance/security | validated | M013/S04 | M013/S06 | M013/S04 verified by `cd backend-hormonia && pytest tests/api/v2/test_private_upload_serving.py -q` (gsd_exec d7459df8-9e7f-4901-9d7f-28d9d12eb170). Proof covers private upload responses without public `/uploads` URLs, public static denial for private files/derivatives, owner/admin gated download success, and anonymous/foreign/deleted/missing/path-traversal failure cases. |
-| R007 | compliance/security | active | M013/S04 | M013/S05, M013/S06 | Pending: S04 closeout verification commands passed, but security closeout review found that free-form report_type can still enter generated PDF filenames/task result output_path/logs. R007 should only be validated after report artifacts use opaque/allowlisted non-PHI naming and PHI-safe outputs/logging are retested. |
-| R008 | compliance/security | active | M013/S05 | M013/S04, M013/S06 | mapped |
+| R007 | compliance/security | validated | M013/S04 | M013/S05, M013/S06 | M013/S06 closed the generated-report artifact/log leakage gap. Fresh closeout evidence: `gsd_exec 0214b6c3-6df3-41f8-a0c9-e81f101ee3de` ran `cd backend-hormonia && pytest tests/tasks/test_reports_tasks.py -q` with exit 0, proving report artifacts use opaque report-id filenames under the private report root and Taskiq diagnostics omit free-form `report_type`; `gsd_exec 4f988569-f9c7-401d-b418-60f3415d9008` ran the full S06 integrated security pytest selection with exit 0; matrix validation `gsd_exec ae46a726-c6a3-412b-8305-58a1a316e379` passed. |
+| R008 | compliance/security | validated | M013/S05 | M013/S04, M013/S06 | S05 report ownership closure passed focused and integrated backend pytest gates from `backend-hormonia`: `pytest tests/api/v2/test_report_ownership_closure.py -q` and `pytest tests/api/v2/test_report_ownership_closure.py tests/api/v2/test_enhanced_reports.py tests/services/test_report_service_task_compat.py tests/api/v2/test_private_upload_serving.py tests/tasks/test_reports_tasks.py -q`. These tests prove base/enhanced report download, export, share/public-link/share listing, builder, history and restore surfaces authorize against raw owner/patient evidence before data, redirects, or download URLs are returned. |
 | R009 | compliance/security | validated | M013/S02 | M013/S06 | M013/S02 verified flow response and flow override GET/PUT ownership denial and assigned-doctor/admin positives with `cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py tests/api/v2/test_phase25_messages_quiz_async.py -q` (exit 0; boundary suite includes flow-response/override tests). |
-| R010 | quality-attribute | active | M013/S06 | M013/S02, M013/S03, M013/S04, M013/S05 | mapped |
-| R011 | failure-visibility | active | M013/S06 | M013/S01, M013/S02, M013/S03, M013/S04, M013/S05 | mapped |
+| R010 | quality-attribute | validated | M013/S06 | M013/S02, M013/S03, M013/S04, M013/S05 | M013/S06 fresh integrated proof `gsd_exec 4f988569-f9c7-401d-b418-60f3415d9008` exited 0 for patient ownership helpers/boundaries, messages, RBAC, quiz link/session, private upload, report ownership, enhanced reports, report task, and compatibility suites. The evidence matrix validation `gsd_exec ae46a726-c6a3-412b-8305-58a1a316e379` confirmed F-01..F-11 and R001..R014 mapping with Fresh S06 exit-0 evidence and deferred R012-R014 called out. |
+| R011 | failure-visibility | validated | M013/S06 | M013/S01, M013/S02, M013/S03, M013/S04, M013/S05 | M013/S06 fresh focused and integrated proof passed: `gsd_exec 0214b6c3-6df3-41f8-a0c9-e81f101ee3de` validated report-task PHI-safe artifact/log behavior; `gsd_exec 4f988569-f9c7-401d-b418-60f3415d9008` validated fail-closed auth, SSRF, ownership, quiz, private-file, and report boundaries; document validation `gsd_exec 4808c7f0-2d25-498d-b6b6-5bb59fe37ad0` and `gsd_exec ae46a726-c6a3-412b-8305-58a1a316e379` confirmed the matrix has no TODO/TBD or unsafe sentinel values and retains Fresh S06 exit-0 evidence. |
 | R012 | compliance/security | deferred | M014/provisional | none | unmapped |
 | R013 | failure-visibility | deferred | M014/provisional | none | unmapped |
 | R014 | quality-attribute | deferred | M015/provisional | none | unmapped |
@@ -233,7 +233,7 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Coverage Summary
 
-- Active requirements: 4
-- Mapped to slices: 4
-- Validated: 7 (R001, R002, R003, R004, R005, R006, R009)
+- Active requirements: 0
+- Mapped to slices: 0
+- Validated: 11 (R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011)
 - Unmapped active requirements: 0

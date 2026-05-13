@@ -1,0 +1,10 @@
+# GSD context snapshot (2026-05-13T03:44:14.650Z)
+
+## Top project memories
+- [MEM002] (architecture) Arquitetura de controle de autorização para M013 Chose: Usar dependências/helpers compartilhados de auth, role e patient ownership em vez de patches locais endpoint por endpoint.. Rationale: O relatório mostra falhas repetidas de autorização em vários routers. Controles compartilhados reduzem inconsistência, melhoram testabilidade e seguem padrões já existentes no projeto em `app.dependencies` e `_quiz_shared.py`..
+- [MEM003] (architecture) Estratégia de tratamento de falhas em fronteiras PHI Chose: Falhar fechado para autenticação, ownership, SSRF, arquivos privados e quiz inválido; registrar diagnósticos estruturados sem PHI, tokens ou segredos.. Rationale: Em um sistema com PHI/LGPD, resposta permissiva ou fallback público é mais perigoso que negação segura. Diagnósticos precisam ajudar investigação sem criar novo vazamento..
+- [MEM004] (architecture) Estratégia de serving para arquivos privados e relatórios Chose: Tratar uploads/reports privados como recursos de aplicação servidos por endpoint autenticado/ownership-checked ou URL assinada curta, não por `StaticFiles` público.. Rationale: `is_public=false` como metadado não protege quando o diretório inteiro é montado em `/uploads`. Relatórios de paciente concentram PHI e não devem depender de obscuridade de filename..
+- [MEM034] (pattern) For M013/S04-style local PHI files, mount `/uploads` only to an intentionally public subdirectory; private uploads and generated report artifacts should live under an unmounted private root and be streamed through authenticated owner/admin routes with generic fail-closed errors.
+- [MEM035] (convention) Generated patient report artifact filenames should use generated report IDs plus sanitized report types, not patient UUIDs/names or deterministic public paths; task logs should record report_id/status/reason and avoid patient IDs or filesystem paths.
+- [MEM036] (gotcha) Do not inc
+…[truncated]

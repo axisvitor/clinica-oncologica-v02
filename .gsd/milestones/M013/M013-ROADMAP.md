@@ -24,10 +24,10 @@
 - [x] **S04: S04** `risk:high` `depends:[]`
   > After this: Private uploads and generated patient PDFs are not reachable through public `/uploads`; authorized gated download works in tests.
 
-- [ ] **S05: S05** `risk:high` `depends:[]`
+- [x] **S05: S05** `risk:high` `depends:[]`
   > After this: Direct report download/export/share/history reject cross-user or cross-doctor report IDs and preserve legitimate owner/admin behavior.
 
-- [ ] **S06: Integrated Security Proof** `risk:medium` `depends:[S01,S02,S03,S04,S05]`
+- [x] **S06: S06** `risk:medium` `depends:[]`
   > After this: A consolidated evidence matrix shows F-01..F-11 mapped to passing commands/tests and explicitly lists deferred medium/proof-gap follow-ups.
 
 ## Boundary Map
