@@ -5,7 +5,8 @@ HMAC signature validation for WhatsApp webhooks.
 import hashlib
 import hmac
 import logging
-from typing import Tuple
+import time
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,44 @@ class WebhookHMACValidator:
         if len(signature) == 128:
             return "sha512", signature
         return "sha256", signature
+
+    @classmethod
+    def validate_timestamp(
+        cls,
+        timestamp: Optional[str],
+        *,
+        required: bool,
+        max_age_seconds: int,
+        now_seconds: Optional[int] = None,
+    ) -> Tuple[bool, str]:
+        """Validate an optional webhook timestamp for replay protection.
+
+        Returns ``(True, reason)`` for accepted timestamps and ``(False, reason)``
+        for fail-closed denial reasons. If timestamps are not required and the
+        provider did not send one, validation is intentionally skipped.
+        """
+        if not timestamp:
+            if required:
+                logger.warning("Webhook timestamp missing")
+                return False, "missing_timestamp"
+            return True, "timestamp_not_required"
+
+        try:
+            timestamp_seconds = int(str(timestamp).strip())
+        except (TypeError, ValueError):
+            logger.warning("Webhook timestamp malformed")
+            return False, "malformed_timestamp"
+
+        if max_age_seconds < 0:
+            logger.warning("Webhook timestamp max age misconfigured")
+            return False, "timestamp_config_invalid"
+
+        current_seconds = int(now_seconds if now_seconds is not None else time.time())
+        if abs(current_seconds - timestamp_seconds) > max_age_seconds:
+            logger.warning("Webhook timestamp stale")
+            return False, "stale_timestamp"
+
+        return True, "timestamp_valid"
 
     @classmethod
     def validate_signature(cls, payload: bytes, signature: str, secret: str) -> bool:

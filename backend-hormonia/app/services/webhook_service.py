@@ -20,7 +20,6 @@ from sqlalchemy import select, func, desc
 from sqlalchemy.orm import Session
 
 from app.models.webhook import WebhookEndpoint, WebhookDelivery, WebhookLog
-from app.models.webhook_event import WebhookEvent  # For idempotency
 from app.schemas.v2.webhooks import (
     WebhookCreate,
     WebhookUpdate,
@@ -47,8 +46,10 @@ from app.config import settings
 from app.services.webhook_processor import WebhookProcessor
 from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.utils.logging import get_logger
+from app.utils.client_ip import hash_sensitive_identifier
 from app.schemas.v2.common import CursorEncoder
 from app.services.webhook.idempotency import AtomicWebhookIdempotency
+from app.integrations.whatsapp.security.hmac_validator import WebhookHMACValidator
 from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
@@ -62,6 +63,31 @@ REDIS_TTL_WEBHOOK_STATS = 900
 REDIS_TTL_IDEMPOTENCY = 7200
 RETRY_BASE_DELAY = 2
 RETRY_MAX_DELAY = 300
+IDEMPOTENCY_DUPLICATE_REASONS = {"duplicate", "duplicate_db"}
+
+
+def _hash_for_log(value: object, *, prefix: str) -> str:
+    return hash_sensitive_identifier(value, prefix=prefix)
+
+
+def _idempotency_denial_status(reason: str) -> int:
+    return 409 if reason in IDEMPOTENCY_DUPLICATE_REASONS else 503
+
+
+def _idempotency_denial_detail(reason: str) -> str:
+    return (
+        "Duplicate webhook event"
+        if _idempotency_denial_status(reason) == 409
+        else "Webhook idempotency unavailable"
+    )
+
+
+def _idempotency_denial_reason(reason: str) -> str:
+    return (
+        "duplicate_webhook"
+        if _idempotency_denial_status(reason) == 409
+        else "idempotency_unavailable"
+    )
 
 
 class WebhookService:
@@ -70,6 +96,7 @@ class WebhookService:
     def __init__(self, db: Session):
         self.db = db
         self._idempotency_service: Optional[AtomicWebhookIdempotency] = None
+        self._last_idempotency_reason: str = "not_checked"
 
     async def _get_redis(self):
         return await get_async_redis()
@@ -108,15 +135,19 @@ class WebhookService:
                 status_code=401, detail="Webhook authentication not configured"
             )
 
-        if timestamp:
-            try:
-                webhook_time = int(timestamp)
-                current_time = int(time.time())
-                if abs(current_time - webhook_time) > MAX_TIMESTAMP_AGE_SECONDS:
-                    raise HTTPException(
-                        status_code=401, detail="Webhook timestamp expired"
+        if timestamp or getattr(settings, "WHATSAPP_WEBHOOK_TIMESTAMP_REQUIRED", False):
+            valid_timestamp, _timestamp_reason = WebhookHMACValidator.validate_timestamp(
+                timestamp,
+                required=bool(getattr(settings, "WHATSAPP_WEBHOOK_TIMESTAMP_REQUIRED", False)),
+                max_age_seconds=int(
+                    getattr(
+                        settings,
+                        "WHATSAPP_WEBHOOK_MAX_TIMESTAMP_AGE_SECONDS",
+                        MAX_TIMESTAMP_AGE_SECONDS,
                     )
-            except ValueError:
+                ),
+            )
+            if not valid_timestamp:
                 raise HTTPException(status_code=401, detail="Invalid webhook timestamp")
 
         expected_signature = self._compute_webhook_signature(
@@ -127,93 +158,113 @@ class WebhookService:
 
         return {"verified": True, "webhook_id": webhook_id, "timestamp": timestamp}
 
-    async def check_idempotency(
+    async def acquire_idempotency_status(
         self, webhook_id: Optional[str], event_type: str
-    ) -> bool:
-        """
-        Check if event was already processed using atomic idempotency.
+    ) -> tuple[bool, str]:
+        """Acquire idempotency rights and return a denial reason when closed.
 
-        QW-006 FIX: Uses atomic SET NX EX to prevent race conditions.
-        WA-006 FIX: DB fallback ensures idempotency even if Redis is unavailable.
-
-        Returns:
-            True if event should be processed (new event)
-            False if event was already processed (duplicate)
+        Returns ``(True, "acquired")`` for new events, ``(False, "duplicate")``
+        for replays, and ``(False, "infrastructure_failure")`` when the cache or
+        idempotency backend cannot prove uniqueness.
         """
         if not webhook_id:
-            return True
+            self._last_idempotency_reason = "not_required"
+            return True, "not_required"
 
-        # QW-006: Try atomic idempotency service first
+        webhook_id_hash = _hash_for_log(webhook_id, prefix="webhook_id")
+
         idempotency = await self._get_idempotency_service()
         if idempotency:
             try:
                 acquired, reason = await idempotency.try_acquire(
                     event_type=event_type, event_id=webhook_id
                 )
-
+                self._last_idempotency_reason = reason
                 if not acquired:
-                    logger.debug(
-                        f"Idempotency check (atomic): event {webhook_id} already processed",
-                        extra={"reason": reason},
+                    logger.info(
+                        "Webhook idempotency denied",
+                        extra={
+                            "event_type": event_type,
+                            "reason": reason,
+                            "webhook_id_hash": webhook_id_hash,
+                            "status_code": _idempotency_denial_status(reason),
+                        },
                     )
-                    return False
-
-                # Successfully acquired - this is a new event
-                return True
-
-            except Exception as e:
-                logger.warning(
-                    f"Atomic idempotency check failed, using Redis direct path: {e}"
+                return acquired, reason
+            except Exception as exc:
+                logger.error(
+                    "Atomic idempotency check failed; denying webhook processing (fail-closed)",
+                    extra={
+                        "event_type": event_type,
+                        "reason": "infrastructure_failure",
+                        "webhook_id_hash": webhook_id_hash,
+                        "error_type": type(exc).__name__,
+                    },
                 )
+                self._last_idempotency_reason = "infrastructure_failure"
+                return False, "infrastructure_failure"
 
-        # Redis direct path: Try simple SET NX
         redis = await self._get_redis()
-        if redis:
-            try:
-                cache_key = f"webhook:idempotency:{webhook_id}"
-                # Use atomic SET NX EX even in fallback
-                result = await redis.set(
-                    cache_key, "1", nx=True, ex=REDIS_TTL_IDEMPOTENCY
-                )
-                if not result:
-                    logger.debug(
-                        f"Idempotency check (Redis fallback): event {webhook_id} already processed"
-                    )
-                    return False
-                return True
-            except Exception as e:
-                logger.warning(
-                    f"Redis idempotency check failed, falling back to DB: {e}"
-                )
-
-        # WA-006: DB fallback for reliability
-        try:
-            cutoff_time = now_sao_paulo() - timedelta(hours=IDEMPOTENCY_WINDOW_HOURS)
-            existing = self.db.execute(
-                select(WebhookEvent).where(
-                    WebhookEvent.event_id == webhook_id,
-                    WebhookEvent.created_at >= cutoff_time,
-                )
-            ).first()
-
-            if existing:
-                logger.debug(
-                    f"Idempotency check (DB): event {webhook_id} already processed"
-                )
-                return False
-        except Exception as e:
+        if redis is None:
             logger.error(
-                (
-                    "DB idempotency check failed; denying webhook processing "
-                    "(fail-closed)"
-                ),
-                extra={"webhook_id": webhook_id, "event_type": event_type},
-                exc_info=True,
+                "Redis idempotency backend unavailable; denying webhook processing (fail-closed)",
+                extra={
+                    "event_type": event_type,
+                    "reason": "redis_unavailable",
+                    "webhook_id_hash": webhook_id_hash,
+                },
             )
-            # Fail closed: deny processing when idempotency backend is unavailable.
-            return False
+            self._last_idempotency_reason = "infrastructure_failure"
+            return False, "infrastructure_failure"
 
-        return True
+        try:
+            cache_key = f"webhook:idempotency:{webhook_id}"
+            result = await redis.set(
+                cache_key, "1", nx=True, ex=REDIS_TTL_IDEMPOTENCY
+            )
+            if not result:
+                logger.info(
+                    "Webhook idempotency denied",
+                    extra={
+                        "event_type": event_type,
+                        "reason": "duplicate",
+                        "webhook_id_hash": webhook_id_hash,
+                        "status_code": 409,
+                    },
+                )
+                self._last_idempotency_reason = "duplicate"
+                return False, "duplicate"
+
+            self._last_idempotency_reason = "acquired"
+            return True, "acquired"
+        except Exception as exc:
+            logger.error(
+                "Redis idempotency check failed; denying webhook processing (fail-closed)",
+                extra={
+                    "webhook_id_hash": webhook_id_hash,
+                    "event_type": event_type,
+                    "reason": "redis_error",
+                    "error_type": type(exc).__name__,
+                },
+            )
+            self._last_idempotency_reason = "infrastructure_failure"
+            return False, "infrastructure_failure"
+
+    async def check_idempotency(
+        self, webhook_id: Optional[str], event_type: str
+    ) -> bool:
+        """
+        Check if an event should be processed using fail-closed idempotency.
+
+        Returns:
+            True if event should be processed (new event)
+            False if event was a duplicate or uniqueness cannot be proven
+        """
+        acquired, reason = await self.acquire_idempotency_status(
+            webhook_id, event_type
+        )
+        self._last_idempotency_reason = reason
+        return acquired
 
     async def list_webhooks(
         self, pagination: dict, status_filter: Optional[WebhookStatus]
@@ -372,11 +423,23 @@ class WebhookService:
         event_type = event_data.event
 
         if not await self.check_idempotency(webhook_id, event_type):
-            return WebhookInboundResponse(
-                status="duplicate",
-                message="Webhook already processed",
-                webhook_id=webhook_id,
-                message_id=None,
+            reason = getattr(self, "_last_idempotency_reason", "duplicate")
+            if reason == "not_checked":
+                reason = "duplicate"
+            status_code = _idempotency_denial_status(reason)
+            logger.warning(
+                "Inbound webhook denied before processing",
+                extra={
+                    "event_type": event_type,
+                    "reason": _idempotency_denial_reason(reason),
+                    "idempotency_reason": reason,
+                    "status_code": status_code,
+                    "webhook_id_hash": _hash_for_log(webhook_id, prefix="webhook_id"),
+                },
+            )
+            raise HTTPException(
+                status_code=status_code,
+                detail=_idempotency_denial_detail(reason),
             )
 
         processor = WebhookProcessor(self.db)

@@ -199,7 +199,14 @@ class AtomicWebhookIdempotency:
                 return False, "duplicate"
 
         except Exception as e:
-            logger.error(f"Redis idempotency check failed: {e}", exc_info=True)
+            logger.error(
+                "Redis idempotency check failed",
+                extra={
+                    "event_type": event_type,
+                    "event_id_hash": hashlib.sha256(event_id.encode("utf-8")).hexdigest()[:16],
+                    "error_type": type(e).__name__,
+                },
+            )
             # Try DB fallback if available
             if self.db:
                 return await self._try_acquire_db_fallback(event_type, event_id)
@@ -357,7 +364,7 @@ class AtomicWebhookIdempotency:
             Tuple of (acquired, reason)
         """
         if not self.db:
-            return True, "no_db"
+            return False, "infrastructure_failure"
 
         try:
             # Use INSERT ON CONFLICT for atomic insert-or-ignore
@@ -389,9 +396,15 @@ class AtomicWebhookIdempotency:
             return False, "duplicate_db"
         except Exception as e:
             self.db.rollback()
-            logger.error(f"DB fallback failed: {e}")
-            # Fail-open as last resort
-            return True, "fallback_error"
+            logger.error(
+                "DB idempotency fallback failed",
+                extra={
+                    "event_type": event_type,
+                    "event_id_hash": hashlib.sha256(event_id.encode("utf-8")).hexdigest()[:16],
+                    "error_type": type(e).__name__,
+                },
+            )
+            return False, "infrastructure_failure"
 
     async def _record_metrics(self, duplicate: bool) -> None:
         """Record idempotency metrics in Redis."""

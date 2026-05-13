@@ -51,7 +51,10 @@ def _no_hmac_by_default():
     Tests that need HMAC validation explicitly patch settings with their own secret.
     """
     mock_settings = MagicMock()
+    mock_settings.WHATSAPP_WEBHOOK_HMAC_ENABLED = False
     mock_settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET = ""
+    mock_settings.WHATSAPP_WEBHOOK_TIMESTAMP_REQUIRED = False
+    mock_settings.WHATSAPP_WEBHOOK_MAX_TIMESTAMP_AGE_SECONDS = 300
     with patch("app.integrations.wuzapi.webhook.settings", mock_settings):
         yield
 
@@ -105,11 +108,17 @@ async def post_payload(client: httpx.AsyncClient, payload: dict, secret: str | N
 
 
 @pytest.mark.asyncio
-async def test_valid_hmac_returns_200(app: FastAPI, secret: str):
+async def test_valid_hmac_returns_200(app: FastAPI, secret: str, fake_redis):
     payload = message_payload(event_id="X1")
     mock_settings = MagicMock()
+    mock_settings.WHATSAPP_WEBHOOK_HMAC_ENABLED = True
     mock_settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET = secret
-    with patch("app.integrations.wuzapi.webhook.settings", mock_settings):
+    mock_settings.WHATSAPP_WEBHOOK_TIMESTAMP_REQUIRED = False
+    mock_settings.WHATSAPP_WEBHOOK_MAX_TIMESTAMP_AGE_SECONDS = 300
+    with patch("app.integrations.wuzapi.webhook.settings", mock_settings), patch(
+        "app.integrations.wuzapi.webhook.get_async_redis_client",
+        new=AsyncMock(return_value=fake_redis),
+    ):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             response = await post_payload(client, payload, secret=secret)
     assert response.status_code == 200
@@ -119,7 +128,10 @@ async def test_valid_hmac_returns_200(app: FastAPI, secret: str):
 async def test_invalid_hmac_returns_403(app: FastAPI, secret: str):
     body = b'{"type":"Message","event":{"Info":{"ID":"X2"}}}'
     mock_settings = MagicMock()
+    mock_settings.WHATSAPP_WEBHOOK_HMAC_ENABLED = True
     mock_settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET = secret
+    mock_settings.WHATSAPP_WEBHOOK_TIMESTAMP_REQUIRED = False
+    mock_settings.WHATSAPP_WEBHOOK_MAX_TIMESTAMP_AGE_SECONDS = 300
     with patch("app.integrations.wuzapi.webhook.settings", mock_settings):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
@@ -148,7 +160,10 @@ async def test_missing_hmac_header_returns_403(app: FastAPI, secret: str):
     body = json.dumps({"type": "Message", "event": {"Info": {"ID": "HMAC-MISS-1"}}}).encode()
 
     mock_settings = MagicMock()
+    mock_settings.WHATSAPP_WEBHOOK_HMAC_ENABLED = True
     mock_settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET = secret
+    mock_settings.WHATSAPP_WEBHOOK_TIMESTAMP_REQUIRED = False
+    mock_settings.WHATSAPP_WEBHOOK_MAX_TIMESTAMP_AGE_SECONDS = 300
     with patch("app.integrations.wuzapi.webhook.settings", mock_settings):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
@@ -161,7 +176,7 @@ async def test_missing_hmac_header_returns_403(app: FastAPI, secret: str):
 
 
 @pytest.mark.asyncio
-async def test_duplicate_event_returns_200_duplicate(app: FastAPI, fake_redis):
+async def test_duplicate_event_returns_409_duplicate(app: FastAPI, fake_redis):
     payload = message_payload(event_id="DUP-1", text="hello")
     with patch("app.integrations.wuzapi.webhook.get_async_redis_client", new=AsyncMock(return_value=fake_redis)):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
@@ -170,16 +185,14 @@ async def test_duplicate_event_returns_200_duplicate(app: FastAPI, fake_redis):
 
     assert first.status_code == 200
     assert first.json()["status"] == "processed"
-    assert second.status_code == 200
-    assert second.json()["status"] == "duplicate"
-    assert second.json()["event_id"] == "DUP-1"
+    assert second.status_code == 409
+    assert second.json()["detail"] == "Duplicate webhook event"
 
 
 @pytest.mark.asyncio
 async def test_missing_event_id_uses_body_hash(app: FastAPI, fake_redis):
     payload = message_payload(event_id=None, text="hello")
     body = json.dumps(payload).encode()
-    expected_hash = hashlib.sha256(body).hexdigest()
 
     with patch("app.integrations.wuzapi.webhook.get_async_redis_client", new=AsyncMock(return_value=fake_redis)):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
@@ -187,10 +200,8 @@ async def test_missing_event_id_uses_body_hash(app: FastAPI, fake_redis):
             second = await client.post("/webhooks/wuzapi", content=body, headers={"content-type": "application/json"})
 
     assert first.status_code == 200
-    assert second.status_code == 200
-    assert second.json()["status"] == "duplicate"
-    assert second.json()["event_id"] == expected_hash
-    assert second.json()["correlation_id"]
+    assert second.status_code == 409
+    assert second.json()["detail"] == "Duplicate webhook event"
 
 
 @pytest.mark.asyncio
@@ -339,8 +350,8 @@ async def test_receipt_delivered_empty_type(app: FastAPI, fake_redis):
 
 
 @pytest.mark.asyncio
-async def test_idempotency_fail_open(app: FastAPI):
-    payload = message_payload(event_id="FAIL-OPEN-1", text="hello")
+async def test_idempotency_failure_returns_503(app: FastAPI):
+    payload = message_payload(event_id="FAIL-CLOSED-1", text="hello")
 
     with patch(
         "app.integrations.wuzapi.webhook.get_async_redis_client",
@@ -349,8 +360,8 @@ async def test_idempotency_fail_open(app: FastAPI):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             response = await post_payload(client, payload)
 
-    assert response.status_code == 200
-    assert response.json()["status"] == "processed"
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Webhook idempotency unavailable"
 
 
 @pytest.mark.asyncio

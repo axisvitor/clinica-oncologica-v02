@@ -30,6 +30,7 @@ from app.services.webhook.handlers.message_handler import (
 from app.services.webhook.idempotency import AtomicWebhookIdempotency
 from app.services.webhook.utils.phone_normalizer import PhoneNormalizer
 from app.utils.structured_logger import correlation_id as correlation_id_var
+from app.utils.client_ip import hash_sensitive_identifier
 from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,219 @@ def _correlation_extra(**extra: Any) -> dict[str, Any]:
     }
 
 
+def _coerce_bool_setting(name: str, default: bool) -> bool:
+    value = getattr(settings, name, default)
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return default
+
+
+def _coerce_int_setting(name: str, default: int) -> int:
+    value = getattr(settings, name, default)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_secret_setting(name: str) -> str:
+    value = getattr(settings, name, None)
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return ""
+
+
+def _client_identity_hash(request: Request) -> Optional[str]:
+    client = getattr(request, "client", None)
+    host = getattr(client, "host", None)
+    if not host:
+        return None
+    return hash_sensitive_identifier(host, prefix="client")
+
+
+def _event_id_hash(event_id: str) -> str:
+    return hash_sensitive_identifier(event_id, prefix="webhook_event")
+
+
+def _denial_extra(
+    request: Request,
+    *,
+    reason: str,
+    status_code: int,
+    webhook_event_type: str = "unknown",
+    idempotency_reason: Optional[str] = None,
+    event_id: Optional[str] = None,
+    error_type: Optional[str] = None,
+) -> dict[str, Any]:
+    extra: dict[str, Any] = {
+        "event_type": "wuzapi_webhook_denied",
+        "reason": reason,
+        "method": request.method,
+        "path": request.url.path,
+        "correlation_id": correlation_id_var.get(),
+        "client_identity_hash": _client_identity_hash(request),
+        "webhook_event_type": webhook_event_type,
+        "status_code": status_code,
+    }
+    if idempotency_reason:
+        extra["idempotency_reason"] = idempotency_reason
+    if event_id:
+        extra["event_id_hash"] = _event_id_hash(event_id)
+    if error_type:
+        extra["error_type"] = error_type
+    return extra
+
+
+def _log_wuzapi_denial(
+    request: Request,
+    *,
+    reason: str,
+    status_code: int,
+    webhook_event_type: str = "unknown",
+    idempotency_reason: Optional[str] = None,
+    event_id: Optional[str] = None,
+    error_type: Optional[str] = None,
+) -> None:
+    logger.warning(
+        "WuzAPI webhook denied",
+        extra=_denial_extra(
+            request,
+            reason=reason,
+            status_code=status_code,
+            webhook_event_type=webhook_event_type,
+            idempotency_reason=idempotency_reason,
+            event_id=event_id,
+            error_type=error_type,
+        ),
+    )
+
+
+def _timestamp_header(request: Request) -> Optional[str]:
+    return (
+        request.headers.get("x-webhook-timestamp")
+        or request.headers.get("x-wuzapi-timestamp")
+        or request.headers.get("x-hmac-timestamp")
+    )
+
+
+def _validate_wuzapi_hmac(request: Request, raw_body: bytes) -> None:
+    if not _coerce_bool_setting("WHATSAPP_WEBHOOK_HMAC_ENABLED", True):
+        return
+
+    secret = _coerce_secret_setting("WHATSAPP_WUZAPI_WEBHOOK_SECRET")
+    if not secret:
+        _log_wuzapi_denial(
+            request,
+            reason="hmac_secret_missing",
+            status_code=503,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook authentication not configured",
+        )
+
+    signature = (
+        request.headers.get("x-hmac-signature")
+        or request.headers.get("x-webhook-signature")
+        or ""
+    )
+    if not WebhookHMACValidator.validate_signature(raw_body, signature, secret):
+        _log_wuzapi_denial(
+            request,
+            reason="invalid_hmac_signature",
+            status_code=403,
+        )
+        raise HTTPException(status_code=403, detail="Invalid HMAC signature")
+
+
+def _validate_wuzapi_timestamp(request: Request) -> None:
+    required = _coerce_bool_setting("WHATSAPP_WEBHOOK_TIMESTAMP_REQUIRED", False)
+    max_age = _coerce_int_setting("WHATSAPP_WEBHOOK_MAX_TIMESTAMP_AGE_SECONDS", 300)
+    valid, reason = WebhookHMACValidator.validate_timestamp(
+        _timestamp_header(request),
+        required=required,
+        max_age_seconds=max_age,
+    )
+    if valid:
+        return
+
+    _log_wuzapi_denial(
+        request,
+        reason=reason,
+        status_code=403,
+    )
+    raise HTTPException(status_code=403, detail="Invalid webhook timestamp")
+
+
+async def _acquire_wuzapi_idempotency(
+    request: Request,
+    *,
+    event_type_key: str,
+    event_type: str,
+    event_id: str,
+) -> None:
+    try:
+        redis_client = await get_async_redis_client()
+        if redis_client is None:
+            _log_wuzapi_denial(
+                request,
+                reason="idempotency_unavailable",
+                status_code=503,
+                webhook_event_type=event_type,
+                idempotency_reason="redis_unavailable",
+                event_id=event_id,
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Webhook idempotency unavailable",
+            )
+
+        idempotency = AtomicWebhookIdempotency(redis_client=redis_client)
+        acquired, reason = await idempotency.try_acquire(event_type_key, event_id)
+        if acquired:
+            return
+
+        status_code = 409 if reason.startswith("duplicate") else 503
+        detail = (
+            "Duplicate webhook event"
+            if status_code == 409
+            else "Webhook idempotency unavailable"
+        )
+        _log_wuzapi_denial(
+            request,
+            reason="duplicate_webhook" if status_code == 409 else "idempotency_unavailable",
+            status_code=status_code,
+            webhook_event_type=event_type,
+            idempotency_reason=reason,
+            event_id=event_id,
+        )
+        raise HTTPException(status_code=status_code, detail=detail)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _log_wuzapi_denial(
+            request,
+            reason="idempotency_unavailable",
+            status_code=503,
+            webhook_event_type=event_type,
+            idempotency_reason="exception",
+            event_id=event_id,
+            error_type=type(exc).__name__,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook idempotency unavailable",
+        ) from exc
+
+
 @router.post("/wuzapi")
 async def wuzapi_webhook(
     request: Request,
@@ -51,20 +265,8 @@ async def wuzapi_webhook(
     correlation_id_var.set(request.headers.get("x-correlation-id") or str(uuid4()))
     raw_body = await request.body()
 
-    secret = settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET
-    if secret:
-        signature = request.headers.get("x-hmac-signature", "")
-        if not WebhookHMACValidator.validate_signature(raw_body, signature, secret):
-            logger.warning(
-                "WuzAPI webhook HMAC validation failed",
-                extra=_correlation_extra(),
-            )
-            raise HTTPException(status_code=403, detail="Invalid HMAC signature")
-    else:
-        logger.warning(
-            "WHATSAPP_WUZAPI_WEBHOOK_SECRET not configured; skipping HMAC",
-            extra=_correlation_extra(),
-        )
+    _validate_wuzapi_hmac(request, raw_body)
+    _validate_wuzapi_timestamp(request)
 
     try:
         payload: dict[str, Any] = json.loads(raw_body)
@@ -79,29 +281,12 @@ async def wuzapi_webhook(
         else "wuzapi:unknown"
     )
 
-    try:
-        redis_client = await get_async_redis_client()
-        idempotency = AtomicWebhookIdempotency(redis_client=redis_client)
-        acquired, _reason = await idempotency.try_acquire(event_type_key, event_id)
-        if not acquired:
-            logger.info(
-                "WuzAPI duplicate event: %s (type=%s)",
-                event_id,
-                event_type,
-                extra=_correlation_extra(event_id=event_id, event_type=event_type),
-            )
-            return {
-                "status": "duplicate",
-                "event_id": event_id,
-                "correlation_id": correlation_id_var.get(),
-            }
-    except Exception as exc:
-        logger.error(
-            "WuzAPI idempotency check failed: %s",
-            exc,
-            exc_info=True,
-            extra=_correlation_extra(error_type=type(exc).__name__),
-        )
+    await _acquire_wuzapi_idempotency(
+        request,
+        event_type_key=event_type_key,
+        event_type=str(event_type),
+        event_id=event_id,
+    )
 
     if event_type == "Message":
         return await _handle_message(payload, db)
