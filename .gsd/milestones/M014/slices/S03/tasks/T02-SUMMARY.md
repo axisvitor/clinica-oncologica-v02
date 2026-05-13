@@ -9,36 +9,35 @@ key_files:
   - frontend-hormonia/src/App.tsx
   - frontend-hormonia/tests/unit/react-query/persistencePolicy.test.ts
 key_decisions:
-  - React Query IndexedDB persistence is deny-by-default and allows only explicit static/non-PHI dictionary/template query roots.
-  - The IndexedDB persister filters both writes and legacy restores and removes all persisted mutations to avoid durable PHI/session mutation variables.
+  - Dashboard React Query persistence is deny-by-default and only allowlisted static/non-PHI dictionary/template query roots may be written to IndexedDB.
+  - Persisted mutations and legacy restored denied query payloads are filtered out so restore/write paths degrade to sanitized cached metadata instead of durable PHI.
 duration: 
 verification_result: passed
-completed_at: 2026-05-13T19:10:26.539Z
+completed_at: 2026-05-13T19:53:59.204Z
 blocker_discovered: false
 ---
 
-# T02: Added deny-by-default dashboard React Query persistence so IndexedDB stores only allowlisted static non-PHI query data and drops PHI/session/auth/report/message/quiz payloads.
+# T02: Reconciled the dashboard React Query persistence hardening so IndexedDB persistence is deny-by-default and stores only explicit non-PHI static/template query data.
 
-**Added deny-by-default dashboard React Query persistence so IndexedDB stores only allowlisted static non-PHI query data and drops PHI/session/auth/report/message/quiz payloads.**
+**Reconciled the dashboard React Query persistence hardening so IndexedDB persistence is deny-by-default and stores only explicit non-PHI static/template query data.**
 
 ## What Happened
 
-Created `persistencePolicy.ts` with pure deny-by-default helpers (`isPersistableQueryKey`, `shouldPersistDashboardQuery`, and `filterPersistedClient`) that reject PHI/user/session/dashboard/report/message/AI/alert/physician/clinical/monthly-quiz/session query keys and allow only narrow static dictionary/template roots. Extended `createIndexedDBPersister` with an optional `filterClient` hook applied before IndexedDB writes and after legacy restores; metadata is computed from the filtered client, filtered counts are sanitized, and all mutations are removed from persisted storage. Wired the singleton dashboard persister to `filterPersistedClient` in `queryClient.ts` and passed `dehydrateOptions.shouldDehydrateQuery` through `PersistQueryClientProvider` in `App.tsx` for defense in depth. Added pure Vitest coverage for mixed PHI/non-PHI persisted clients, denied array/object key variants, malformed/unknown legacy states, and provider-level predicate behavior.
+Reconciled the already-implemented T02 work into the canonical GSD DB state after the artifact gate exposed S03 state drift. The dashboard now has a pure deny-by-default persistence policy that recursively inspects query-key shapes for patient/dashboard/report/message/AI/alert/physician/clinical/auth/user/session/monthly-quiz/session-like terms and allows only narrow static dictionary/template roots. The IndexedDB persister accepts a `filterClient` option and applies it before writes and after legacy restores, persists metadata from the filtered payload only, removes durable mutations, and drops to an empty persisted client if policy filtering fails. The singleton dashboard persister is wired to `filterPersistedClient`, and `App.tsx` passes `shouldDehydrateQuery` through `PersistQueryClientProvider` for defense in depth. Focused Vitest coverage proves allowlisted static data persists while patient/dashboard/quiz/report/message/auth payloads and mutations are removed, including object/array key variants and malformed legacy states.
 
 ## Verification
 
-Ran the focused Vitest command from the task plan; it passed with 5 policy tests proving mixed persisted-client states keep only allowlisted static query keys and drop patient/dashboard/quiz/report/message/auth payloads plus mutations. Also ran the frontend TypeScript typecheck to verify the `PersistQueryClientProvider` and persister configuration wiring compiles.
+Ran the focused frontend verification command: `npm --prefix frontend-hormonia test -- tests/unit/react-query/persistencePolicy.test.ts`. It passed 1 Vitest file / 5 tests, proving mixed persisted-client fixtures drop PHI/auth/session/dashboard/report/message/quiz payloads and keep only allowlisted static/template queries.
 
 ## Verification Evidence
 
 | # | Command | Exit Code | Verdict | Duration |
 |---|---------|-----------|---------|----------|
-| 1 | `npm --prefix frontend-hormonia test -- tests/unit/react-query/persistencePolicy.test.ts` | 0 | ✅ pass | 50173ms |
-| 2 | `npm --prefix frontend-hormonia run typecheck` | 0 | ✅ pass | 44471ms |
+| 1 | `npm --prefix frontend-hormonia test -- tests/unit/react-query/persistencePolicy.test.ts` | 0 | ✅ pass — 1 Vitest file / 5 tests passed | 45484ms |
 
 ## Deviations
 
-Added an extra frontend `typecheck` verification beyond the focused Vitest command to prove the provider-level `dehydrateOptions.shouldDehydrateQuery` wiring is type-compatible.
+None.
 
 ## Known Issues
 

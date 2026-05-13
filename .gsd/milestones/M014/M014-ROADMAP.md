@@ -18,10 +18,10 @@
 - [x] **S02: S02** `risk:ADK endpoints can be publicly callable or trust payload-supplied identity, allowing cross-user/session execution before provider calls.` `depends:[]`
   > After this: Reviewer runs ADK route/service tests where authenticated same-user sessions are allowed and missing, foreign, expired or payload-mismatched sessions are denied without invoking live Gemini.
 
-- [ ] **S03: S03** `risk:Session-cookie GETs and quiz/dashboard persistence can store sensitive patient or answer data under public cache/localStorage/IndexedDB behavior.` `depends:[]`
+- [x] **S03: S03** `risk:Session-cookie GETs and quiz/dashboard persistence can store sensitive patient or answer data under public cache/localStorage/IndexedDB behavior.` `depends:[]`
   > After this: Reviewer runs backend cache-header tests plus targeted frontend/quiz tests showing PHI responses are no-store/non-persistent, non-PHI cache still works, and quiz frontend coverage now has deterministic pass/fail evidence.
 
-- [ ] **S04: Upload Stored-XSS e Private Artifact Serving** `risk:Malicious HTML/SVG/script uploads or generated artifacts may execute in a browser or bypass authorization if served with unsafe content type/disposition or public paths.` `depends:[S01,S03]`
+- [ ] **S04: S04** `risk:Malicious HTML/SVG/script uploads or generated artifacts may execute in a browser or bypass authorization if served with unsafe content type/disposition or public paths.` `depends:[]`
   > After this: Reviewer runs upload/download tests with malicious HTML/SVG/script payloads and sees rejection or safe attachment serving under auth/ownership, with anonymous/foreign access denied.
 
 - [ ] **S05: JWT/Config Posture, Evidence Matrix e Regression Closure** `risk:The milestone can fix visible code paths while leaving JWT revocation semantics, deployment secret posture, DB TLS/RLS claims, R012/R013 mapping or M013 regressions unverifiable.` `depends:[S01,S02,S03,S04]`

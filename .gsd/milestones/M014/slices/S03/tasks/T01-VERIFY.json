@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T01",
+  "unitId": "M014/S03/T01",
+  "timestamp": 1778702423593,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s03_cache_headers.py",
+      "exitCode": 0,
+      "durationMs": 19902,
+      "verdict": "pass"
+    }
+  ]
+}

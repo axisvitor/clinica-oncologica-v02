@@ -21,6 +21,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, List
 
+from app.api.v2.routers.upload.active_content import (
+    ACTIVE_CONTENT_SAMPLE_BYTES,
+    detect_active_signature,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -236,7 +241,18 @@ class FileSecurityService:
             if self._has_double_extension(filename):
                 threats.append(f"Double extension detected: {filename}")
 
-            # 3. Content-based validation for suspicious files
+            # 3. Bounded active web-content signature check for any upload shape.
+            if content is None:
+                with open(file_path, "rb") as f:
+                    active_sample = f.read(ACTIVE_CONTENT_SAMPLE_BYTES)
+            else:
+                active_sample = bytes(content[:ACTIVE_CONTENT_SAMPLE_BYTES])
+
+            active_result = detect_active_signature(active_sample)
+            if active_result.is_active:
+                threats.append(f"Active web content detected: {active_result.reason}")
+
+            # 4. Content-based validation for suspicious files
             if extension in self.SUSPICIOUS_EXTENSIONS:
                 if content is None:
                     with open(file_path, "rb") as f:
@@ -250,7 +266,7 @@ class FileSecurityService:
                     archive_threats = await self._scan_archive(file_path)
                     threats.extend(archive_threats)
 
-                elif extension in {".html", ".htm", ".svg"}:
+                elif extension in {".html", ".htm", ".svg", ".xml"}:
                     script_threats = await self._scan_scripts(content)
                     threats.extend(script_threats)
 
@@ -414,6 +430,7 @@ class FileSecurityService:
 
             # Check for dangerous script patterns
             dangerous_patterns = [
+                r"<script\b",  # Generic script tags
                 r"<script[^>]*>.*?eval\(",  # eval() execution
                 r"document\.write\(",  # DOM manipulation
                 r"window\.location",  # Redirects

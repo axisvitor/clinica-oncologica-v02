@@ -69,7 +69,7 @@ Consumes S01's session-cookie/CSRF hardening and public quiz signed-state model.
   - Files: `frontend-hormonia/src/lib/react-query/persistencePolicy.ts`, `frontend-hormonia/src/lib/react-query/persistentCache.ts`, `frontend-hormonia/src/lib/react-query/queryClient.ts`, `frontend-hormonia/src/App.tsx`, `frontend-hormonia/tests/unit/react-query/persistencePolicy.test.ts`
   - Verify: npm --prefix frontend-hormonia test -- tests/unit/react-query/persistencePolicy.test.ts
 
-- [ ] **T03: Remove quiz answer and PHI localStorage persistence** `est:2h`
+- [x] **T03: Remove quiz answer and PHI localStorage persistence** `est:2h`
   ---
   estimated_steps: 8
   estimated_files: 5

@@ -1623,8 +1623,27 @@
     },
     {
       "id": "slice:M014:S03",
-      "label": "M014/S03",
+      "label": "S03: Browser PHI Cache e Quiz Frontend Proof",
       "type": "slice",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M014/slices/S03/S03-PLAN.md"
+    },
+    {
+      "id": "task:M014:S03:T01",
+      "label": "T01: Classify browser-sensitive backend responses as no-store",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M014:S03:T02",
+      "label": "T02: Add deny-by-default dashboard React Query persistence allowlist",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M014:S03:T03",
+      "label": "T03: Remove quiz answer and PHI localStorage persistence",
+      "type": "task",
       "confidence": "EXTRACTED"
     },
     {
@@ -3487,6 +3506,24 @@
       "confidence": "EXTRACTED"
     },
     {
+      "from": "slice:M014:S03",
+      "to": "task:M014:S03:T01",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M014:S03",
+      "to": "task:M014:S03:T02",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M014:S03",
+      "to": "task:M014:S03:T03",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
       "from": "milestone:M013",
       "to": "decision:M013:1",
       "type": "relates_to",
@@ -3781,5 +3818,5 @@
       "confidence": "EXTRACTED"
     }
   ],
-  "builtAt": "2026-05-13T18:26:00.091Z"
+  "builtAt": "2026-05-13T20:15:37.903Z"
 }

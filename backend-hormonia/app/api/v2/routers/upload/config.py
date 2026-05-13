@@ -14,6 +14,8 @@ from typing import Iterable
 
 from app.config import settings
 
+from .active_content import ACTIVE_WEB_EXTENSIONS, ACTIVE_WEB_MIME_TYPES
+
 # ============================================================================
 # Upload Limits
 # ============================================================================
@@ -73,6 +75,13 @@ ALLOWED_MIME_TYPES = {
 }
 
 # ============================================================================
+# Active Web Content (always reject before persistence)
+# ============================================================================
+
+ACTIVE_UPLOAD_EXTENSIONS = ACTIVE_WEB_EXTENSIONS
+ACTIVE_UPLOAD_MIME_TYPES = ACTIVE_WEB_MIME_TYPES
+
+# ============================================================================
 # Dangerous Extensions (always reject)
 # ============================================================================
 
@@ -88,7 +97,7 @@ DANGEROUS_EXTENSIONS = {
     ".jar",
     ".sh",
     ".app",
-}
+} | ACTIVE_UPLOAD_EXTENSIONS
 
 # ============================================================================
 # Upload Directory Helpers

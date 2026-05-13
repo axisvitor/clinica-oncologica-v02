@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T03",
+  "unitId": "M014/S03/T03",
+  "timestamp": 1778700991666,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "npm --prefix quiz-mensal-interface test -- tests/security/quiz-progress-storage.test.tsx tests/security/no-phi-local-storage.test.tsx",
+      "exitCode": 0,
+      "durationMs": 78410,
+      "verdict": "pass"
+    }
+  ]
+}

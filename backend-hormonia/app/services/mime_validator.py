@@ -18,6 +18,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from app.api.v2.routers.upload.active_content import (
+    REASON_ACTIVE_ACTUAL_MIME,
+    detect_active_content_from_path,
+    is_active_mime,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -129,6 +135,32 @@ class MimeTypeValidator:
         Returns:
             MimeValidationResult with validation outcome
         """
+        active_check = None
+        try:
+            active_check = detect_active_content_from_path(
+                file_path,
+                declared_mime=declared_mime,
+                filename=file_extension or file_path.name,
+            )
+        except Exception as e:
+            logger.warning(
+                "Active content precheck failed",
+                extra={"reason": e.__class__.__name__, "status": "skipped"},
+            )
+
+        if active_check and active_check.is_active:
+            logger.warning(
+                "Active web content denied during MIME validation",
+                extra=active_check.safe_log_extra(),
+            )
+            return MimeValidationResult(
+                is_valid=False,
+                declared_mime=declared_mime,
+                actual_mime="unknown",
+                message=f"Active web content denied: {active_check.reason}",
+                confidence=1.0,
+            )
+
         if not self.enabled or not self._magic_available:
             return MimeValidationResult(
                 is_valid=True,
@@ -149,6 +181,24 @@ class MimeTypeValidator:
             # Check if file extension requires strict validation
             extension = file_extension or file_path.suffix.lower()
             requires_strict = extension in self.STRICT_EXTENSIONS
+
+            # Active web document/script MIME must never pass same-category variance.
+            if is_active_mime(actual_normalized):
+                logger.warning(
+                    "Active actual MIME denied",
+                    extra={
+                        "reason": REASON_ACTIVE_ACTUAL_MIME,
+                        "declared_mime": declared_mime,
+                        "actual_mime": actual_mime,
+                    },
+                )
+                return MimeValidationResult(
+                    is_valid=False,
+                    declared_mime=declared_mime,
+                    actual_mime=actual_mime,
+                    message=f"Active web content denied: {REASON_ACTIVE_ACTUAL_MIME}",
+                    confidence=1.0,
+                )
 
             # Block dangerous MIME types regardless of declared type
             if actual_normalized in self.DANGEROUS_MIMES:

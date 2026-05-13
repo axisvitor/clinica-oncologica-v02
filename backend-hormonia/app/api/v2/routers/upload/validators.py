@@ -17,9 +17,24 @@ from fastapi import HTTPException, status
 from app.schemas.v2.upload import FileCategory
 from app.utils.logging import get_logger
 
+from .active_content import (
+    REASON_ACTIVE_DECLARED_MIME,
+    REASON_ACTIVE_EXTENSION,
+    is_active_extension,
+    is_active_mime,
+)
 from .config import ALLOWED_MIME_TYPES, DANGEROUS_EXTENSIONS
 
 logger = get_logger(__name__)
+
+
+def _reject_active_content(reason: str) -> None:
+    """Raise a PHI/path-safe rejection for active web content."""
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=f"Active web content is not allowed ({reason})",
+    )
 
 
 def validate_file_type(filename: str, content_type: str) -> None:
@@ -33,6 +48,13 @@ def validate_file_type(filename: str, content_type: str) -> None:
     Raises:
         HTTPException: If file type is invalid or dangerous
     """
+    # Reject active web documents/scripts before broader MIME/category checks.
+    if is_active_extension(filename):
+        _reject_active_content(REASON_ACTIVE_EXTENSION)
+
+    if is_active_mime(content_type):
+        _reject_active_content(REASON_ACTIVE_DECLARED_MIME)
+
     # Check MIME type
     if content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(

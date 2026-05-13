@@ -7,35 +7,35 @@ key_files:
   - backend-hormonia/app/middleware/cache_middleware.py
   - backend-hormonia/tests/security/test_m014_s03_cache_headers.py
 key_decisions:
-  - Sensitive backend responses bypass `http_cache` before cache-key generation/read/write whenever request headers/cookies/query/path classify as browser-sensitive.
-  - Set-Cookie responses are marked no-store and not written to `http_cache`; non-PHI GETs keep existing ETag/X-Cache MISS/HIT diagnostics.
+  - Browser-sensitive backend responses are classified before cache-key lookup and bypass `http_cache` entirely; response-level Set-Cookie detection also forces no-store after the endpoint runs.
+  - Cache diagnostics (`X-Cache`, reusable validators) remain available only for non-sensitive cacheable GETs and are stripped from sensitive responses.
 duration: 
 verification_result: passed
-completed_at: 2026-05-13T19:10:01.159Z
+completed_at: 2026-05-13T19:51:59.131Z
 blocker_discovered: false
 ---
 
-# T01: Classified browser-sensitive backend responses as no-store and bypassed the HTTP cache for auth/session/token/PHI routes while preserving MISS/HIT caching for non-PHI GETs.
+# T01: Classified browser-sensitive backend responses as no-store and bypassed HTTP cache replay for auth, cookie, token, PHI, quiz, and Set-Cookie routes while preserving MISS/HIT caching for safe public GETs.
 
-**Classified browser-sensitive backend responses as no-store and bypassed the HTTP cache for auth/session/token/PHI routes while preserving MISS/HIT caching for non-PHI GETs.**
+**Classified browser-sensitive backend responses as no-store and bypassed HTTP cache replay for auth, cookie, token, PHI, quiz, and Set-Cookie routes while preserving MISS/HIT caching for safe public GETs.**
 
 ## What Happened
 
-Added `backend-hormonia/app/middleware/cache_headers.py` as a reusable cache-sensitivity seam with sanitized request classification, response Set-Cookie detection, no-store header application, and legacy sensitive cached-entry detection. Wired `CacheMiddleware.dispatch` to classify requests before method/exclude/cache-key logic, bypass `http_cache` entirely for sensitive requests, strip reusable validators (`ETag`, `Last-Modified`, `Age`, `X-Cache`) on sensitive responses, and preserve existing ETag/X-Cache MISS/HIT behavior for non-sensitive GET responses. Added focused FastAPI tests using a fake in-memory cache manager to prove cookie-only sessions, arbitrary Authorization headers, token query params, PHI path prefixes, public quiz session paths, and Set-Cookie responses become no-store/non-replayable, while a static non-PHI GET still stores once and returns a deterministic HIT on the second request.
+Added a reusable cache-header classification seam in `backend-hormonia/app/middleware/cache_headers.py` with sanitized sensitivity reasons for sensitive path prefixes, any Authorization header, session/CSRF/quiz/token cookie names, token/session/CSRF query parameters, malformed cookie/query fallbacks, and cookie-setting responses. Wired `CacheMiddleware.dispatch` to classify requests before exclude/cache-key/cache-manager logic, call the endpoint directly for sensitive requests, apply no-store headers, strip reusable validators/diagnostics, and avoid all `http_cache` lookup/write paths. Preserved existing non-PHI GET cache behavior for safe public/static routes, including ETag generation, public Cache-Control, X-Cache MISS/HIT diagnostics, and cache-manager storage. Added focused FastAPI/TestClient coverage using an in-memory fake cache manager for cookie-only session GETs, arbitrary Authorization headers, token queries, PHI path prefixes, public quiz session paths, Set-Cookie responses, and a non-PHI static GET proving one store and deterministic MISS then HIT.
 
 ## Verification
 
-Ran the focused backend security test command from the task plan. It passed with 7 tests verifying sensitive responses include no-store/Pragma/Expires, omit public cache directives and reusable validators, avoid fake cache-manager calls for request-classified sensitive traffic, avoid cache writes for Set-Cookie responses, and preserve public static MISS/HIT cache behavior.
+Ran the focused backend security verification command: `PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s03_cache_headers.py`. It passed 7 tests, proving sensitive responses return no-store/Pragma/Expires without public cache headers, ETag, X-Cache, or fake cache-manager access, while `/public-static` still stores once and returns MISS then HIT.
 
 ## Verification Evidence
 
 | # | Command | Exit Code | Verdict | Duration |
 |---|---------|-----------|---------|----------|
-| 1 | `PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s03_cache_headers.py` | 0 | ✅ pass | 23038ms |
+| 1 | `PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s03_cache_headers.py` | 0 | ✅ pass — 7 pytest tests passed | 22535ms |
 
 ## Deviations
 
-Implemented a slightly broader sensitive path prefix set than the minimum examples by including auth, alerts, messages, AI, clinical, and physician API prefixes as browser-sensitive no-store surfaces; this is conservative for PHI/LGPD hardening.
+None.
 
 ## Known Issues
 
