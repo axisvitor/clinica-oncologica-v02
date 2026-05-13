@@ -49,7 +49,7 @@ Consumes S04 private upload/report storage and S02 patient ownership patterns. I
   - Files: `backend-hormonia/tests/api/v2/test_report_ownership_closure.py`, `backend-hormonia/tests/api/v2/test_enhanced_reports.py`, `backend-hormonia/tests/conftest.py`
   - Verify: cd backend-hormonia && pytest tests/api/v2/test_report_ownership_closure.py --collect-only -q
 
-- [ ] **T02: Create shared raw report access guard** `est:1h`
+- [x] **T02: Create shared raw report access guard** `est:1h`
   ---
   estimated_steps: 7
   estimated_files: 1
@@ -60,7 +60,7 @@ Consumes S04 private upload/report storage and S02 patient ownership patterns. I
   - Files: `backend-hormonia/app/services/reporting/report_access.py`, `backend-hormonia/app/api/v2/patients_shared_helpers.py`, `backend-hormonia/app/models/report.py`, `backend-hormonia/app/models/patient.py`
   - Verify: cd backend-hormonia && python -m py_compile app/services/reporting/report_access.py
 
-- [ ] **T03: Enforce base report patient and download ownership** `est:1h`
+- [x] **T03: Enforce base report patient and download ownership** `est:1h`
   ---
   estimated_steps: 7
   estimated_files: 1
@@ -72,7 +72,7 @@ Consumes S04 private upload/report storage and S02 patient ownership patterns. I
   - Files: `backend-hormonia/app/api/v2/routers/reports.py`, `backend-hormonia/app/services/reporting/report_access.py`, `backend-hormonia/tests/api/v2/test_report_ownership_closure.py`
   - Verify: cd backend-hormonia && pytest tests/api/v2/test_report_ownership_closure.py -k "base_report or generate" -q
 
-- [ ] **T04: Guard enhanced builder, sharing, and history routes before normalization** `est:2h`
+- [x] **T04: Guard enhanced builder, sharing, and history routes before normalization** `est:2h`
   ---
   estimated_steps: 9
   estimated_files: 2
@@ -84,7 +84,7 @@ Consumes S04 private upload/report storage and S02 patient ownership patterns. I
   - Files: `backend-hormonia/app/api/v2/routers/enhanced_reports.py`, `backend-hormonia/app/services/reporting/enhanced_reports_service.py`, `backend-hormonia/app/services/reporting/report_access.py`, `backend-hormonia/tests/api/v2/test_report_ownership_closure.py`
   - Verify: cd backend-hormonia && pytest tests/api/v2/test_report_ownership_closure.py -k "builder or sharing or public_link or history or restore" -q
 
-- [ ] **T05: Authorize export status/download and prevent private URL leakage** `est:1.5h`
+- [x] **T05: Authorize export status/download and prevent private URL leakage** `est:1.5h`
   ---
   estimated_steps: 8
   estimated_files: 3
@@ -96,7 +96,7 @@ Consumes S04 private upload/report storage and S02 patient ownership patterns. I
   - Files: `backend-hormonia/app/api/v2/routers/enhanced_reports.py`, `backend-hormonia/app/services/reporting/enhanced_reports_service.py`, `backend-hormonia/tests/api/v2/test_enhanced_reports.py`, `backend-hormonia/tests/api/v2/test_report_ownership_closure.py`
   - Verify: cd backend-hormonia && pytest tests/api/v2/test_report_ownership_closure.py -k "export" -q && pytest tests/api/v2/test_enhanced_reports.py tests/services/test_report_service_task_compat.py -q
 
-- [ ] **T06: Run integrated report ownership proof suite** `est:45m`
+- [x] **T06: Run integrated report ownership proof suite** `est:45m`
   ---
   estimated_steps: 5
   estimated_files: 0
