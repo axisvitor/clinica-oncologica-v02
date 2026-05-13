@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T02",
+  "unitId": "M014/S02/T02",
+  "timestamp": 1778692636052,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s02_adk_auth_session_ownership.py backend-hormonia/tests/unit/test_adk_tools_runtime.py -k \"owner or ownership or session or invocation or resume or close or cancel\"",
+      "exitCode": 0,
+      "durationMs": 20536,
+      "verdict": "pass"
+    }
+  ]
+}

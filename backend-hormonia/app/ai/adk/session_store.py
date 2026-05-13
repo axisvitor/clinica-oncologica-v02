@@ -241,7 +241,7 @@ class ADKSessionStore:
 
         return payload, self._context_from_state(pruned_state), None
 
-    async def register_invocation(
+    def _invocation_payload(
         self,
         *,
         invocation_id: str,
@@ -250,7 +250,7 @@ class ADKSessionStore:
         user_id: str,
         runtime: dict[str, Any],
     ) -> dict[str, Any]:
-        payload = {
+        return {
             "invocation_id": invocation_id,
             "session_id": session_id,
             "tool_name": tool_name,
@@ -263,6 +263,23 @@ class ADKSessionStore:
             "runtime": runtime,
             "result": None,
         }
+
+    async def register_invocation(
+        self,
+        *,
+        invocation_id: str,
+        session_id: str | None,
+        tool_name: str,
+        user_id: str,
+        runtime: dict[str, Any],
+    ) -> dict[str, Any]:
+        payload = self._invocation_payload(
+            invocation_id=invocation_id,
+            session_id=session_id,
+            tool_name=tool_name,
+            user_id=user_id,
+            runtime=runtime,
+        )
         await self._write_invocation(payload)
         if session_id:
             session = await self.get_session(session_id)
@@ -270,6 +287,39 @@ class ADKSessionStore:
                 session["last_invocation_id"] = invocation_id
                 await self._write_session(session, ttl_seconds=self.session_ttl_seconds)
         return payload
+
+    async def reserve_invocation(
+        self,
+        *,
+        invocation_id: str,
+        session_id: str | None,
+        tool_name: str,
+        user_id: str,
+        runtime: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, bool]:
+        """Create an invocation only if the id is currently unclaimed.
+
+        Runtime callers may supply invocation ids for lifecycle correlation. Treat
+        those ids as globally reserved so a second caller cannot overwrite an
+        existing invocation's stored owner before ownership checks run.
+        """
+        payload = self._invocation_payload(
+            invocation_id=invocation_id,
+            session_id=session_id,
+            tool_name=tool_name,
+            user_id=user_id,
+            runtime=runtime,
+        )
+        reserved = await self._write_invocation_if_absent(payload)
+        if not reserved:
+            return await self.get_invocation(invocation_id), False
+
+        if session_id:
+            session = await self.get_session(session_id)
+            if session is not None:
+                session["last_invocation_id"] = invocation_id
+                await self._write_session(session, ttl_seconds=self.session_ttl_seconds)
+        return payload, True
 
     async def get_invocation(self, invocation_id: str) -> dict[str, Any] | None:
         return await self._read_invocation(invocation_id)
@@ -469,6 +519,14 @@ class ADKSessionStore:
             ttl_seconds=self.invocation_ttl_seconds,
         )
 
+    async def _write_invocation_if_absent(self, payload: dict[str, Any]) -> bool:
+        return await self._write_payload_if_absent(
+            store=_MEMORY_INVOCATIONS,
+            key=f"{_INVOCATION_KEY_PREFIX}{payload['invocation_id']}",
+            payload=payload,
+            ttl_seconds=self.invocation_ttl_seconds,
+        )
+
     async def _read_payload(
         self,
         *,
@@ -516,12 +574,41 @@ class ADKSessionStore:
         with _MEMORY_STORE_LOCK:
             store[key] = (_copy_payload(payload), _memory_expiry(ttl_seconds))
 
-    async def _redis_call(self, method_name: str, *args: Any) -> Any:
+    async def _write_payload_if_absent(
+        self,
+        *,
+        store: dict[str, tuple[dict[str, Any], datetime]],
+        key: str,
+        payload: dict[str, Any],
+        ttl_seconds: int,
+    ) -> bool:
+        if self.redis is not None:
+            value = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+            result = await self._redis_call(
+                "set",
+                key,
+                value,
+                ex=ttl_seconds,
+                nx=True,
+            )
+            return bool(result)
+
+        with _MEMORY_STORE_LOCK:
+            entry = store.get(key)
+            if entry is not None:
+                _, expires_at = entry
+                if expires_at > now_sao_paulo():
+                    return False
+                store.pop(key, None)
+            store[key] = (_copy_payload(payload), _memory_expiry(ttl_seconds))
+            return True
+
+    async def _redis_call(self, method_name: str, *args: Any, **kwargs: Any) -> Any:
         if self.redis is None:
             return None
         method = getattr(self.redis, method_name, None)
         if method is None:
             return None
         if inspect.iscoroutinefunction(method):
-            return await method(*args)
-        return await asyncio.to_thread(method, *args)
+            return await method(*args, **kwargs)
+        return await asyncio.to_thread(method, *args, **kwargs)

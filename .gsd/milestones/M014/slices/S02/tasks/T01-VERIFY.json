@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T01",
+  "unitId": "M014/S02/T01",
+  "timestamp": 1778684952499,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/api/v2/test_adk.py backend-hormonia/tests/security/test_m014_s02_adk_auth_session_ownership.py -k \"adk_run or route or payload or canonical or missing_auth\"",
+      "exitCode": 0,
+      "durationMs": 22670,
+      "verdict": "pass"
+    }
+  ]
+}

@@ -11,6 +11,12 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.infrastructure.cache import get_unified_cache_manager as get_cache_manager
+from app.middleware.cache_headers import (
+    apply_no_store_headers,
+    classify_request_cache_sensitivity,
+    response_headers_are_sensitive,
+    response_sets_cookie,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,21 +83,39 @@ class CacheMiddleware(BaseHTTPMiddleware):
         Returns:
             HTTP response (cached or fresh)
         """
-        # Only cache GET requests
-        if request.method != "GET":
-            return await call_next(request)
+        sensitivity = classify_request_cache_sensitivity(request)
+        if sensitivity.sensitive:
+            logger.debug(
+                "Bypassing HTTP cache for browser-sensitive response",
+                extra={"method": request.method, "reason": sensitivity.reason},
+            )
+            response = await call_next(request)
+            return apply_no_store_headers(response, reason=sensitivity.reason)
 
-        # Check if path should be excluded
+        # Only cache GET requests; still protect cookie-setting responses.
+        if request.method != "GET":
+            response = await call_next(request)
+            if response_sets_cookie(response):
+                return apply_no_store_headers(response, reason="set_cookie")
+            return response
+
+        # Check if path should be excluded; still protect cookie-setting responses.
         if self._should_exclude(request.url.path):
             logger.debug(f"Excluded from cache: {request.url.path}")
-            return await call_next(request)
+            response = await call_next(request)
+            if response_sets_cookie(response):
+                return apply_no_store_headers(response, reason="set_cookie")
+            return response
 
         # Check if authenticated request (skip caching unless configured)
         if not self.cache_authenticated and self._is_authenticated(request):
             logger.debug(
                 f"Skipping cache for authenticated request: {request.url.path}"
             )
-            return await call_next(request)
+            response = await call_next(request)
+            if response_sets_cookie(response):
+                return apply_no_store_headers(response, reason="set_cookie")
+            return response
 
         # Generate cache key from request
         cache_key = self._generate_cache_key(request)
@@ -123,8 +147,15 @@ class CacheMiddleware(BaseHTTPMiddleware):
                 cached_headers = cached_data.get("headers", {})
                 is_compressed = cached_data.get("is_compressed", False)
 
+                if response_headers_are_sensitive(dict(cached_headers or {})):
+                    logger.warning(
+                        "Ignoring legacy sensitive HTTP cache entry for key %s",
+                        cache_key,
+                    )
+                    cached_data = None
+
                 # Decode base64 for compressed data
-                if is_compressed and cached_body:
+                if cached_data is not None and is_compressed and cached_body:
                     try:
                         import base64
 
@@ -162,6 +193,13 @@ class CacheMiddleware(BaseHTTPMiddleware):
         # Cache MISS - execute request
         logger.debug(f"Cache MISS - fetching fresh response for: {cache_key}")
         response = await call_next(request)
+
+        if response_sets_cookie(response):
+            logger.debug(
+                "Bypassing HTTP cache for cookie-setting response",
+                extra={"method": request.method, "reason": "set_cookie"},
+            )
+            return apply_no_store_headers(response, reason="set_cookie")
 
         # Only cache successful responses
         if response.status_code == 200:

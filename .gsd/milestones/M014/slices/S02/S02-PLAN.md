@@ -40,7 +40,7 @@ Upstream consumed: S01 session-backed mutation assumptions and CSRF contraction;
   - Files: `backend-hormonia/app/api/v2/routers/adk.py`, `backend-hormonia/tests/api/v2/test_adk.py`, `backend-hormonia/tests/security/test_m014_s02_adk_auth_session_ownership.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/api/v2/test_adk.py backend-hormonia/tests/security/test_m014_s02_adk_auth_session_ownership.py -k "adk_run or route or payload or canonical or missing_auth"
 
-- [ ] **T02: Enforce ADK runtime session and invocation ownership** `est:2h`
+- [x] **T02: Enforce ADK runtime session and invocation ownership** `est:2h`
   ---
   estimated_steps: 8
   estimated_files: 3
@@ -52,7 +52,7 @@ Upstream consumed: S01 session-backed mutation assumptions and CSRF contraction;
   - Files: `backend-hormonia/app/ai/adk/runtime.py`, `backend-hormonia/tests/security/test_m014_s02_adk_auth_session_ownership.py`, `backend-hormonia/tests/unit/test_adk_tools_runtime.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s02_adk_auth_session_ownership.py backend-hormonia/tests/unit/test_adk_tools_runtime.py -k "owner or ownership or session or invocation or resume or close or cancel"
 
-- [ ] **T03: Lock PHI-safe diagnostics and ADK regression evidence** `est:1h`
+- [x] **T03: Lock PHI-safe diagnostics and ADK regression evidence** `est:1h`
   ---
   estimated_steps: 5
   estimated_files: 4

@@ -22,6 +22,7 @@
 
 import { QueryClient, DefaultOptions } from '@tanstack/react-query'
 import { createIndexedDBPersister } from './persistentCache'
+import { filterPersistedClient } from './persistencePolicy'
 
 /**
  * Default query options with performance optimizations (Phase 2.2 Enhanced)
@@ -108,6 +109,7 @@ export const persister = createIndexedDBPersister({
   ttl: 1000 * 60 * 60 * 24 * 7, // 7 days
   maxSize: 50 * 1024 * 1024, // 50MB
   debug: import.meta.env.DEV,
+  filterClient: filterPersistedClient,
 })
 
 /**

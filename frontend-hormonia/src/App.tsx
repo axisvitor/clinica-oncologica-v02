@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { AuthProvider } from '@/app/providers/AuthContext'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { queryClient, persister } from '@/lib/react-query/queryClient'
+import { shouldPersistDashboardQuery } from '@/lib/react-query/persistencePolicy'
 import { prefetchCriticalRoutes } from '@/utils/route-prefetch'
 import { createLogger } from '@/utils/logger'
 
@@ -68,7 +69,15 @@ function App() {
   return (
     <ErrorBoundary>
       {/* Phase 2.2: PersistQueryClientProvider for IndexedDB persistence */}
-      <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister,
+          dehydrateOptions: {
+            shouldDehydrateQuery: shouldPersistDashboardQuery,
+          },
+        }}
+      >
         <AuthProvider>
           <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <div className="min-h-screen bg-background">

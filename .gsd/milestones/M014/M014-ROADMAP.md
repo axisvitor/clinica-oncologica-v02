@@ -15,10 +15,10 @@
 - [x] **S01: S01** `risk:Externally reachable state changes may accept missing CSRF, replay/idempotency failures, duplicate-oracle probes or ambiguous X-Forwarded-For before side-effect sentries exist.` `depends:[]`
   > After this: Reviewer runs focused backend pytest for CSRF, password reset/webhook replay, duplicate-oracle and trusted-proxy rate limiting; denied paths return 403/409/422/429 before queue/provider/DB side effects while legitimate fixture paths still pass.
 
-- [ ] **S02: S02** `risk:ADK endpoints can be publicly callable or trust payload-supplied identity, allowing cross-user/session execution before provider calls.` `depends:[]`
+- [x] **S02: S02** `risk:ADK endpoints can be publicly callable or trust payload-supplied identity, allowing cross-user/session execution before provider calls.` `depends:[]`
   > After this: Reviewer runs ADK route/service tests where authenticated same-user sessions are allowed and missing, foreign, expired or payload-mismatched sessions are denied without invoking live Gemini.
 
-- [ ] **S03: Browser PHI Cache e Quiz Frontend Proof** `risk:Session-cookie GETs and quiz/dashboard persistence can store sensitive patient or answer data under public cache/localStorage/IndexedDB behavior.` `depends:[S01]`
+- [ ] **S03: S03** `risk:Session-cookie GETs and quiz/dashboard persistence can store sensitive patient or answer data under public cache/localStorage/IndexedDB behavior.` `depends:[]`
   > After this: Reviewer runs backend cache-header tests plus targeted frontend/quiz tests showing PHI responses are no-store/non-persistent, non-PHI cache still works, and quiz frontend coverage now has deterministic pass/fail evidence.
 
 - [ ] **S04: Upload Stored-XSS e Private Artifact Serving** `risk:Malicious HTML/SVG/script uploads or generated artifacts may execute in a browser or bypass authorization if served with unsafe content type/disposition or public paths.` `depends:[S01,S03]`

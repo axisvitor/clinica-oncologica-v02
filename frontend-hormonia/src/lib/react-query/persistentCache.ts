@@ -59,6 +59,8 @@ interface CacheConfig {
   maxSize?: number
   /** Enable debug logging */
   debug?: boolean
+  /** Optional policy filter applied before writes and after legacy restores */
+  filterClient?: (client: PersistedClient) => PersistedClient
 }
 
 // Constants
@@ -109,6 +111,7 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
     ttl = DEFAULT_CACHE_TTL,
     maxSize = DEFAULT_MAX_SIZE,
     debug = false,
+    filterClient,
   } = config
 
   const logger = new CacheLogger(debug)
@@ -233,6 +236,32 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
     }
   }
 
+  function getQueryCount(client: PersistedClient): number {
+    return Array.isArray(client.clientState?.queries) ? client.clientState.queries.length : 0
+  }
+
+  function emptyClientFrom(client?: Partial<PersistedClient>): PersistedClient {
+    return {
+      timestamp: typeof client?.timestamp === 'number' ? client.timestamp : Date.now(),
+      buster: typeof client?.buster === 'string' ? client.buster : '',
+      clientState: {
+        mutations: [],
+        queries: [],
+      },
+    }
+  }
+
+  function applyClientFilter(client: PersistedClient): PersistedClient {
+    if (!filterClient) return client
+
+    try {
+      return filterClient(client)
+    } catch (error) {
+      logger.warn('Client filter failed; dropping persisted query payloads', error)
+      return emptyClientFrom(client)
+    }
+  }
+
   /**
    * Check if cache has exceeded size limit
    */
@@ -275,16 +304,20 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
         // Check cache size before persisting
         await clearIfOversized(database)
 
-        // Store the client state
-        await database.put('queryCache', client, 'state')
+        const originalQueryCount = getQueryCount(client)
+        const filteredClient = applyClientFilter(client)
+        const queryCount = getQueryCount(filteredClient)
 
-        // Update metadata
-        const size = calculateSize(client)
-        const queryCount = client.clientState.queries?.length || 0
+        // Store only the filtered client state
+        await database.put('queryCache', filteredClient, 'state')
+
+        // Update metadata from the filtered payload only
+        const size = calculateSize(filteredClient)
+        const filteredOutCount = Math.max(0, originalQueryCount - queryCount)
 
         await updateMetadata(database, { size, queryCount })
 
-        logger.info('Client state persisted', { size, queryCount })
+        logger.info('Client state persisted', { size, queryCount, filteredOutCount })
       } catch (error) {
         logger.error('Failed to persist client state', error)
         // Don't throw - allow app to continue without persistence
@@ -313,13 +346,28 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
           return undefined
         }
 
-        // Update last accessed time
-        await updateMetadata(database, {})
+        const filteredCache = applyClientFilter(cache)
+        const originalQueryCount = getQueryCount(cache)
+        const queryCount = getQueryCount(filteredCache)
 
-        const queryCount = cache.clientState.queries?.length || 0
-        logger.info('Client state restored', { age, queryCount })
+        if (queryCount !== originalQueryCount) {
+          await database.put('queryCache', filteredCache, 'state')
+          await updateMetadata(database, {
+            size: calculateSize(filteredCache),
+            queryCount,
+          })
+        } else {
+          // Update last accessed time
+          await updateMetadata(database, {})
+        }
 
-        return cache
+        logger.info('Client state restored', {
+          age,
+          queryCount,
+          filteredOutCount: Math.max(0, originalQueryCount - queryCount),
+        })
+
+        return filteredCache
       } catch (error) {
         logger.error('Failed to restore client state', error)
         return undefined
