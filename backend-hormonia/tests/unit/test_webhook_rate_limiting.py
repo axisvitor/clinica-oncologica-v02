@@ -75,21 +75,22 @@ class TestRedisRateLimiting:
 
     @pytest.mark.asyncio
     async def test_check_rate_limit_redis_unavailable(self):
-        """Test rate limit fails open when Redis is unavailable."""
-        allowed, retry_after = await check_rate_limit_redis(
-            key="test:key",
-            max_requests=10,
-            window_seconds=60,
-            redis_client=None
-        )
+        """Test rate limit fails closed when Redis is unavailable."""
+        with patch('app.utils.rate_limiter.get_redis_client', AsyncMock(return_value=None)):
+            allowed, retry_after = await check_rate_limit_redis(
+                key="test:key",
+                max_requests=10,
+                window_seconds=60,
+                redis_client=None,
+            )
 
-        # Should fail open (allow request)
-        assert allowed is True
-        assert retry_after == 0
+        # Should fail closed (deny request)
+        assert allowed is False
+        assert retry_after == 60
 
     @pytest.mark.asyncio
     async def test_check_rate_limit_redis_error(self):
-        """Test rate limit fails open on Redis error."""
+        """Test rate limit fails closed on Redis error."""
         # Mock Redis client that raises error
         redis_client = AsyncMock()
         redis_client.pipeline = Mock(side_effect=Exception("Redis error"))
@@ -101,9 +102,9 @@ class TestRedisRateLimiting:
             redis_client=redis_client
         )
 
-        # Should fail open (allow request)
-        assert allowed is True
-        assert retry_after == 0
+        # Should fail closed (deny request)
+        assert allowed is False
+        assert retry_after == 60
 
 
 class TestMultiLayerRateLimiting:
@@ -255,8 +256,12 @@ class TestMultiLayerRateLimiting:
 
     @pytest.mark.asyncio
     async def test_multi_layer_no_redis(self):
-        """Test decorator fails open when Redis unavailable."""
+        """Test decorator fails closed when Redis unavailable."""
+        called = False
+
         async def mock_endpoint(request: Request):
+            nonlocal called
+            called = True
             return {"status": "ok"}
 
         mock_request = Mock(spec=Request)
@@ -267,11 +272,13 @@ class TestMultiLayerRateLimiting:
 
         decorated = multi_layer_rate_limit()(mock_endpoint)
 
-        with patch('app.utils.rate_limiter.get_redis_client', return_value=None):
-            result = await decorated(mock_request)
+        with patch('app.utils.rate_limiter.get_redis_client', AsyncMock(return_value=None)):
+            with pytest.raises(HTTPException) as exc_info:
+                await decorated(mock_request)
 
-        # Should fail open (allow request)
-        assert result == {"status": "ok"}
+        # Should fail closed before endpoint side effects
+        assert exc_info.value.status_code == 429
+        assert called is False
 
     @pytest.mark.asyncio
     async def test_multi_layer_malformed_payload(self):

@@ -226,17 +226,14 @@ class TestErrorHandling:
     """Test error handling in rate limiter."""
 
     @pytest.mark.asyncio
-    async def test_redis_failure_allows_request(self, rate_limiter, mock_redis):
-        """Test that Redis failure allows request (fail-open)."""
+    async def test_redis_failure_denies_request(self, rate_limiter, mock_redis):
+        """Test that Redis failure denies request (fail-closed)."""
         pipeline = mock_redis.pipeline.return_value
         pipeline.execute.side_effect = Exception("Redis connection error")
         
-        # Should allow request on Redis failure (fail-open for availability)
         result = await rate_limiter.acquire(priority=MessagePriority.NORMAL)
         
-        # Depending on implementation, might be True (fail-open) or raise exception
-        # This test documents expected behavior
-        assert result is True or isinstance(result, Exception)
+        assert result is False
 
 
 class TestConcurrency:

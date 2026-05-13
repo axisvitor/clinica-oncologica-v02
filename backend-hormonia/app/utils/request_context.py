@@ -11,6 +11,7 @@ from fastapi import Depends, Request
 
 from app.models.user import User
 from app.dependencies.auth_dependencies import get_optional_user
+from app.utils.client_ip import get_client_ip
 
 
 class RequestContext:
@@ -33,13 +34,8 @@ async def get_request_context(
     request: Request, current_user: Optional[User] = Depends(get_optional_user)
 ) -> RequestContext:
     """Extract request context for audit logging."""
-    # Extract IP address with X-Forwarded-For support
-    if "x-forwarded-for" in request.headers:
-        ip_address = request.headers["x-forwarded-for"].split(",")[0].strip()
-    elif "x-real-ip" in request.headers:
-        ip_address = request.headers["x-real-ip"]
-    else:
-        ip_address = request.client.host if request.client else "unknown"
+    # Extract IP address through the shared trusted-proxy boundary.
+    ip_address = get_client_ip(request)
 
     # Extract user agent
     user_agent = request.headers.get("user-agent", "unknown")

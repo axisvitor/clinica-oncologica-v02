@@ -26,6 +26,8 @@ from enum import Enum
 from redis import Redis
 from redis.exceptions import RedisError
 
+from app.utils.client_ip import hash_sensitive_identifier
+
 logger = logging.getLogger(__name__)
 
 _SLIDING_WINDOW_LUA = """
@@ -79,6 +81,7 @@ class RateLimitResult:
     remaining: int  # Remaining requests
     reset_at: datetime  # When limit resets
     retry_after: Optional[int] = None  # Seconds to wait before retry
+    reason: Optional[str] = None  # PHI-safe denial/error reason
 
 
 class DistributedRateLimiter:
@@ -107,7 +110,7 @@ class DistributedRateLimiter:
         prefix: str = "ratelimit",
         enable_blocking: bool = True,
         block_duration: int = 300,  # 5 minutes
-        fail_open: bool = True,  # Allow requests if Redis fails
+        fail_open: bool = False,  # Deny requests if Redis fails by default
     ):
         """
         Initialize distributed rate limiter.
@@ -118,6 +121,7 @@ class DistributedRateLimiter:
             enable_blocking: Enable temporary blocking for abuse
             block_duration: Duration to block abusive clients (seconds)
             fail_open: Allow requests if Redis is unavailable (fail open vs fail closed)
+                Defaults to fail-closed for externally reachable ingress.
         """
         self.redis = redis
         self.prefix = prefix
@@ -183,7 +187,14 @@ class DistributedRateLimiter:
                     if current_ts < block_until_ts:
                         retry_after = block_until_ts - current_ts
                         logger.warning(
-                            f"Client {identifier} is blocked for {retry_after}s"
+                            "Client is temporarily blocked",
+                            extra={
+                                "event_type": "rate_limit_denied",
+                                "reason": "client_blocked",
+                                "scope": "distributed",
+                                "client_identity_hash": hash_sensitive_identifier(identifier, prefix="client"),
+                                "retry_after": retry_after,
+                            },
                         )
                         return RateLimitResult(
                             allowed=False,
@@ -191,6 +202,7 @@ class DistributedRateLimiter:
                             remaining=0,
                             reset_at=datetime.fromtimestamp(block_until_ts),
                             retry_after=retry_after,
+                            reason="client_blocked",
                         )
 
             # Sliding window algorithm
@@ -224,16 +236,31 @@ class DistributedRateLimiter:
             # Log if approaching limit
             if current_count >= limit * 0.9:
                 logger.warning(
-                    f"Rate limit approaching for {identifier}: "
-                    f"{current_count}/{limit} in {window}s window"
+                    "Rate limit approaching threshold",
+                    extra={
+                        "event_type": "rate_limit_warning",
+                        "reason": "approaching_limit",
+                        "scope": "distributed",
+                        "client_identity_hash": hash_sensitive_identifier(identifier, prefix="client"),
+                        "request_count": current_count,
+                        "limit": limit,
+                        "window_seconds": window,
+                    },
                 )
 
             # Check for abuse (significantly over limit)
             if self.enable_blocking and current_count > limit * 2:
                 self._block_client(identifier, duration=self.block_duration)
                 logger.error(
-                    f"Blocking abusive client {identifier}: "
-                    f"{current_count} requests (limit: {limit})"
+                    "Blocking abusive client",
+                    extra={
+                        "event_type": "rate_limit_denied",
+                        "reason": "abuse_blocked",
+                        "scope": "distributed",
+                        "client_identity_hash": hash_sensitive_identifier(identifier, prefix="client"),
+                        "request_count": current_count,
+                        "limit": limit,
+                    },
                 )
 
             return RateLimitResult(
@@ -242,25 +269,48 @@ class DistributedRateLimiter:
                 remaining=remaining,
                 reset_at=reset_at,
                 retry_after=window if not allowed else None,
+                reason="limit_exceeded" if not allowed else None,
             )
 
-        except RedisError as e:
-            logger.error(f"Redis error in rate limiter: {e}", exc_info=True)
+        except RedisError:
+            logger.error(
+                "Redis error in rate limiter",
+                exc_info=True,
+                extra={
+                    "event_type": "rate_limit_error",
+                    "reason": "redis_error",
+                    "scope": "distributed",
+                    "client_identity_hash": hash_sensitive_identifier(identifier, prefix="client"),
+                },
+            )
 
             # Fail open or closed based on configuration
             if self.fail_open:
                 logger.warning(
-                    f"Rate limiter failing open due to Redis error for {identifier}"
+                    "Rate limiter failing open due to Redis error",
+                    extra={
+                        "event_type": "rate_limit_degraded",
+                        "reason": "redis_error",
+                        "scope": "distributed",
+                        "client_identity_hash": hash_sensitive_identifier(identifier, prefix="client"),
+                    },
                 )
                 return RateLimitResult(
                     allowed=True,
                     limit=limit,
                     remaining=limit,
                     reset_at=datetime.now() + timedelta(seconds=window),
+                    reason="redis_error",
                 )
             else:
                 logger.error(
-                    f"Rate limiter failing closed due to Redis error for {identifier}"
+                    "Rate limiter failing closed due to Redis error",
+                    extra={
+                        "event_type": "rate_limit_denied",
+                        "reason": "redis_error",
+                        "scope": "distributed",
+                        "client_identity_hash": hash_sensitive_identifier(identifier, prefix="client"),
+                    },
                 )
                 return RateLimitResult(
                     allowed=False,
@@ -268,17 +318,37 @@ class DistributedRateLimiter:
                     remaining=0,
                     reset_at=datetime.now() + timedelta(seconds=window),
                     retry_after=60,
+                    reason="redis_error",
                 )
 
-        except Exception as e:
-            logger.error(f"Unexpected error in rate limiter: {e}", exc_info=True)
+        except Exception:
+            logger.error(
+                "Unexpected error in rate limiter",
+                exc_info=True,
+                extra={
+                    "event_type": "rate_limit_error",
+                    "reason": "rate_limiter_error",
+                    "scope": "distributed",
+                    "client_identity_hash": hash_sensitive_identifier(identifier, prefix="client"),
+                },
+            )
 
-            # Fail open for unexpected errors
+            if self.fail_open:
+                return RateLimitResult(
+                    allowed=True,
+                    limit=limit,
+                    remaining=limit,
+                    reset_at=datetime.now() + timedelta(seconds=window),
+                    reason="rate_limiter_error",
+                )
+
             return RateLimitResult(
-                allowed=True,
+                allowed=False,
                 limit=limit,
-                remaining=limit,
+                remaining=0,
                 reset_at=datetime.now() + timedelta(seconds=window),
+                retry_after=60,
+                reason="rate_limiter_error",
             )
 
     def _block_client(self, identifier: str, duration: int) -> None:
@@ -293,7 +363,16 @@ class DistributedRateLimiter:
             block_key = self._get_block_key(identifier)
             block_until = int(time.time()) + duration
             self.redis.setex(block_key, duration, str(block_until))
-            logger.warning(f"Blocked {identifier} for {duration}s")
+            logger.warning(
+                "Blocked client",
+                extra={
+                    "event_type": "rate_limit_denied",
+                    "reason": "client_blocked",
+                    "scope": "distributed",
+                    "client_identity_hash": hash_sensitive_identifier(identifier, prefix="client"),
+                    "duration_seconds": duration,
+                },
+            )
         except RedisError as e:
             logger.error(f"Failed to block client: {e}")
 
@@ -311,7 +390,16 @@ class DistributedRateLimiter:
         try:
             key = self._get_key(identifier, window)
             self.redis.delete(key)
-            logger.info(f"Reset rate limit for {identifier} (window: {window}s)")
+            logger.info(
+                "Reset rate limit",
+                extra={
+                    "event_type": "rate_limit_admin",
+                    "reason": "reset_limit",
+                    "scope": "distributed",
+                    "client_identity_hash": hash_sensitive_identifier(identifier, prefix="client"),
+                    "window_seconds": window,
+                },
+            )
             return True
         except RedisError as e:
             logger.error(f"Failed to reset rate limit: {e}")
@@ -330,7 +418,15 @@ class DistributedRateLimiter:
         try:
             block_key = self._get_block_key(identifier)
             self.redis.delete(block_key)
-            logger.info(f"Unblocked {identifier}")
+            logger.info(
+                "Unblocked client",
+                extra={
+                    "event_type": "rate_limit_admin",
+                    "reason": "unblock_client",
+                    "scope": "distributed",
+                    "client_identity_hash": hash_sensitive_identifier(identifier, prefix="client"),
+                },
+            )
             return True
         except RedisError as e:
             logger.error(f"Failed to unblock client: {e}")

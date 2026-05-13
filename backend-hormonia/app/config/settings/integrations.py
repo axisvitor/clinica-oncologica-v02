@@ -120,6 +120,10 @@ class IntegrationsSettings(BaseAppSettings):
             "Keep disabled unless requests always come from a trusted reverse proxy."
         ),
     )
+    WHATSAPP_WEBHOOK_TRUSTED_PROXIES: List[str] = Field(
+        default_factory=list,
+        description="Explicit reverse proxy IPs/CIDRs allowed to supply webhook client IP headers.",
+    )
     WHATSAPP_WUZAPI_BASE_URL: str = Field(
         default="http://localhost:8080",
         description="WuzAPI base URL (e.g. http://wuzapi:8080)",

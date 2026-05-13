@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "projectName": "clinica-oncologica-v02-1",
+  "projectPath": "/mnt/c/Meu Projetos/clinica-oncologica-v02-1",
+  "gsdVersion": "2.82.0",
+  "entries": [
+    {
+      "filename": "M013-2026-05-13T03-53-17.html",
+      "generatedAt": "2026-05-13T03:53:17.534Z",
+      "milestoneId": "M013",
+      "milestoneTitle": "Remediação de Segurança Crítica/Alta",
+      "label": "M013: Remediação de Segurança Crítica/Alta",
+      "kind": "milestone",
+      "totalCost": 347.86878974999996,
+      "totalTokens": 430945734,
+      "totalDuration": 106085003,
+      "doneSlices": 61,
+      "totalSlices": 61,
+      "doneMilestones": 13,
+      "totalMilestones": 15,
+      "phase": "pre-planning"
+    }
+  ]
+}

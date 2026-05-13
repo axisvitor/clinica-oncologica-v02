@@ -24,6 +24,8 @@ _LIST_FIELDS_WITH_EMPTY_DEFAULT = [
     "SECURITY_ALLOWED_HOSTS",
     "AI_HUMANIZATION_CRITICAL_KEYWORDS",
     "SUPPORTED_LOCALES",
+    "RATE_LIMIT_TRUSTED_PROXIES",
+    "WHATSAPP_WEBHOOK_TRUSTED_PROXIES",
 ]
 
 
@@ -129,6 +131,8 @@ class Settings(
             "FIREBASE_ENABLE_BLOCK_PUBLIC_DOMAINS",
             # Rate Limiting
             "RATE_LIMIT_ENABLE_SERVICE",
+            "RATE_LIMIT_FAIL_CLOSED",
+            "RATE_LIMIT_TRUST_PROXY_HEADERS",
             # Notifications / auth recovery
             "SMTP_USE_TLS",
             "SMTP_REQUIRE_AUTH",
@@ -171,6 +175,8 @@ class Settings(
         parse_list_field(data, "FIREBASE_ALLOWED_DOMAINS")
         parse_list_field(data, "CORS_ALLOWED_ORIGINS", allow_quoted_json=True)
         parse_list_field(data, "SUPPORTED_LOCALES", allow_quoted_json=True)
+        parse_list_field(data, "RATE_LIMIT_TRUSTED_PROXIES", allow_quoted_json=True)
+        parse_list_field(data, "WHATSAPP_WEBHOOK_TRUSTED_PROXIES", allow_quoted_json=True)
 
         # Parse AI_HUMANIZATION_CRITICAL_KEYWORDS
         if "AI_HUMANIZATION_CRITICAL_KEYWORDS" in data:

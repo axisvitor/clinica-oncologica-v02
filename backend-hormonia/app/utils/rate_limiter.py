@@ -37,12 +37,53 @@ if env_file.exists():
 from fastapi import Request, Response, HTTPException, status
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+from app.utils.client_ip import (
+    get_client_ip,
+    get_rate_limit_client_key,
+    hash_sensitive_identifier,
+    rate_limit_log_extra,
+)
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+_FALSE_VALUES = {"0", "false", "no", "off"}
+
+
+def _rate_limit_fail_closed() -> bool:
+    """Ingress rate limiting fails closed unless explicitly disabled."""
+    return os.getenv("RATE_LIMIT_FAIL_CLOSED", "true").strip().lower() not in _FALSE_VALUES
+
+
+def _rate_limit_scope_from_key(key: str) -> str:
+    if ":webhook:global" in key:
+        return "global"
+    if ":webhook:phone" in key:
+        return "phone"
+    if ":ai:" in key:
+        return "ai"
+    return "rate_limit"
+
+
+def _rate_limit_infra_extra(
+    *,
+    key: str,
+    reason: str,
+    retry_after: int,
+    max_requests: int,
+    window_seconds: int,
+) -> dict[str, object]:
+    return {
+        "event_type": "rate_limit_denied",
+        "reason": reason,
+        "scope": _rate_limit_scope_from_key(key),
+        "rate_limit_key_hash": hash_sensitive_identifier(key, prefix="rlkey"),
+        "retry_after": retry_after,
+        "limit": max_requests,
+        "window_seconds": window_seconds,
+    }
 
 def _is_test_environment() -> bool:
     return bool(
@@ -132,7 +173,7 @@ def get_rate_limit_storage_uri() -> str:
 # This causes "parameter `response` must be an instance of Response" error.
 _rate_limit_enabled = not _is_test_environment()
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=get_rate_limit_client_key,
     storage_uri=get_rate_limit_storage_uri(),
     default_limits=["60/minute"],  # Global default: 60 requests per minute
     enabled=_rate_limit_enabled,
@@ -142,7 +183,7 @@ limiter = Limiter(
 
 # Specialized limiter for authentication endpoints (stricter limits)
 auth_limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=get_rate_limit_client_key,
     storage_uri=get_rate_limit_storage_uri(),
     default_limits=["10/minute"],  # Auth endpoints: 10 requests per minute
     enabled=_rate_limit_enabled,
@@ -192,13 +233,14 @@ def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> Response:
     retry_after = getattr(exc, "retry_after", 60)
 
     logger.warning(
-        f"Rate limit exceeded for {get_remote_address(request)}",
-        extra={
-            "path": request.url.path,
-            "method": request.method,
-            "client_ip": get_remote_address(request),
-            "retry_after": retry_after,
-        },
+        "Rate limit denied",
+        extra=rate_limit_log_extra(
+            request,
+            reason="slowapi_limit_exceeded",
+            scope="slowapi",
+            retry_after=retry_after,
+            limit=getattr(exc, "limit", 60),
+        ),
     )
 
     return JSONResponse(
@@ -263,7 +305,12 @@ async def check_ai_rate_limit(
         tuple: (allowed: bool, retry_after: int)
     """
     key = f"rate_limit:ai:{service_name}"
-    return await check_rate_limit_redis(key, max_requests, window_seconds)
+    return await check_rate_limit_redis(
+        key,
+        max_requests,
+        window_seconds,
+        fail_closed=False,
+    )
 
 
 class AIRateLimitExceeded(Exception):
@@ -287,8 +334,8 @@ async def get_redis_client():
     Get Redis client for manual rate limiting.
 
     Uses the centralized RedisManager (DB 3 for rate-limiting) instead of
-    creating standalone ``redis.from_url()`` connections.  Falls back to
-    ``None`` (in-memory or fail-open) when Redis is unavailable.
+    creating standalone ``redis.from_url()`` connections. Returns ``None`` when
+    Redis is unavailable so callers can apply the configured fail-closed policy.
 
     Returns:
         Redis client or None if unavailable
@@ -311,7 +358,12 @@ async def get_redis_client():
 
 
 async def check_rate_limit_redis(
-    key: str, max_requests: int, window_seconds: int, redis_client=None
+    key: str,
+    max_requests: int,
+    window_seconds: int,
+    redis_client=None,
+    *,
+    fail_closed: bool | None = None,
 ) -> tuple[bool, int]:
     """
     Check rate limit using Redis sliding window.
@@ -321,16 +373,28 @@ async def check_rate_limit_redis(
         max_requests: Maximum requests allowed in window
         window_seconds: Time window in seconds
         redis_client: Redis client (optional, will create if not provided)
+        fail_closed: Deny on Redis unavailable/error/timeout when True.
 
     Returns:
         tuple: (allowed: bool, retry_after: int)
     """
+    should_fail_closed = _rate_limit_fail_closed() if fail_closed is None else fail_closed
+
     if not redis_client:
         redis_client = await get_redis_client()
         if not redis_client:
-            # Fail open if Redis unavailable
-            logger.warning("Rate limiting unavailable - Redis not connected")
-            return True, 0
+            retry_after = window_seconds if should_fail_closed else 0
+            logger.warning(
+                "Rate limit infrastructure unavailable",
+                extra=_rate_limit_infra_extra(
+                    key=key,
+                    reason="redis_unavailable",
+                    retry_after=retry_after,
+                    max_requests=max_requests,
+                    window_seconds=window_seconds,
+                ),
+            )
+            return (False, retry_after) if should_fail_closed else (True, 0)
 
     try:
         current_time = int(time.time())
@@ -358,32 +422,53 @@ async def check_rate_limit_redis(
                 timeout=operation_timeout,
             )
         except asyncio.TimeoutError:
+            retry_after = window_seconds if should_fail_closed else 0
             logger.warning(
-                "Rate limit check timed out - failing open",
-                extra={"rate_limit_key": key},
+                "Rate limit check timed out",
+                extra=_rate_limit_infra_extra(
+                    key=key,
+                    reason="redis_timeout",
+                    retry_after=retry_after,
+                    max_requests=max_requests,
+                    window_seconds=window_seconds,
+                ),
             )
-            return True, 0
+            return (False, retry_after) if should_fail_closed else (True, 0)
         request_count = results[2]
 
         if request_count > max_requests:
             retry_after = window_seconds
             logger.warning(
-                f"Rate limit exceeded for {key}: {request_count}/{max_requests} requests",
+                "Rate limit exceeded",
                 extra={
-                    "rate_limit_key": key,
+                    "event_type": "rate_limit_denied",
+                    "reason": "limit_exceeded",
+                    "scope": _rate_limit_scope_from_key(key),
+                    "rate_limit_key_hash": hash_sensitive_identifier(key, prefix="rlkey"),
                     "request_count": request_count,
                     "max_requests": max_requests,
                     "window_seconds": window_seconds,
+                    "retry_after": retry_after,
                 },
             )
             return False, retry_after
 
         return True, 0
 
-    except Exception as e:
-        logger.error(f"Error checking rate limit: {e}", exc_info=True)
-        # Fail open on error
-        return True, 0
+    except Exception:
+        retry_after = window_seconds if should_fail_closed else 0
+        logger.error(
+            "Error checking rate limit",
+            exc_info=True,
+            extra=_rate_limit_infra_extra(
+                key=key,
+                reason="redis_error",
+                retry_after=retry_after,
+                max_requests=max_requests,
+                window_seconds=window_seconds,
+            ),
+        )
+        return (False, retry_after) if should_fail_closed else (True, 0)
 
 
 def multi_layer_rate_limit(
@@ -429,8 +514,30 @@ def multi_layer_rate_limit(
                 request = kwargs.get("request")
 
             if not request:
-                logger.warning("Rate limit decorator: Request object not found")
-                return await func(*args, **kwargs)
+                logger.warning(
+                    "Rate limit request context missing",
+                    extra={
+                        "event_type": "rate_limit_denied",
+                        "reason": "missing_request",
+                        "scope": "global",
+                    },
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail={
+                        "error": "Too Many Requests",
+                        "message": "Rate limiting is unavailable for this request.",
+                        "retry_after": global_window,
+                        "scope": "global",
+                    },
+                    headers={
+                        "Retry-After": str(global_window),
+                        "X-RateLimit-Limit": str(global_limit),
+                        "X-RateLimit-Remaining": "0",
+                        "X-RateLimit-Reset": str(int(time.time()) + global_window),
+                        "X-RateLimit-Scope": "global",
+                    },
+                )
 
             redis_client = await get_redis_client()
 
@@ -442,12 +549,15 @@ def multi_layer_rate_limit(
 
             if not allowed:
                 logger.warning(
-                    "Global webhook rate limit exceeded",
-                    extra={
-                        "limit": global_limit,
-                        "window": global_window,
-                        "path": request.url.path,
-                    },
+                    "Webhook global rate limit denied",
+                    extra=rate_limit_log_extra(
+                        request,
+                        reason="webhook_global_denied",
+                        scope="global",
+                        limit=global_limit,
+                        window_seconds=global_window,
+                        retry_after=retry_after,
+                    ),
                 )
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -502,7 +612,8 @@ def multi_layer_rate_limit(
                     c for c in str(identifier_value) if c.isalnum()
                 )
 
-                identifier_rate_key = f"rate_limit:webhook:phone:{identifier_value}"
+                identifier_hash = hash_sensitive_identifier(identifier_value, prefix="phone")
+                identifier_rate_key = f"rate_limit:webhook:phone:{identifier_hash}"
                 allowed, retry_after = await check_rate_limit_redis(
                     identifier_rate_key,
                     identifier_limit,
@@ -512,12 +623,17 @@ def multi_layer_rate_limit(
 
                 if not allowed:
                     logger.warning(
-                        f"Per-phone webhook rate limit exceeded for {identifier_value}",
+                        "Webhook per-identifier rate limit denied",
                         extra={
-                            "identifier": identifier_value,
-                            "limit": identifier_limit,
-                            "window": identifier_window,
-                            "path": request.url.path,
+                            **rate_limit_log_extra(
+                                request,
+                                reason="webhook_identifier_denied",
+                                scope="phone",
+                                limit=identifier_limit,
+                                window_seconds=identifier_window,
+                                retry_after=retry_after,
+                            ),
+                            "identifier_hash": identifier_hash,
                         },
                     )
                     raise HTTPException(

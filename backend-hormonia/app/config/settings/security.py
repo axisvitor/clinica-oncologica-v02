@@ -202,6 +202,18 @@ class SecuritySettings(BaseAppSettings):
         default=None,
         description="Redis URL for rate limiting storage (uses REDIS_URL if not set, in-memory if Redis unavailable)",
     )
+    RATE_LIMIT_FAIL_CLOSED: bool = Field(
+        default=True,
+        description="Deny externally reachable ingress requests when rate-limit infrastructure is unavailable.",
+    )
+    RATE_LIMIT_TRUST_PROXY_HEADERS: bool = Field(
+        default=False,
+        description="Trust X-Forwarded-For/X-Real-IP only when the direct peer is in RATE_LIMIT_TRUSTED_PROXIES.",
+    )
+    RATE_LIMIT_TRUSTED_PROXIES: List[str] = Field(
+        default_factory=list,
+        description="Explicit trusted reverse proxy IPs/CIDRs allowed to supply client IP headers.",
+    )
 
     # ============================================================================
     # CORS Configuration - Direct ENV names

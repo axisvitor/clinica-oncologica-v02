@@ -43,6 +43,7 @@ from app.middleware.rate_limit_core import (
     RateLimitResult,
     DistributedRateLimiter as CoreDistributedRateLimiter,
 )
+from app.utils.client_ip import get_client_ip, hash_sensitive_identifier, rate_limit_log_extra
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,7 @@ class DistributedRateLimiter(CoreDistributedRateLimiter):
         if redis_backend is None:
             raise ValueError("A Redis client instance is required")
 
+        kwargs.setdefault("fail_open", False)
         super().__init__(redis=redis_backend, **kwargs)
         self.max_requests = max_requests
         self.window_seconds = window_seconds
@@ -144,11 +146,19 @@ class DistributedRateLimiter(CoreDistributedRateLimiter):
             rate_limit_rejections.inc()
             return False
         except Exception as exc:
+            if self.fail_open:
+                logger.warning(
+                    "acquire() Redis failure; allowing request (fail-open): %s", exc
+                )
+                rate_limit_hits.inc()
+                return True
+
             logger.warning(
-                "acquire() Redis failure; allowing request (fail-open): %s", exc
+                "acquire() Redis failure; denying request (fail-closed): %s", exc,
+                extra={"event_type": "rate_limit_denied", "reason": "redis_error", "scope": "acquire"},
             )
-            rate_limit_hits.inc()
-            return True
+            rate_limit_rejections.inc()
+            return False
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -240,12 +250,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if user_id:
             return f"user:{user_id}"
 
-        # Fallback to IP address
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            ip = forwarded.split(",")[0].strip()
-        else:
-            ip = request.client.host if request.client else "unknown"
+        # Fallback to IP address resolved through the shared trusted-proxy boundary.
+        ip = get_client_ip(request)
 
         return f"ip:{ip}"
 
@@ -300,8 +306,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if any(request.url.path.startswith(path) for path in self.exempt_paths):
             return await call_next(request)
 
-        # Check if IP is whitelisted (only localhost)
-        client_ip = request.client.host if request.client else None
+        # Check if resolved client IP is whitelisted (only explicit local/dev peers).
+        # When behind a trusted proxy, this uses the forwarded client identity so a
+        # localhost proxy does not exempt every external caller.
+        client_ip = get_client_ip(request)
         if client_ip in self.whitelist_ips:
             return await call_next(request)
 
@@ -316,7 +324,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Debug logging for admin detection
         if tier == RateLimitTier.ADMIN:
-            logger.info(f"Admin tier detected for {identifier} on {request.url.path}")
+            logger.info(
+                "Admin tier detected for rate limiting",
+                extra={
+                    "event_type": "rate_limit_tier",
+                    "scope": "middleware",
+                    "client_identity_hash": hash_sensitive_identifier(identifier, prefix="client"),
+                    "route": request.url.path,
+                },
+            )
         # SECURITY FIX: Removed unsafe admin string detection
         # Admin tier must be determined by proper authentication via request.state.user
 
@@ -340,6 +356,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if result.allowed:
             response = await call_next(request)
         else:
+            denial_reason = result.reason or "limit_exceeded"
+            logger.warning(
+                "Distributed rate limit denied",
+                extra=rate_limit_log_extra(
+                    request,
+                    reason=denial_reason,
+                    scope="middleware",
+                    limit=result.limit,
+                    window_seconds=config.window,
+                    retry_after=result.retry_after,
+                ),
+            )
             response = JSONResponse(
                 status_code=429,
                 content={
