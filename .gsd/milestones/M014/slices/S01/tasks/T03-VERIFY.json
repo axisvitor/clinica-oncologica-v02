@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T03",
+  "unitId": "M014/S01/T03",
+  "timestamp": 1778655411718,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s01_password_reset_replay.py backend-hormonia/tests/api/v2/test_auth_password_recovery.py backend-hormonia/tests/integration/test_password_reset_migration_flow.py",
+      "exitCode": 0,
+      "durationMs": 26700,
+      "verdict": "pass"
+    }
+  ]
+}

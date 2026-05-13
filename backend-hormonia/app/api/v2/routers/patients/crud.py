@@ -86,6 +86,9 @@ from .base import (
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+DUPLICATE_PATIENT_CODE = "duplicate_patient"
+DUPLICATE_PATIENT_MESSAGE = "Duplicate patient"
+
 
 async def _run_sync(db: AsyncSession, operation):
     if hasattr(db, "run_sync"):
@@ -134,7 +137,7 @@ def _split_list(value: Optional[object], field: str) -> Optional[list[str]]:
     if not items:
         logger.warning(
             "Split list produced no items",
-            extra={"field": field, "original_value": value, "parsed_value": items},
+            extra={"field": field, "value_length": len(raw), "parsed_count": 0},
         )
         return None
 
@@ -245,8 +248,9 @@ def _parse_emergency_contact(
                 "Emergency contact parsing failed",
                 extra={
                     "field": "emergency_contact",
-                    "original_value": value,
-                    "parsed_value": {"name": name, "phone": phone},
+                    "value_length": len(raw),
+                    "parsed_name_present": bool(name),
+                    "parsed_phone_present": bool(phone),
                 },
             )
         return name, phone
@@ -260,8 +264,9 @@ def _parse_emergency_contact(
         "Emergency contact parsing failed",
         extra={
             "field": "emergency_contact",
-            "original_value": value,
-            "parsed_value": {"name": raw or None, "phone": None},
+            "value_length": len(raw),
+            "parsed_name_present": bool(raw),
+            "parsed_phone_present": False,
         },
     )
     return raw or None, None
@@ -771,8 +776,9 @@ async def create_patient(
         logger.info(
             "Phone normalized for patient creation",
             extra={
-                "phone_original": original_phone,
-                "phone_normalized": normalized_phone,
+                "field_category": "phone",
+                "input_length": len(original_phone) if original_phone else 0,
+                "normalized_length": len(normalized_phone) if normalized_phone else 0,
                 "validation_mode": "BR_TO_E164",
                 "context": "api_v2",
             },
@@ -821,7 +827,7 @@ async def create_patient(
                             "Metadata key moved to custom_fields due to unknown key",
                             extra={
                                 "field": f"patient_data.{field_path}",
-                                "original_value": field_value,
+                                "value_type": type(field_value).__name__,
                                 "parsed_value": "custom_fields",
                             },
                         )
@@ -831,7 +837,7 @@ async def create_patient(
                             "Metadata key moved to custom_fields due to type mismatch",
                             extra={
                                 "field": f"patient_data.{field_path}",
-                                "original_value": field_value,
+                                "value_type": type(field_value).__name__,
                                 "parsed_value": "custom_fields",
                                 "error": error["msg"],
                             },
@@ -933,17 +939,37 @@ async def create_patient(
         message = exc.message if hasattr(exc, "message") else str(exc)
         details = getattr(exc, "details", None)
         code = getattr(exc, "code", None) or (details or {}).get("code")
-        if code in {"duplicate_email", "duplicate_phone", "duplicate_cpf"} or (
+        if code in {"duplicate_email", "duplicate_phone", "duplicate_cpf", DUPLICATE_PATIENT_CODE} or (
             isinstance(message, str) and "already exists" in message.lower()
         ):
-            raise ConflictError(message, details=details)
+            logger.info(
+                "Duplicate patient creation denied",
+                extra={
+                    "event_type": "patient_duplicate_denied",
+                    "reason": DUPLICATE_PATIENT_CODE,
+                    "route": "/api/v2/patients/",
+                    "method": "POST",
+                    "request_id": getattr(request.state, "request_id", None),
+                },
+            )
+            raise ConflictError(
+                DUPLICATE_PATIENT_MESSAGE,
+                details={"code": DUPLICATE_PATIENT_CODE},
+            )
         raise ValidationError(message, details=details)
     except (ForbiddenError, ValidationError, NotFoundError, BusinessRuleError):
         raise
     except Exception as e:
         if hasattr(e, "status_code"):
             raise e
-        logger.error(f"Error creating patient: {e}", exc_info=True)
+        logger.error(
+            "Error creating patient",
+            exc_info=True,
+            extra={
+                "exception_type": type(e).__name__,
+                "request_id": getattr(request.state, "request_id", None),
+            },
+        )
         raise BusinessRuleError("Failed to create patient")
 
 

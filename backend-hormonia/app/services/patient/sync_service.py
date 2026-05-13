@@ -112,7 +112,11 @@ class PatientSyncService:
             result = self.db.execute(stmt)
             return result.scalars().first()
         except Exception as e:
-            self._logger.error(f"{error_label} duplicate check failed: {e}")
+            self._logger.error(
+                "%s duplicate check failed",
+                error_label,
+                extra={"exception_type": type(e).__name__},
+            )
             return None
 
     async def _check_duplicate_by_hashed_field_async(
@@ -142,7 +146,11 @@ class PatientSyncService:
             result = await self.db.execute(stmt)
             return result.scalars().first()
         except Exception as e:
-            self._logger.error(f"{error_label} duplicate check failed: {e}")
+            self._logger.error(
+                "%s duplicate check failed",
+                error_label,
+                extra={"exception_type": type(e).__name__},
+            )
             return None
 
     @with_db_retry(max_retries=3)

@@ -1,5 +1,4 @@
 import time
-from uuid import UUID
 
 import pytest
 
@@ -9,9 +8,6 @@ from app.repositories.patient import PatientRepository
 from app.schemas.patient import PatientCreate
 from app.services.encryption import get_lgpd_encryption_service
 from app.services.patient.integrity_service import PatientIntegrityService
-
-
-DOCTOR_ID = UUID("28844c5c-6bb8-484f-9502-b6a22c466745")
 
 
 def _build_phone_variants(seed: int) -> tuple[str, str, str]:
@@ -30,6 +26,7 @@ def _unique_email(seed: int) -> str:
 def test_duplicate_prevention_blocks_phone_variants(
     real_db_session,
     cleanup_patients,
+    real_doctor_id,
 ):
     seed = int(time.time() * 1000)
     digits, formatted, expected = _build_phone_variants(seed)
@@ -41,33 +38,39 @@ def test_duplicate_prevention_blocks_phone_variants(
             phone=digits,
             email=_unique_email(seed),
         ).model_dump(exclude_unset=True)
-        | {"doctor_id": DOCTOR_ID}
+        | {"doctor_id": real_doctor_id}
     )
     cleanup_patients.track(patient.id)
 
     integrity_service = PatientIntegrityService(real_db_session, repo)
 
-    with pytest.raises(ValidationError, match="telefone"):
+    with pytest.raises(ValidationError) as formatted_exc:
         integrity_service.validate_patient_data(
             patient_data=PatientCreate(
                 name=f"Duplicate Formatted {seed}",
                 phone=formatted,
                 email=_unique_email(seed + 1),
             ),
-            doctor_id=DOCTOR_ID,
+            doctor_id=real_doctor_id,
             is_update=False,
         )
+    assert formatted_exc.value.message == "Duplicate patient"
+    assert formatted_exc.value.details == {"code": "duplicate_patient"}
+    assert formatted not in str(formatted_exc.value)
 
-    with pytest.raises(ValidationError, match="telefone"):
+    with pytest.raises(ValidationError) as e164_exc:
         integrity_service.validate_patient_data(
             patient_data=PatientCreate(
                 name=f"Duplicate E164 {seed}",
                 phone=expected,
                 email=_unique_email(seed + 2),
             ),
-            doctor_id=DOCTOR_ID,
+            doctor_id=real_doctor_id,
             is_update=False,
         )
+    assert e164_exc.value.message == "Duplicate patient"
+    assert e164_exc.value.details == {"code": "duplicate_patient"}
+    assert expected not in str(e164_exc.value)
 
     encryption = get_lgpd_encryption_service()
     phone_hash = encryption.hash_phone(expected)

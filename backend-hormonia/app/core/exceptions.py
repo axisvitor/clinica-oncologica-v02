@@ -267,8 +267,21 @@ class ConflictError(APIException):
         raise ConflictError("Patient with this CPF already exists", {"cpf": cpf})
     """
 
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
-        super().__init__(message, 409, "CONFLICT", details)
+    def __init__(
+        self,
+        message: str,
+        details: Optional[Dict[str, Any]] = None,
+        code: Optional[str] = None,
+    ):
+        conflict_details = details or {}
+        detail_code = code or conflict_details.get("code")
+        super().__init__(message, 409, "CONFLICT", conflict_details)
+        # Preserve domain-specific conflict details (for example,
+        # duplicate_patient) without changing the top-level HTTP error class.
+        if detail_code:
+            self.code = detail_code
+            self.details["code"] = detail_code
+            self.error_code = "CONFLICT"
 
 
 class UnauthorizedError(APIException):

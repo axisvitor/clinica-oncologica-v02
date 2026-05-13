@@ -27,6 +27,9 @@ from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
 from app.core.executors import get_validation_executor
 
+DUPLICATE_PATIENT_CODE = "duplicate_patient"
+DUPLICATE_PATIENT_MESSAGE = "Duplicate patient"
+
 
 class ValidationService:
     """
@@ -98,8 +101,13 @@ class ValidationService:
                 )
                 if patient:
                     self._logger.info(
-                        "Found existing patient by CPF",
-                        extra={"patient_id": str(patient.id), "doctor_id": str(doctor_id)}
+                        "Found existing patient during duplicate check",
+                        extra={
+                            "event_type": "patient_duplicate_candidate",
+                            "reason": DUPLICATE_PATIENT_CODE,
+                            "field_category": "cpf",
+                            "doctor_id": str(doctor_id),
+                        },
                     )
                     return patient
 
@@ -110,8 +118,13 @@ class ValidationService:
                 )
                 if patient:
                     self._logger.info(
-                        "Found existing patient by email",
-                        extra={"patient_id": str(patient.id), "doctor_id": str(doctor_id)}
+                        "Found existing patient during duplicate check",
+                        extra={
+                            "event_type": "patient_duplicate_candidate",
+                            "reason": DUPLICATE_PATIENT_CODE,
+                            "field_category": "email",
+                            "doctor_id": str(doctor_id),
+                        },
                     )
                     return patient
 
@@ -122,8 +135,13 @@ class ValidationService:
                 )
                 if patient:
                     self._logger.info(
-                        "Found existing patient by phone",
-                        extra={"patient_id": str(patient.id), "doctor_id": str(doctor_id)}
+                        "Found existing patient during duplicate check",
+                        extra={
+                            "event_type": "patient_duplicate_candidate",
+                            "reason": DUPLICATE_PATIENT_CODE,
+                            "field_category": "phone",
+                            "doctor_id": str(doctor_id),
+                        },
                     )
                     return patient
 
@@ -133,9 +151,7 @@ class ValidationService:
             self._logger.error(
                 "Error finding existing patient",
                 extra={
-                    "cpf": cpf,
-                    "email": email,
-                    "phone": phone,
+                    "exception_type": "duplicate_lookup_error",
                     "doctor_id": str(doctor_id),
                 },
                 exc_info=True
@@ -249,9 +265,18 @@ class ValidationService:
         )
 
         if existing_patient:
+            self._logger.info(
+                "Duplicate patient uniqueness validation denied",
+                extra={
+                    "event_type": "patient_duplicate_denied",
+                    "reason": DUPLICATE_PATIENT_CODE,
+                    "doctor_id": str(doctor_id),
+                },
+            )
             raise ValidationError(
-                f"Patient already exists with ID: {existing_patient.id}. "
-                f"Use update endpoint to modify existing patient data."
+                DUPLICATE_PATIENT_MESSAGE,
+                details={"code": DUPLICATE_PATIENT_CODE},
+                code=DUPLICATE_PATIENT_CODE,
             )
 
     async def validate_phone_format(self, phone: str) -> None:

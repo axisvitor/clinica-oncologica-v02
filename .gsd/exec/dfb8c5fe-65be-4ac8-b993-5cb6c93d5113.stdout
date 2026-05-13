@@ -1,3 +1,0 @@
-backend-hormonia/tests/api/v2/test_phase25_messages_quiz_async.py True
-backend-hormonia/tests/api/v2/test_messages.py True
-backend-hormonia/tests/api/v2/test_patients_rbac_impl.py True

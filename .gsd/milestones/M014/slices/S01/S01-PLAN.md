@@ -46,7 +46,7 @@ S01 wires shared ingress protections into FastAPI middleware, auth/password rese
   - Files: `backend-hormonia/app/utils/rate_limiter.py`, `backend-hormonia/app/middleware/rate_limit_core.py`, `backend-hormonia/app/middleware/distributed_rate_limiter.py`, `backend-hormonia/app/utils/request_context.py`, `backend-hormonia/app/utils/client_ip.py`, `backend-hormonia/tests/security/test_m014_s01_rate_limit_fail_closed.py`, `backend-hormonia/tests/unit/test_webhook_rate_limiting.py`, `backend-hormonia/tests/unit/middleware/test_rate_limiter.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s01_rate_limit_fail_closed.py backend-hormonia/tests/unit/test_webhook_rate_limiting.py backend-hormonia/tests/unit/middleware/test_rate_limiter.py
 
-- [ ] **T02: Contract CSRF exemptions to non-session ingress only** `est:1d`
+- [x] **T02: Contract CSRF exemptions to non-session ingress only** `est:1d`
   ---
   estimated_steps: 7
   estimated_files: 5
@@ -58,7 +58,7 @@ S01 wires shared ingress protections into FastAPI middleware, auth/password rese
   - Files: `backend-hormonia/app/middleware/csrf.py`, `backend-hormonia/tests/auth/test_csrf_middleware.py`, `backend-hormonia/tests/api/v2/test_auth_password_recovery.py`, `backend-hormonia/tests/security/test_m014_s01_csrf_fail_closed.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s01_csrf_fail_closed.py backend-hormonia/tests/auth/test_csrf_middleware.py backend-hormonia/tests/api/v2/test_auth_password_recovery.py
 
-- [ ] **T03: Make password reset tokens single-use and replay-safe** `est:1.5d`
+- [x] **T03: Make password reset tokens single-use and replay-safe** `est:1.5d`
   ---
   estimated_steps: 8
   estimated_files: 5
@@ -70,7 +70,7 @@ S01 wires shared ingress protections into FastAPI middleware, auth/password rese
   - Files: `backend-hormonia/app/core/security.py`, `backend-hormonia/app/services/password_reset_service.py`, `backend-hormonia/tests/api/v2/test_auth_password_recovery.py`, `backend-hormonia/tests/integration/test_password_reset_migration_flow.py`, `backend-hormonia/tests/security/test_m014_s01_password_reset_replay.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s01_password_reset_replay.py backend-hormonia/tests/api/v2/test_auth_password_recovery.py backend-hormonia/tests/integration/test_password_reset_migration_flow.py
 
-- [ ] **T04: Deny webhook replay and idempotency infrastructure gaps before processing** `est:1.5d`
+- [x] **T04: Deny webhook replay and idempotency infrastructure gaps before processing** `est:1.5d`
   ---
   estimated_steps: 9
   estimated_files: 6
@@ -82,7 +82,7 @@ S01 wires shared ingress protections into FastAPI middleware, auth/password rese
   - Files: `backend-hormonia/app/integrations/wuzapi/webhook.py`, `backend-hormonia/app/services/webhook_service.py`, `backend-hormonia/app/services/webhook/idempotency.py`, `backend-hormonia/tests/integrations/wuzapi/test_wuzapi_webhook.py`, `backend-hormonia/tests/services/test_webhook_service_fail_closed.py`, `backend-hormonia/tests/security/test_m014_s01_webhook_replay.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s01_webhook_replay.py backend-hormonia/tests/integrations/wuzapi/test_wuzapi_webhook.py backend-hormonia/tests/services/test_webhook_service_fail_closed.py
 
-- [ ] **T05: Close patient duplicate oracle and run S01 ingress proof** `est:1.5d`
+- [x] **T05: Close patient duplicate oracle and run S01 ingress proof** `est:1.5d`
   ---
   estimated_steps: 8
   estimated_files: 7

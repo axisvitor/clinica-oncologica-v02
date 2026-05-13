@@ -230,13 +230,17 @@ class PatientIntegrityService:
         except ValueError:
             self._logger.warning(
                 "Phone normalization failed for duplicate check",
-                extra={"phone_original": phone, "phone_normalized": None},
+                extra={"field_category": "phone", "input_length": len(phone)},
             )
             return None
 
         self._logger.info(
             "Phone normalized for duplicate check",
-            extra={"phone_original": phone, "phone_normalized": normalized_phone},
+            extra={
+                "field_category": "phone",
+                "input_length": len(phone),
+                "normalized_length": len(normalized_phone) if normalized_phone else 0,
+            },
         )
         return normalized_phone
 

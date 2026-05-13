@@ -1,9 +1,0 @@
-CONFIG pyproject.toml
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-asyncio_mode = "auto"
-    "asyncio: Asyncio tests",
-route refs:
-app/api/v2/routers/patients/flow_overrides.py
-app/api/v2/routers/patients/flow_responses.py
-app/api/v2/routers/patients/__init__.py

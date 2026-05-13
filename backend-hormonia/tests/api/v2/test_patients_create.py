@@ -176,7 +176,7 @@ class TestPatientsCreateAPI:
         """
         Test duplicate CPF detection.
 
-        Verifies 400 response when CPF already exists.
+        Verifies generic 409 response when CPF already exists without leaking field or patient values.
         """
         # Arrange - create patient first
         response1 = authenticated_client.post(
@@ -192,7 +192,18 @@ class TestPatientsCreateAPI:
         )
 
         # Assert
-        assert response2.status_code in [400, 409]  # Bad Request or Conflict
+        assert response2.status_code == 409
+        data = response2.json()
+        assert data["message"] == "Duplicate patient"
+        assert data["details"] == {"code": "duplicate_patient"}
+        response_text = response2.text.lower()
+        assert "cpf" not in response_text
+        assert "email" not in response_text
+        assert "phone" not in response_text
+        assert valid_patient_payload["name"].lower() not in response_text
+        assert valid_patient_payload["email"].lower() not in response_text
+        assert valid_patient_payload["cpf"] not in response_text
+        assert valid_patient_payload["phone"] not in response_text
 
     def test_create_patient_with_metadata(self, authenticated_client, test_user):
         """

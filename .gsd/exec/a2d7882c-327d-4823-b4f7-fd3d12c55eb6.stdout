@@ -1,9 +1,0 @@
-.gsd/milestones/M013/slices/S02/S02-RESEARCH.md:96:- `cd backend-hormonia && pytest tests/api/v2/test_patient_ownership_boundary.py -q` (new focused file)
-.gsd/milestones/M013/slices/S02/S02-RESEARCH.md:97:- `cd backend-hormonia && pytest tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py -q` (regression suites)
-.gsd/milestones/M013/slices/S02/S02-RESEARCH.md:98:- If touching active monolithic router: `cd backend-hormonia && pytest tests/api/v2/test_phase25_messages_quiz_async.py -q`
-.gsd/milestones/M013/slices/S04/S04-RESEARCH.md:76:- `cd backend-hormonia && pytest tests/api/v2/test_private_upload_serving.py -q` (new focused file)
-.gsd/milestones/M013/slices/S04/S04-RESEARCH.md:77:- `cd backend-hormonia && pytest tests/tasks/test_reports_tasks.py -q`
-.gsd/milestones/M013/slices/S04/S04-RESEARCH.md:78:- `cd backend-hormonia && pytest tests/api/v2/test_enhanced_reports.py tests/services/test_report_service_task_compat.py -q` (regression if report surfaces touched)
-.gsd/milestones/M013/slices/S01/S01-RESEARCH.md:79:- `cd backend-hormonia && pytest tests/integrations/wuzapi/test_wuzapi_media.py -q`
-.gsd/milestones/M013/slices/S01/S01-RESEARCH.md:80:- `cd backend-hormonia && pytest tests/integration/whatsapp/test_whatsapp_management_auth.py -q` (new focused file)
-.gsd/milestones/M013/slices/S01/S01-RESEARCH.md:81:- If using existing broader suites: `cd backend-hormonia && pytest tests/integrations/whatsapp tests/integrations/wuzapi -q`

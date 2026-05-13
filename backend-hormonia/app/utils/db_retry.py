@@ -35,6 +35,17 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 
+def _is_application_exception(exc: Exception) -> bool:
+    """Return True for intentional domain/API exceptions, not DB failures."""
+    try:
+        from app.core.exceptions import HormoniaException as CoreHormoniaException
+        from app.exceptions import HormoniaException as DomainHormoniaException
+    except Exception:
+        return False
+
+    return isinstance(exc, (CoreHormoniaException, DomainHormoniaException))
+
+
 def _attempt_rollback(args, kwargs):
     """Attempt to rollback database session from various sources
 
@@ -169,7 +180,11 @@ class DatabaseCircuitBreaker:
         except (ProgrammingError, DataError):
             # Don't count non-transitory errors for circuit breaker
             raise
-        except Exception:
+        except Exception as exc:
+            if _is_application_exception(exc):
+                # Expected validation/business denials are not database availability
+                # failures and must not poison the global DB circuit breaker.
+                raise
             self._record_failure()
             raise
 
@@ -198,7 +213,11 @@ class DatabaseCircuitBreaker:
         except (ProgrammingError, DataError):
             # Don't count non-transitory errors for circuit breaker
             raise
-        except Exception:
+        except Exception as exc:
+            if _is_application_exception(exc):
+                # Expected validation/business denials are not database availability
+                # failures and must not poison the global DB circuit breaker.
+                raise
             self._record_failure()
             raise
 

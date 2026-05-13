@@ -1,4 +1,0 @@
-backend-hormonia/app/integrations/wuzapi/ssrf_guard.py: syntax ok; long_lines=[]
-backend-hormonia/app/integrations/wuzapi/errors.py: syntax ok; long_lines=[]
-backend-hormonia/app/integrations/wuzapi/__init__.py: syntax ok; long_lines=[]
-backend-hormonia/tests/integrations/wuzapi/test_ssrf_guard.py: syntax ok; long_lines=[]

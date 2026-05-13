@@ -36,6 +36,9 @@ from app.schemas.validators.phone import PhoneValidationError, validate_and_form
 
 logger = logging.getLogger(__name__)
 
+DUPLICATE_PATIENT_CODE = "duplicate_patient"
+DUPLICATE_PATIENT_MESSAGE = "Duplicate patient"
+
 
 class PatientValidationService:
     """
@@ -85,6 +88,7 @@ class PatientValidationService:
             ValidationError: If validation fails
         """
         validation_errors = []
+        duplicate_detected = False
         validated_data = {}
 
         # Validate CPF
@@ -93,7 +97,10 @@ class PatientValidationService:
                 patient_data.cpf, doctor_id, patient_id if is_update else None
             )
             if cpf_result.get("errors"):
-                validation_errors.extend(cpf_result["errors"])
+                duplicate_detected = (
+                    self._collect_result_errors(cpf_result, validation_errors)
+                    or duplicate_detected
+                )
             elif cpf_result.get("cpf"):
                 validated_data["cpf"] = cpf_result["cpf"]
 
@@ -103,7 +110,10 @@ class PatientValidationService:
                 patient_data.phone, doctor_id, patient_id if is_update else None
             )
             if phone_result.get("errors"):
-                validation_errors.extend(phone_result["errors"])
+                duplicate_detected = (
+                    self._collect_result_errors(phone_result, validation_errors)
+                    or duplicate_detected
+                )
             elif phone_result.get("phone"):
                 validated_data["phone"] = phone_result["phone"]
 
@@ -113,7 +123,10 @@ class PatientValidationService:
                 patient_data.email, doctor_id, patient_id if is_update else None
             )
             if email_result.get("errors"):
-                validation_errors.extend(email_result["errors"])
+                duplicate_detected = (
+                    self._collect_result_errors(email_result, validation_errors)
+                    or duplicate_detected
+                )
             elif email_result.get("email"):
                 validated_data["email"] = email_result["email"]
 
@@ -131,8 +144,29 @@ class PatientValidationService:
 
         if validation_errors:
             error_message = "; ".join(validation_errors)
-            self._logger.error(f"Patient validation failed: {error_message}")
+            self._logger.error(
+                "Patient validation failed",
+                extra={
+                    "error_count": len(validation_errors),
+                    "duplicate_candidate": duplicate_detected,
+                },
+            )
             raise ValidationError(error_message)
+
+        if duplicate_detected:
+            self._logger.info(
+                "Duplicate patient validation denied",
+                extra={
+                    "event_type": "patient_duplicate_denied",
+                    "reason": DUPLICATE_PATIENT_CODE,
+                    "doctor_id": str(doctor_id) if doctor_id else None,
+                },
+            )
+            raise ValidationError(
+                DUPLICATE_PATIENT_MESSAGE,
+                details={"code": DUPLICATE_PATIENT_CODE},
+                code=DUPLICATE_PATIENT_CODE,
+            )
 
         validated_data["validation_errors"] = []
         return validated_data
@@ -147,6 +181,7 @@ class PatientValidationService:
     ) -> Dict[str, Any]:
         """Async-safe validation path for callers using AsyncSession."""
         validation_errors: list[str] = []
+        duplicate_detected = False
         validated_data: dict[str, Any] = {}
 
         if hasattr(patient_data, "cpf") and patient_data.cpf:
@@ -156,7 +191,10 @@ class PatientValidationService:
                 patient_id if is_update else None,
             )
             if cpf_result.get("errors"):
-                validation_errors.extend(cpf_result["errors"])
+                duplicate_detected = (
+                    self._collect_result_errors(cpf_result, validation_errors)
+                    or duplicate_detected
+                )
             elif cpf_result.get("cpf"):
                 validated_data["cpf"] = cpf_result["cpf"]
 
@@ -167,7 +205,10 @@ class PatientValidationService:
                 patient_id if is_update else None,
             )
             if phone_result.get("errors"):
-                validation_errors.extend(phone_result["errors"])
+                duplicate_detected = (
+                    self._collect_result_errors(phone_result, validation_errors)
+                    or duplicate_detected
+                )
             elif phone_result.get("phone"):
                 validated_data["phone"] = phone_result["phone"]
 
@@ -178,7 +219,10 @@ class PatientValidationService:
                 patient_id if is_update else None,
             )
             if email_result.get("errors"):
-                validation_errors.extend(email_result["errors"])
+                duplicate_detected = (
+                    self._collect_result_errors(email_result, validation_errors)
+                    or duplicate_detected
+                )
             elif email_result.get("email"):
                 validated_data["email"] = email_result["email"]
 
@@ -194,11 +238,65 @@ class PatientValidationService:
 
         if validation_errors:
             error_message = "; ".join(validation_errors)
-            self._logger.error(f"Patient validation failed: {error_message}")
+            self._logger.error(
+                "Patient validation failed",
+                extra={
+                    "error_count": len(validation_errors),
+                    "duplicate_candidate": duplicate_detected,
+                },
+            )
             raise ValidationError(error_message)
+
+        if duplicate_detected:
+            self._logger.info(
+                "Duplicate patient validation denied",
+                extra={
+                    "event_type": "patient_duplicate_denied",
+                    "reason": DUPLICATE_PATIENT_CODE,
+                    "doctor_id": str(doctor_id) if doctor_id else None,
+                },
+            )
+            raise ValidationError(
+                DUPLICATE_PATIENT_MESSAGE,
+                details={"code": DUPLICATE_PATIENT_CODE},
+                code=DUPLICATE_PATIENT_CODE,
+            )
 
         validated_data["validation_errors"] = []
         return validated_data
+
+    def _collect_result_errors(
+        self,
+        result: Dict[str, Any],
+        validation_errors: list[str],
+    ) -> bool:
+        """Collect non-duplicate validation errors and report duplicate state."""
+        if not result.get("errors"):
+            return False
+
+        if result.get("duplicate"):
+            return True
+
+        validation_errors.extend(result["errors"])
+        return False
+
+    def _duplicate_result(
+        self,
+        *,
+        field_category: str,
+        doctor_id: Optional[UUID],
+    ) -> Dict[str, Any]:
+        """Build a PHI-safe duplicate validation result."""
+        self._logger.info(
+            "Duplicate patient candidate detected",
+            extra={
+                "event_type": "patient_duplicate_candidate",
+                "reason": DUPLICATE_PATIENT_CODE,
+                "field_category": field_category,
+                "doctor_id": str(doctor_id) if doctor_id else None,
+            },
+        )
+        return {"errors": [DUPLICATE_PATIENT_MESSAGE], "duplicate": True}
 
     def _validate_cpf_field(
         self, cpf: str, doctor_id: Optional[UUID], exclude_patient_id: Optional[UUID]
@@ -217,7 +315,10 @@ class PatientValidationService:
             if self._duplicate_checker:
                 existing = self._duplicate_checker.check_duplicate_cpf(normalized_cpf, doctor_id, exclude_patient_id)
                 if existing:
-                    errors.append(f"Patient with CPF already exists: {existing.name}")
+                    return self._duplicate_result(
+                        field_category="cpf",
+                        doctor_id=doctor_id,
+                    )
             return {"cpf": normalized_cpf, "errors": errors}
         except ValidationError as e:
             return {"errors": [str(e)]}
@@ -236,13 +337,17 @@ class PatientValidationService:
                 self._logger.info(
                     "Normalized phone for duplicate check",
                     extra={
-                        "phone_original": phone,
-                        "phone_normalized": formatted_phone,
+                        "field_category": "phone",
+                        "input_length": len(phone) if phone else 0,
+                        "normalized_length": len(formatted_phone) if formatted_phone else 0,
                     },
                 )
                 existing = self._duplicate_checker.check_duplicate_phone(formatted_phone, doctor_id, exclude_patient_id)
                 if existing:
-                    errors.append(f"Patient with phone already exists: {existing.name}")
+                    return self._duplicate_result(
+                        field_category="phone",
+                        doctor_id=doctor_id,
+                    )
             return {"phone": formatted_phone, "errors": errors}
         except PhoneValidationError as e:
             return {"errors": [f"Phone validation error: {str(e)}"]}
@@ -259,7 +364,10 @@ class PatientValidationService:
             if self._duplicate_checker:
                 existing = self._duplicate_checker.check_duplicate_email(normalized_email, doctor_id, exclude_patient_id)
                 if existing:
-                    errors.append(f"Patient with email already exists: {existing.name}")
+                    return self._duplicate_result(
+                        field_category="email",
+                        doctor_id=doctor_id,
+                    )
             return {"email": normalized_email, "errors": errors}
         except EmailNotValidError as e:
             return {"errors": [f"Invalid email format: {str(e)}"]}
@@ -285,7 +393,10 @@ class PatientValidationService:
                     exclude_patient_id,
                 )
                 if existing:
-                    errors.append(f"Patient with CPF already exists: {existing.name}")
+                    return self._duplicate_result(
+                        field_category="cpf",
+                        doctor_id=doctor_id,
+                    )
             elif self._duplicate_checker:
                 existing = self._duplicate_checker.check_duplicate_cpf(
                     normalized_cpf,
@@ -293,7 +404,10 @@ class PatientValidationService:
                     exclude_patient_id,
                 )
                 if existing:
-                    errors.append(f"Patient with CPF already exists: {existing.name}")
+                    return self._duplicate_result(
+                        field_category="cpf",
+                        doctor_id=doctor_id,
+                    )
             return {"cpf": normalized_cpf, "errors": errors}
         except ValidationError as e:
             return {"errors": [str(e)]}
@@ -312,8 +426,9 @@ class PatientValidationService:
                 self._logger.info(
                     "Normalized phone for duplicate check",
                     extra={
-                        "phone_original": phone,
-                        "phone_normalized": formatted_phone,
+                        "field_category": "phone",
+                        "input_length": len(phone) if phone else 0,
+                        "normalized_length": len(formatted_phone) if formatted_phone else 0,
                     },
                 )
                 existing = await self._duplicate_checker.check_duplicate_phone_async(
@@ -322,7 +437,10 @@ class PatientValidationService:
                     exclude_patient_id,
                 )
                 if existing:
-                    errors.append(f"Patient with phone already exists: {existing.name}")
+                    return self._duplicate_result(
+                        field_category="phone",
+                        doctor_id=doctor_id,
+                    )
             elif self._duplicate_checker:
                 existing = self._duplicate_checker.check_duplicate_phone(
                     formatted_phone,
@@ -330,7 +448,10 @@ class PatientValidationService:
                     exclude_patient_id,
                 )
                 if existing:
-                    errors.append(f"Patient with phone already exists: {existing.name}")
+                    return self._duplicate_result(
+                        field_category="phone",
+                        doctor_id=doctor_id,
+                    )
             return {"phone": formatted_phone, "errors": errors}
         except PhoneValidationError as e:
             return {"errors": [f"Phone validation error: {str(e)}"]}
@@ -351,7 +472,10 @@ class PatientValidationService:
                     exclude_patient_id,
                 )
                 if existing:
-                    errors.append(f"Patient with email already exists: {existing.name}")
+                    return self._duplicate_result(
+                        field_category="email",
+                        doctor_id=doctor_id,
+                    )
             elif self._duplicate_checker:
                 existing = self._duplicate_checker.check_duplicate_email(
                     normalized_email,
@@ -359,7 +483,10 @@ class PatientValidationService:
                     exclude_patient_id,
                 )
                 if existing:
-                    errors.append(f"Patient with email already exists: {existing.name}")
+                    return self._duplicate_result(
+                        field_category="email",
+                        doctor_id=doctor_id,
+                    )
             return {"email": normalized_email, "errors": errors}
         except EmailNotValidError as e:
             return {"errors": [f"Invalid email format: {str(e)}"]}
