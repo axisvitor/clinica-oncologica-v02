@@ -165,7 +165,7 @@ def _replace_postgres_types_with_sqlite(engine):
                 # Strip PG server defaults for SQLite
                 if column.server_default is not None and hasattr(column.server_default, 'arg'):
                     arg_str = str(column.server_default.arg).lower()
-                    if 'gen_random_uuid()' in arg_str:
+                    if 'gen_random_uuid()' in arg_str or '::jsonb' in arg_str or '::json' in arg_str:
                         column.server_default = None
             
             # Strip PG indexes for SQLite but preserve uniqueness (dedupe by name)
@@ -203,7 +203,7 @@ def _apply_sqlite_type_fixes():
             # Strip PG server defaults for SQLite
             if column.server_default is not None and hasattr(column.server_default, 'arg'):
                 arg_str = str(column.server_default.arg).lower()
-                if 'gen_random_uuid()' in arg_str:
+                if 'gen_random_uuid()' in arg_str or '::jsonb' in arg_str or '::json' in arg_str:
                     column.server_default = None
 
         # Strip PG-specific indexes (dedupe by name)

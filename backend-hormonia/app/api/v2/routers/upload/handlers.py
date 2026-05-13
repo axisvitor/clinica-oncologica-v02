@@ -59,6 +59,12 @@ from .dependencies import (
     check_rate_limit,
     check_user_quota,
 )
+from .active_content import (
+    ACTIVE_CONTENT_SAMPLE_BYTES,
+    REASON_ACTIVE_ACTUAL_MIME,
+    REASON_ACTIVE_DECLARED_MIME,
+    detect_active_content_bytes,
+)
 from .validators import validate_file_type, get_file_category
 from .storage import save_upload_file
 from .processing import get_image_metadata, process_image
@@ -69,6 +75,87 @@ logger = get_logger(__name__)
 
 # Compatibility seam for legacy tests that monkeypatch this module directly.
 UPLOAD_DIR = upload_config.UPLOAD_DIR
+
+_ACTIVE_CONTENT_DENIAL_DETAIL = "File type is not allowed for security reasons"
+
+
+def _active_content_denial_status(reason: str | None) -> int:
+    if reason in {REASON_ACTIVE_DECLARED_MIME, REASON_ACTIVE_ACTUAL_MIME}:
+        return status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
+    return status.HTTP_400_BAD_REQUEST
+
+
+def _deny_active_content_upload(
+    *,
+    upload_id,
+    user_id,
+    reason: str,
+    response_status: int,
+    start_time,
+) -> None:
+    logger.warning(
+        "upload_active_content_denied",
+        extra={
+            "upload_id": str(upload_id),
+            "user_id": str(user_id),
+            "reason": reason,
+            "status": response_status,
+            "duration_ms": int((now_sao_paulo() - start_time).total_seconds() * 1000),
+        },
+    )
+    raise HTTPException(
+        status_code=response_status,
+        detail=_ACTIVE_CONTENT_DENIAL_DETAIL,
+    )
+
+
+def _validate_no_active_content_before_persistence(
+    *,
+    file: UploadFile,
+    upload_id,
+    user_id,
+    start_time,
+) -> None:
+    """Reject active web content using only a bounded sample and safe diagnostics."""
+
+    try:
+        sample = file.file.read(ACTIVE_CONTENT_SAMPLE_BYTES)
+    except Exception:
+        _deny_active_content_upload(
+            upload_id=upload_id,
+            user_id=user_id,
+            reason="sample_failed",
+            response_status=status.HTTP_400_BAD_REQUEST,
+            start_time=start_time,
+        )
+
+    try:
+        file.file.seek(0)
+    except Exception:
+        _deny_active_content_upload(
+            upload_id=upload_id,
+            user_id=user_id,
+            reason="sample_reset_failed",
+            response_status=status.HTTP_400_BAD_REQUEST,
+            start_time=start_time,
+        )
+
+    result = detect_active_content_bytes(
+        sample,
+        declared_mime=file.content_type or "application/octet-stream",
+        filename=file.filename or "upload",
+    )
+    if not result.is_active:
+        return
+
+    reason = result.reason or "active_content"
+    _deny_active_content_upload(
+        upload_id=upload_id,
+        user_id=user_id,
+        reason=reason,
+        response_status=_active_content_denial_status(reason),
+        start_time=start_time,
+    )
 
 
 def _safe_role_value(user: User | None) -> str:
@@ -320,6 +407,13 @@ async def upload_file_handler(
         # Check rate limit and quota before writing bytes.
         await check_rate_limit(redis_client, current_user.id, file_size)
         await check_user_quota(db, current_user.id, file_size, redis_client)
+
+        _validate_no_active_content_before_persistence(
+            file=file,
+            upload_id=upload_id,
+            user_id=current_user.id,
+            start_time=start_time,
+        )
 
         validate_file_type(
             file.filename or "upload",

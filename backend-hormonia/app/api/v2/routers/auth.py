@@ -41,10 +41,18 @@ from app.utils.auth_helpers import extract_user_id as _extract_user_id
 from app.utils.security import get_password_hash, verify_password
 from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.api.v2.routers.notifications import router as notifications_router
+from app.api.v2.routers.upload.active_content import (
+    ACTIVE_CONTENT_SAMPLE_BYTES,
+    REASON_ACTIVE_ACTUAL_MIME,
+    REASON_ACTIVE_DECLARED_MIME,
+    detect_active_content_bytes,
+)
+from app.api.v2.routers.upload.config import get_public_upload_root
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 SESSION_COOKIE_NAME = settings.SESSION_COOKIE_NAME
+_AVATAR_ACTIVE_CONTENT_DENIAL_DETAIL = "File type is not allowed for security reasons"
 
 # Legacy contract compatibility: keep notifications under /api/v2/auth/notifications/*
 # while canonical paths stay in /api/v2/notifications/*.
@@ -64,6 +72,60 @@ def _auth_security_headers() -> dict[str, str]:
 def _apply_auth_security_headers(response: Response) -> None:
     for key, value in _auth_security_headers().items():
         response.headers.setdefault(key, value)
+
+
+def _avatar_active_content_denial_status(reason: str | None) -> int:
+    if reason in {REASON_ACTIVE_DECLARED_MIME, REASON_ACTIVE_ACTUAL_MIME}:
+        return status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
+    return status.HTTP_400_BAD_REQUEST
+
+
+def _raise_avatar_active_content_denial(
+    *,
+    user_id: str,
+    reason: str,
+    response_status: int,
+    start_time,
+) -> None:
+    logger.warning(
+        "avatar_active_content_denied",
+        extra={
+            "user_id": str(user_id),
+            "reason": reason,
+            "status": response_status,
+            "duration_ms": int((now_sao_paulo() - start_time).total_seconds() * 1000),
+        },
+    )
+    raise HTTPException(
+        status_code=response_status,
+        detail=_AVATAR_ACTIVE_CONTENT_DENIAL_DETAIL,
+    )
+
+
+def _validate_avatar_active_content(
+    *,
+    content: bytes,
+    content_type: str,
+    filename: str | None,
+    user_id: str,
+    start_time,
+) -> None:
+    result = detect_active_content_bytes(
+        content,
+        declared_mime=content_type or "application/octet-stream",
+        filename=filename or "avatar",
+        sample_size=ACTIVE_CONTENT_SAMPLE_BYTES,
+    )
+    if not result.is_active:
+        return
+
+    reason = result.reason or "active_content"
+    _raise_avatar_active_content_denial(
+        user_id=user_id,
+        reason=reason,
+        response_status=_avatar_active_content_denial_status(reason),
+        start_time=start_time,
+    )
 
 
 def _auth_json_response(
@@ -1183,14 +1245,14 @@ async def upload_avatar(
     Upload user avatar image.
     
     Accepts multipart/form-data with 'file' field.
-    Stores in local storage or cloud storage based on configuration.
+    Stores avatars under the intentionally public upload root.
     """
     from fastapi import UploadFile
     from app.models.user import User
-    import os
     import hashlib
     
     user_id = _extract_user_id(current_user)
+    start_time = now_sao_paulo()
     
     try:
         user_uuid = UUID(user_id)
@@ -1204,41 +1266,59 @@ async def upload_avatar(
     if not file:
         raise ValidationError("No file provided", field="file")
     
-    # Validate file type
-    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+    # Read file content before any durable write. Avatar uploads are capped at 5 MiB.
+    try:
+        content = await file.read()
+    except Exception:
+        _raise_avatar_active_content_denial(
+            user_id=user_id,
+            reason="sample_failed",
+            response_status=status.HTTP_400_BAD_REQUEST,
+            start_time=start_time,
+        )
+    
+    # Validate file size (max 5MB)
+    if len(content) > 5 * 1024 * 1024:
+        raise ValidationError("File too large. Maximum size is 5MB", field="file")
+    
     content_type = file.content_type or ""
+    _validate_avatar_active_content(
+        content=content,
+        content_type=content_type,
+        filename=file.filename,
+        user_id=user_id,
+        start_time=start_time,
+    )
+    
+    # Validate declared type after active-content classification so SVG/XML/HTML
+    # denials use the shared security reason instead of a generic allowlist miss.
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
     if content_type not in allowed_types:
         raise ValidationError(
             f"Invalid file type. Allowed: {', '.join(allowed_types)}",
             field="file"
         )
     
-    # Read file content
-    content = await file.read()
-    
-    # Validate file size (max 5MB)
-    if len(content) > 5 * 1024 * 1024:
-        raise ValidationError("File too large. Maximum size is 5MB", field="file")
-    
-    # Generate unique filename
+    # Generate unique filename without embedding user metadata in the public URL.
     file_hash = hashlib.md5(content).hexdigest()[:12]
-    ext = content_type.split("/")[-1]
-    if ext == "jpeg":
-        ext = "jpg"
-    filename = f"avatar_{user_id}_{file_hash}.{ext}"
+    extension_by_type = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+        "image/gif": "gif",
+    }
+    ext = extension_by_type[content_type]
+    filename = f"avatar_{uuid.uuid4().hex}_{file_hash}.{ext}"
     
-    # Save to uploads directory (create if needed)
-    uploads_dir = os.path.join(settings.BASE_DIR if hasattr(settings, 'BASE_DIR') else ".", "uploads", "avatars")
-    os.makedirs(uploads_dir, exist_ok=True)
+    avatars_dir = get_public_upload_root(create=True) / "avatars"
+    avatars_dir.mkdir(parents=True, exist_ok=True)
+    file_path = avatars_dir / filename
+    file_path.write_bytes(content)
     
-    file_path = os.path.join(uploads_dir, filename)
-    with open(file_path, "wb") as f:
-        f.write(content)
-    
-    # Generate URL (assuming static file serving is configured)
+    # Generate URL served by the public-only /uploads static mount.
     avatar_url = f"/uploads/avatars/{filename}"
     
-    # Update user's avatar_url in database
+    # Update user's avatar_url in database only after the file is safely written.
     user = db.query(User).filter(User.id == user_uuid).first()
     if user:
         if hasattr(user, "set_avatar_url"):
@@ -1248,6 +1328,13 @@ async def upload_avatar(
         user.updated_at = now_sao_paulo()
         db.commit()
     
-    logger.info(f"Avatar uploaded for user: {user_id}")
+    logger.info(
+        "avatar_uploaded",
+        extra={
+            "user_id": user_id,
+            "status": status.HTTP_200_OK,
+            "duration_ms": int((now_sao_paulo() - start_time).total_seconds() * 1000),
+        },
+    )
     
     return {"avatar_url": avatar_url, "success": True}
