@@ -1,16 +1,16 @@
 {
   "nodes": [
     {
-      "id": "milestone:M013",
-      "label": "M013: Remediação de Segurança Crítica/Alta",
+      "id": "milestone:M014",
+      "label": "M014: Hardening Médio e Proof Gaps",
       "type": "milestone",
-      "description": "Active milestone: M013",
+      "description": "Active milestone: M014",
       "confidence": "EXTRACTED",
       "sourceFile": "STATE.md"
     },
     {
-      "id": "concept:phase:validating-milestone",
-      "label": "Phase: validating-milestone",
+      "id": "concept:phase:planning",
+      "label": "Phase: planning",
       "type": "concept",
       "confidence": "EXTRACTED",
       "sourceFile": "STATE.md"
@@ -1367,6 +1367,13 @@
       "confidence": "EXTRACTED"
     },
     {
+      "id": "milestone:M013",
+      "label": "M013: Remediação de Segurança Crítica/Alta",
+      "type": "milestone",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-ROADMAP.md"
+    },
+    {
       "id": "slice:M013:S01",
       "label": "S01: WhatsApp Auth + SSRF Guard",
       "type": "slice",
@@ -1553,11 +1560,41 @@
       "confidence": "EXTRACTED"
     },
     {
-      "id": "milestone:M014",
-      "label": "M014: Hardening Médio e Proof Gaps",
-      "type": "milestone",
+      "id": "slice:M014:S01",
+      "label": "S01: Ingress, Replay e Rate-Limit Fail-Closed",
+      "type": "slice",
       "confidence": "EXTRACTED",
-      "sourceFile": "milestones/M014/M014-ROADMAP.md"
+      "sourceFile": "milestones/M014/slices/S01/S01-PLAN.md"
+    },
+    {
+      "id": "task:M014:S01:T01",
+      "label": "T01: Fail closed rate limiting with trusted-proxy client identity",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M014:S01:T02",
+      "label": "T02: Contract CSRF exemptions to non-session ingress only",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M014:S01:T03",
+      "label": "T03: Make password reset tokens single-use and replay-safe",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M014:S01:T04",
+      "label": "T04: Deny webhook replay and idempotency infrastructure gaps before processing",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M014:S01:T05",
+      "label": "T05: Close patient duplicate oracle and run S01 ingress proof",
+      "type": "task",
+      "confidence": "EXTRACTED"
     },
     {
       "id": "milestone:M015",
@@ -1565,6 +1602,398 @@
       "type": "milestone",
       "confidence": "EXTRACTED",
       "sourceFile": "milestones/M015/M015-ROADMAP.md"
+    },
+    {
+      "id": "decision:M013:1",
+      "label": "**Centralize authorization controls instead of patching endpoint-by-endpoint.** M013 chose canonical auth/role/patient ownership helpers and report access guards over local per-route fixes, reducing inconsistent IDOR/BOLA behavior across messages, flows, quiz, uploads, and reports.",
+      "type": "decision",
+      "description": "Source: DECISIONS.md/D002",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:2",
+      "label": "**Fail closed while keeping denial diagnostics PHI-safe.** Authentication, ownership, SSRF, private-file, quiz, and report boundaries deny unsafe states first and log only structured IDs/reasons/status rather than PHI, tokens, cookies, private paths, report data, or secrets.",
+      "type": "decision",
+      "description": "Source: DECISIONS.md/D003",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:3",
+      "label": "**Treat private uploads and generated reports as application resources, not static files.** The shipped storage model mounts only public assets at `/uploads`, stores private files under unmounted roots, and serves private bytes through authenticated owner/admin checks.",
+      "type": "decision",
+      "description": "Source: DECISIONS.md/D004",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:4",
+      "label": "**Make persisted/signed quiz state authoritative for public quiz actions.** Public quiz access and submit validate stored token hash, link state, patient/template/session binding, effective expiration, revocation, and signed HttpOnly session state; raw `quiz_session_id` is only a compatibility hint.",
+      "type": "decision",
+      "description": "Source: DECISIONS.md/D005",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:5",
+      "label": "**Use opaque report-id artifacts and allowlisted report diagnostics.** Generated report PDFs use report-id-only filenames and Taskiq diagnostics omit free-form `report_type`, preserving debugging through stable IDs/status while avoiding sanitized-PHI leakage.",
+      "type": "decision",
+      "description": "Source: DECISIONS.md/D014",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:6",
+      "label": "**Verification commands must preserve the backend working directory contract.** Several proofs only became reliable after running from `backend-hormonia` or adding explicit root-cwd wrappers, because backend pytest paths are backend-root relative.",
+      "type": "decision",
+      "description": "Source: S05-SUMMARY.md/Deviations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:7",
+      "label": "**Task-level verification artifacts can become stale even when summaries and DB status are correct.** S03 had stale failed VERIFY.json records from earlier runner attempts; closeout repaired/audited them against passed summaries and current evidence.",
+      "type": "decision",
+      "description": "Source: S03-SUMMARY.md/What Happened",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:8",
+      "label": "**Sanitization is not redaction for clinical strings.** S06 showed that even sanitized free-form `report_type` can preserve patient-identifying content in artifact names/logs, so opaque IDs or strict allowlists are safer for PHI-adjacent metadata.",
+      "type": "decision",
+      "description": "Source: S06-SUMMARY.md/What Happened",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:9",
+      "label": "**Local schema drift can masquerade as a security regression.** The full S03 proof exposed legacy Postgres schema drift in quiz extension tests; a test-only transactional alignment fixture restored reproducible proof without weakening production checks.",
+      "type": "decision",
+      "description": "Source: S03-SUMMARY.md/Deviations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:10",
+      "label": "**Validation gates need explicit artifact-shape rules.** The M013 validation verdict became `needs-attention` for documentation/process gaps despite no critical/high implementation blocker, so future milestones should state whether standalone ASSESSMENT artifacts and cross-slice consumption notes are hard gates.",
+      "type": "decision",
+      "description": "Source: M013-VALIDATION.md/Verdict Rationale",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:11",
+      "label": "**Two-doctor/two-patient negative fixture pattern.** Reuse paired authorized/foreign doctors and patients to prove cross-doctor denials while preserving assigned-doctor/admin positive behavior across patient-bound endpoints.",
+      "type": "decision",
+      "description": "Source: S02-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:12",
+      "label": "**Auth-ordering sentries for side-effectful management routes.** Unauthorized requests should be tested with service/queue/DB sentries that prove 401/403 occurs before handler construction, outbound calls, queueing, or persistence.",
+      "type": "decision",
+      "description": "Source: S01-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:13",
+      "label": "**Validate untrusted cache/raw metadata before normalization.** Report IDs, export IDs, and cached resources are authorized from raw owner/patient evidence before formatting, service calls, redirect generation, or URL disclosure.",
+      "type": "decision",
+      "description": "Source: S05-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:14",
+      "label": "**Reviewer-facing security evidence matrix.** Map every finding to requirements, fixed controls, focused tests, integrated commands, PHI-safe notes, and explicit deferrals in one artifact so closeout can verify coverage without re-auditing all code.",
+      "type": "decision",
+      "description": "Source: S06-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:15",
+      "label": "**Shared public quiz validator plus authoritative signed state.** Public quiz routes should share one persisted session/token validator and require signed state for compatibility endpoints, preventing raw cookie/session ID replay.",
+      "type": "decision",
+      "description": "Source: S03-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:16",
+      "label": "**Public-only static mount plus gated private roots.** Keep `/uploads` limited to public files, store private artifacts under unmounted roots, resolve paths relative to the private root, and serve through application authorization.",
+      "type": "decision",
+      "description": "Source: S04-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:17",
+      "label": "**The closeout validation was non-pass for non-functional attention items.** Reviewer findings flagged S01→S02 consumption wording, deferred medium/runtime requirements, and absent standalone ASSESSMENT files even though no critical/high requirement or implementation boundary was missing.",
+      "type": "decision",
+      "description": "Source: M013-VALIDATION.md/Verdict Rationale",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:18",
+      "label": "**The pytest-asyncio loop-scope warning appeared across many otherwise-passing suites.** It did not block M013 but repeatedly added noise to security proof output and should be cleaned up in maintenance.",
+      "type": "decision",
+      "description": "Source: S04-SUMMARY.md/Known Limitations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:19",
+      "label": "**Full quiz proof surfaced local schema drift outside the intended security change.** The issue appeared only under the broader regression command, not in the narrow ownership/session tests.",
+      "type": "decision",
+      "description": "Source: S03-SUMMARY.md/Deviations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "decision:M013:20",
+      "label": "**Root-level automation needed a wrapper for report-task tests.** S06 added `tests/tasks/test_reports_tasks.py` because the automation path invoked root-relative tests; the wrapper delegates to the canonical backend suite and marks async tests explicitly.",
+      "type": "decision",
+      "description": "Source: S06-SUMMARY.md/Deviations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:1",
+      "label": "**Verification commands must preserve the backend working directory contract.** Several proofs only became reliable after running from `backend-hormonia` or adding explicit root-cwd wrappers, because backend pytest paths are backend-root relative.",
+      "type": "lesson",
+      "description": "Source: S05-SUMMARY.md/Deviations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:2",
+      "label": "**Task-level verification artifacts can become stale even when summaries and DB status are correct.** S03 had stale failed VERIFY.json records from earlier runner attempts; closeout repaired/audited them against passed summaries and current evidence.",
+      "type": "lesson",
+      "description": "Source: S03-SUMMARY.md/What Happened",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:3",
+      "label": "**Sanitization is not redaction for clinical strings.** S06 showed that even sanitized free-form `report_type` can preserve patient-identifying content in artifact names/logs, so opaque IDs or strict allowlists are safer for PHI-adjacent metadata.",
+      "type": "lesson",
+      "description": "Source: S06-SUMMARY.md/What Happened",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:4",
+      "label": "**Local schema drift can masquerade as a security regression.** The full S03 proof exposed legacy Postgres schema drift in quiz extension tests; a test-only transactional alignment fixture restored reproducible proof without weakening production checks.",
+      "type": "lesson",
+      "description": "Source: S03-SUMMARY.md/Deviations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:5",
+      "label": "**Validation gates need explicit artifact-shape rules.** The M013 validation verdict became `needs-attention` for documentation/process gaps despite no critical/high implementation blocker, so future milestones should state whether standalone ASSESSMENT artifacts and cross-slice consumption notes are hard gates.",
+      "type": "lesson",
+      "description": "Source: M013-VALIDATION.md/Verdict Rationale",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:6",
+      "label": "**Two-doctor/two-patient negative fixture pattern.** Reuse paired authorized/foreign doctors and patients to prove cross-doctor denials while preserving assigned-doctor/admin positive behavior across patient-bound endpoints.",
+      "type": "lesson",
+      "description": "Source: S02-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:7",
+      "label": "**Auth-ordering sentries for side-effectful management routes.** Unauthorized requests should be tested with service/queue/DB sentries that prove 401/403 occurs before handler construction, outbound calls, queueing, or persistence.",
+      "type": "lesson",
+      "description": "Source: S01-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:8",
+      "label": "**Validate untrusted cache/raw metadata before normalization.** Report IDs, export IDs, and cached resources are authorized from raw owner/patient evidence before formatting, service calls, redirect generation, or URL disclosure.",
+      "type": "lesson",
+      "description": "Source: S05-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:9",
+      "label": "**Reviewer-facing security evidence matrix.** Map every finding to requirements, fixed controls, focused tests, integrated commands, PHI-safe notes, and explicit deferrals in one artifact so closeout can verify coverage without re-auditing all code.",
+      "type": "lesson",
+      "description": "Source: S06-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:10",
+      "label": "**Shared public quiz validator plus authoritative signed state.** Public quiz routes should share one persisted session/token validator and require signed state for compatibility endpoints, preventing raw cookie/session ID replay.",
+      "type": "lesson",
+      "description": "Source: S03-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:11",
+      "label": "**Public-only static mount plus gated private roots.** Keep `/uploads` limited to public files, store private artifacts under unmounted roots, resolve paths relative to the private root, and serve through application authorization.",
+      "type": "lesson",
+      "description": "Source: S04-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:12",
+      "label": "**The closeout validation was non-pass for non-functional attention items.** Reviewer findings flagged S01→S02 consumption wording, deferred medium/runtime requirements, and absent standalone ASSESSMENT files even though no critical/high requirement or implementation boundary was missing.",
+      "type": "lesson",
+      "description": "Source: M013-VALIDATION.md/Verdict Rationale",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:13",
+      "label": "**The pytest-asyncio loop-scope warning appeared across many otherwise-passing suites.** It did not block M013 but repeatedly added noise to security proof output and should be cleaned up in maintenance.",
+      "type": "lesson",
+      "description": "Source: S04-SUMMARY.md/Known Limitations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:14",
+      "label": "**Full quiz proof surfaced local schema drift outside the intended security change.** The issue appeared only under the broader regression command, not in the narrow ownership/session tests.",
+      "type": "lesson",
+      "description": "Source: S03-SUMMARY.md/Deviations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "lesson:M013:15",
+      "label": "**Root-level automation needed a wrapper for report-task tests.** S06 added `tests/tasks/test_reports_tasks.py` because the automation path invoked root-relative tests; the wrapper delegates to the canonical backend suite and marks async tests explicitly.",
+      "type": "lesson",
+      "description": "Source: S06-SUMMARY.md/Deviations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "pattern:M013:1",
+      "label": "**Two-doctor/two-patient negative fixture pattern.** Reuse paired authorized/foreign doctors and patients to prove cross-doctor denials while preserving assigned-doctor/admin positive behavior across patient-bound endpoints.",
+      "type": "pattern",
+      "description": "Source: S02-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "pattern:M013:2",
+      "label": "**Auth-ordering sentries for side-effectful management routes.** Unauthorized requests should be tested with service/queue/DB sentries that prove 401/403 occurs before handler construction, outbound calls, queueing, or persistence.",
+      "type": "pattern",
+      "description": "Source: S01-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "pattern:M013:3",
+      "label": "**Validate untrusted cache/raw metadata before normalization.** Report IDs, export IDs, and cached resources are authorized from raw owner/patient evidence before formatting, service calls, redirect generation, or URL disclosure.",
+      "type": "pattern",
+      "description": "Source: S05-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "pattern:M013:4",
+      "label": "**Reviewer-facing security evidence matrix.** Map every finding to requirements, fixed controls, focused tests, integrated commands, PHI-safe notes, and explicit deferrals in one artifact so closeout can verify coverage without re-auditing all code.",
+      "type": "pattern",
+      "description": "Source: S06-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "pattern:M013:5",
+      "label": "**Shared public quiz validator plus authoritative signed state.** Public quiz routes should share one persisted session/token validator and require signed state for compatibility endpoints, preventing raw cookie/session ID replay.",
+      "type": "pattern",
+      "description": "Source: S03-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "pattern:M013:6",
+      "label": "**Public-only static mount plus gated private roots.** Keep `/uploads` limited to public files, store private artifacts under unmounted roots, resolve paths relative to the private root, and serve through application authorization.",
+      "type": "pattern",
+      "description": "Source: S04-SUMMARY.md/patterns_established",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "pattern:M013:7",
+      "label": "**The closeout validation was non-pass for non-functional attention items.** Reviewer findings flagged S01→S02 consumption wording, deferred medium/runtime requirements, and absent standalone ASSESSMENT files even though no critical/high requirement or implementation boundary was missing.",
+      "type": "pattern",
+      "description": "Source: M013-VALIDATION.md/Verdict Rationale",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "pattern:M013:8",
+      "label": "**The pytest-asyncio loop-scope warning appeared across many otherwise-passing suites.** It did not block M013 but repeatedly added noise to security proof output and should be cleaned up in maintenance.",
+      "type": "pattern",
+      "description": "Source: S04-SUMMARY.md/Known Limitations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "pattern:M013:9",
+      "label": "**Full quiz proof surfaced local schema drift outside the intended security change.** The issue appeared only under the broader regression command, not in the narrow ownership/session tests.",
+      "type": "pattern",
+      "description": "Source: S03-SUMMARY.md/Deviations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "pattern:M013:10",
+      "label": "**Root-level automation needed a wrapper for report-task tests.** S06 added `tests/tasks/test_reports_tasks.py` because the automation path invoked root-relative tests; the wrapper delegates to the canonical backend suite and marks async tests explicitly.",
+      "type": "pattern",
+      "description": "Source: S06-SUMMARY.md/Deviations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "surprise:M013:1",
+      "label": "**The closeout validation was non-pass for non-functional attention items.** Reviewer findings flagged S01→S02 consumption wording, deferred medium/runtime requirements, and absent standalone ASSESSMENT files even though no critical/high requirement or implementation boundary was missing.",
+      "type": "lesson",
+      "description": "Source: M013-VALIDATION.md/Verdict Rationale",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "surprise:M013:2",
+      "label": "**The pytest-asyncio loop-scope warning appeared across many otherwise-passing suites.** It did not block M013 but repeatedly added noise to security proof output and should be cleaned up in maintenance.",
+      "type": "lesson",
+      "description": "Source: S04-SUMMARY.md/Known Limitations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "surprise:M013:3",
+      "label": "**Full quiz proof surfaced local schema drift outside the intended security change.** The issue appeared only under the broader regression command, not in the narrow ownership/session tests.",
+      "type": "lesson",
+      "description": "Source: S03-SUMMARY.md/Deviations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
+    },
+    {
+      "id": "surprise:M013:4",
+      "label": "**Root-level automation needed a wrapper for report-task tests.** S06 added `tests/tasks/test_reports_tasks.py` because the automation path invoked root-relative tests; the wrapper delegates to the canonical backend suite and marks async tests explicitly.",
+      "type": "lesson",
+      "description": "Source: S06-SUMMARY.md/Deviations",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M013/M013-LEARNINGS.md"
     }
   ],
   "edges": [
@@ -2959,7 +3388,337 @@
       "to": "task:M013:S06:T03",
       "type": "contains",
       "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M014",
+      "to": "slice:M014:S01",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M014:S01",
+      "to": "task:M014:S01:T01",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M014:S01",
+      "to": "task:M014:S01:T02",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M014:S01",
+      "to": "task:M014:S01:T03",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M014:S01",
+      "to": "task:M014:S01:T04",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M014:S01",
+      "to": "task:M014:S01:T05",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:1",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:2",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:3",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:4",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:5",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:6",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:7",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:8",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:9",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:10",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:11",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:12",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:13",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:14",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:15",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:16",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:17",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:18",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:19",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "decision:M013:20",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:1",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:2",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:3",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:4",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:5",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:6",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:7",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:8",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:9",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:10",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:11",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:12",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:13",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:14",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "lesson:M013:15",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "pattern:M013:1",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "pattern:M013:2",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "pattern:M013:3",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "pattern:M013:4",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "pattern:M013:5",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "pattern:M013:6",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "pattern:M013:7",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "pattern:M013:8",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "pattern:M013:9",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "pattern:M013:10",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "surprise:M013:1",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "surprise:M013:2",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "surprise:M013:3",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M013",
+      "to": "surprise:M013:4",
+      "type": "relates_to",
+      "confidence": "EXTRACTED"
     }
   ],
-  "builtAt": "2026-05-13T03:28:46.777Z"
+  "builtAt": "2026-05-13T14:20:17.672Z"
 }

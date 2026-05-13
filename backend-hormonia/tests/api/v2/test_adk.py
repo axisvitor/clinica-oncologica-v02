@@ -5,6 +5,12 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 
+def _current_user_id(test_user: object) -> str:
+    if isinstance(test_user, dict):
+        return str(test_user["id"])
+    return str(getattr(test_user, "id"))
+
+
 def _deterministic_runtime_result(runtime_status: str) -> dict[str, object]:
     payload: dict[str, object] = {
         "type": runtime_status,
@@ -24,8 +30,14 @@ def _deterministic_runtime_result(runtime_status: str) -> dict[str, object]:
 def test_adk_run_accepts_payload_and_returns_normalized_response(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
+    test_doctor_user: object,
 ) -> None:
+    current_user_id = _current_user_id(test_doctor_user)
+
     async def fake_safe_run(self, prompt, deps, *, operation, context=None):
+        assert context is not None
+        assert context["user_id"] == current_user_id
         return {"status": "success", "result": {"text": f"processed:{prompt}"}}
 
     monkeypatch.setattr(
@@ -36,10 +48,11 @@ def test_adk_run_accepts_payload_and_returns_normalized_response(
 
     response = client.post(
         "/api/v2/adk/run",
+        headers=auth_headers,
         json={
             "prompt": "Paciente com dor leve",
             "tool_name": "sentiment",
-            "user_id": "user-123",
+            "user_id": current_user_id,
             "session": {"action": "resume", "session_id": "session-123"},
         },
     )
@@ -55,7 +68,10 @@ def test_adk_run_accepts_payload_and_returns_normalized_response(
 def test_adk_run_calls_wrapper_safe_run_once(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
+    test_doctor_user: object,
 ) -> None:
+    current_user_id = _current_user_id(test_doctor_user)
     calls: list[dict[str, object]] = []
 
     async def fake_safe_run(self, prompt, deps, *, operation, context=None):
@@ -77,10 +93,11 @@ def test_adk_run_calls_wrapper_safe_run_once(
 
     response = client.post(
         "/api/v2/adk/run",
+        headers=auth_headers,
         json={
             "prompt": "teste wrapper",
             "tool_name": "sentiment",
-            "user_id": "user-321",
+            "user_id": current_user_id,
             "session": {
                 "action": "resume",
                 "session_id": "session-321",
@@ -100,7 +117,7 @@ def test_adk_run_calls_wrapper_safe_run_once(
     assert calls[0]["operation"] == "adk_endpoint_run"
     assert calls[0]["context"] == {
         "tool_name": "sentiment",
-        "user_id": "user-321",
+        "user_id": current_user_id,
         "session_id": "session-321",
         "invocation_id": "inv-321",
         "request_source": "api_v2_adk",
@@ -118,8 +135,14 @@ def test_adk_run_calls_wrapper_safe_run_once(
 def test_adk_run_preserves_canonical_policy_block_response_envelope(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
+    test_doctor_user: object,
 ) -> None:
+    current_user_id = _current_user_id(test_doctor_user)
+
     async def fake_safe_run(self, prompt, deps, *, operation, context=None):
+        assert context is not None
+        assert context["user_id"] == current_user_id
         return {
             "status": "policy_block",
             "session_id": "session-policy",
@@ -139,6 +162,7 @@ def test_adk_run_preserves_canonical_policy_block_response_envelope(
 
     response = client.post(
         "/api/v2/adk/run",
+        headers=auth_headers,
         json={
             "prompt": "trigger review",
             "tool_name": "sentiment",
@@ -167,11 +191,16 @@ def test_adk_run_preserves_canonical_policy_block_response_envelope(
 def test_adk_run_preserves_repeated_deterministic_response_envelopes(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
+    test_doctor_user: object,
     runtime_status: str,
 ) -> None:
+    current_user_id = _current_user_id(test_doctor_user)
     calls: list[str] = []
 
     async def fake_safe_run(self, prompt, deps, *, operation, context=None):
+        assert context is not None
+        assert context["user_id"] == current_user_id
         calls.append(prompt)
         return _deterministic_runtime_result(runtime_status)
 
@@ -185,6 +214,7 @@ def test_adk_run_preserves_repeated_deterministic_response_envelopes(
     for _ in range(2):
         response = client.post(
             "/api/v2/adk/run",
+            headers=auth_headers,
             json={
                 "prompt": "trigger deterministic error",
                 "tool_name": "sentiment",
@@ -225,6 +255,7 @@ def test_adk_run_preserves_repeated_deterministic_response_envelopes(
 def test_adk_run_rejects_missing_prompt_for_run_actions(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
 ) -> None:
     calls: list[str] = []
 
@@ -240,7 +271,11 @@ def test_adk_run_rejects_missing_prompt_for_run_actions(
 
     response = client.post(
         "/api/v2/adk/run",
-        json={"tool_name": "sentiment", "session": {"action": "resume", "session_id": "s-1"}},
+        headers=auth_headers,
+        json={
+            "tool_name": "sentiment",
+            "session": {"action": "resume", "session_id": "s-1"},
+        },
     )
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -250,6 +285,7 @@ def test_adk_run_rejects_missing_prompt_for_run_actions(
 def test_adk_run_rejects_close_without_session_id(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
 ) -> None:
     calls: list[str] = []
 
@@ -265,6 +301,7 @@ def test_adk_run_rejects_close_without_session_id(
 
     response = client.post(
         "/api/v2/adk/run",
+        headers=auth_headers,
         json={"tool_name": "sentiment", "session": {"action": "close"}},
     )
 
@@ -275,6 +312,7 @@ def test_adk_run_rejects_close_without_session_id(
 def test_adk_run_rejects_cancel_without_invocation_id(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
 ) -> None:
     calls: list[str] = []
 
@@ -290,6 +328,7 @@ def test_adk_run_rejects_cancel_without_invocation_id(
 
     response = client.post(
         "/api/v2/adk/run",
+        headers=auth_headers,
         json={
             "tool_name": "sentiment",
             "invocation": {"action": "cancel"},
@@ -303,6 +342,7 @@ def test_adk_run_rejects_cancel_without_invocation_id(
 def test_adk_run_rejects_cancel_and_create_combination(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
 ) -> None:
     calls: list[str] = []
 
@@ -318,6 +358,7 @@ def test_adk_run_rejects_cancel_and_create_combination(
 
     response = client.post(
         "/api/v2/adk/run",
+        headers=auth_headers,
         json={
             "tool_name": "sentiment",
             "session": {"action": "create"},
@@ -332,6 +373,7 @@ def test_adk_run_rejects_cancel_and_create_combination(
 def test_adk_run_rejects_mismatched_session_ids(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
 ) -> None:
     calls: list[str] = []
 
@@ -347,6 +389,7 @@ def test_adk_run_rejects_mismatched_session_ids(
 
     response = client.post(
         "/api/v2/adk/run",
+        headers=auth_headers,
         json={
             "prompt": "teste",
             "tool_name": "sentiment",
@@ -446,12 +489,18 @@ def test_adk_run_rejects_mismatched_session_ids(
 def test_adk_run_normalizes_runtime_lifecycle_statuses(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+    auth_headers: dict[str, str],
+    test_doctor_user: object,
     safe_result: dict[str, object],
     expected_status: str,
     expected_session_id: str,
     expected_type: str | None,
 ) -> None:
+    current_user_id = _current_user_id(test_doctor_user)
+
     async def fake_safe_run(self, prompt, deps, *, operation, context=None):
+        assert context is not None
+        assert context["user_id"] == current_user_id
         return safe_result
 
     monkeypatch.setattr(
@@ -462,6 +511,7 @@ def test_adk_run_normalizes_runtime_lifecycle_statuses(
 
     response = client.post(
         "/api/v2/adk/run",
+        headers=auth_headers,
         json={
             "prompt": "novo",
             "tool_name": "sentiment",
