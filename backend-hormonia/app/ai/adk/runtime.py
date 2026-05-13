@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
+import logging
+import re
 import time
 from dataclasses import dataclass, field
 from threading import Lock
@@ -63,6 +66,8 @@ _PROTECTED_POLICY_KEYS = frozenset({"tool_policy", "policy", "required_context_k
 _MISSING_CONTEXT_VALUE = object()
 _IN_FLIGHT_INVOCATIONS: dict[str, asyncio.Task[Any]] = {}
 _IN_FLIGHT_LOCK = Lock()
+_SAFE_LOG_LABEL = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -363,6 +368,99 @@ def _cancel_in_flight_task(invocation_id: str) -> None:
         task.cancel()
 
 
+def _safe_hash(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8", errors="ignore")).hexdigest()[:16]
+
+
+def _safe_log_label(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    if _SAFE_LOG_LABEL.fullmatch(text):
+        return text
+    return f"hashed-{_safe_hash(text)}"
+
+
+def _context_log_label(context: dict[str, Any] | None, key: str) -> str | None:
+    if not isinstance(context, dict):
+        return None
+    return _safe_log_label(context.get(key))
+
+
+def _log_adk_runtime_denial(
+    *,
+    reason: str,
+    tool_name: str,
+    lifecycle_action: str,
+    context: dict[str, Any] | None = None,
+) -> None:
+    """Emit low-cardinality, PHI-safe diagnostics for denied ADK runtime calls."""
+    logger.warning(
+        "ADK runtime lifecycle denied",
+        extra={
+            "event_type": "adk_runtime_denied",
+            "reason": reason,
+            "route": "adk_runtime",
+            "tool_name": _safe_log_label(tool_name),
+            "lifecycle_action": lifecycle_action,
+            "request_id": _context_log_label(context, "request_id"),
+            "correlation_id": _context_log_label(context, "correlation_id"),
+        },
+    )
+
+
+def _normalized_owner(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
+def _ownership_error_type(
+    payload: dict[str, Any],
+    *,
+    request_user_id: str,
+    resource: str,
+) -> str | None:
+    stored_owner = _normalized_owner(payload.get("user_id"))
+    if stored_owner is None:
+        return f"{resource}_owner_missing"
+
+    request_owner = _normalized_owner(request_user_id)
+    if request_owner is None or stored_owner != request_owner:
+        return f"{resource}_owner_mismatch"
+
+    return None
+
+
+def _ownership_error_result(
+    *,
+    resource: str,
+    error_type: str,
+    resource_id: str,
+    tool_name: str,
+    lifecycle_action: str,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    _log_adk_runtime_denial(
+        reason=error_type,
+        tool_name=tool_name,
+        lifecycle_action=lifecycle_action,
+        context=context,
+    )
+    label = "Session" if resource == "session" else "Invocation"
+    payload: dict[str, Any] = {
+        "message": f"{label} cannot be accessed by the current user",
+        "type": error_type,
+    }
+    if resource == "session":
+        payload["session_id"] = resource_id
+        return _build_result(status="error", result=payload, session_id=resource_id)
+
+    payload["invocation_id"] = resource_id
+    return _build_result(status="error", result=payload, invocation_id=resource_id)
+
+
 async def _cancel_invocation(
     *,
     store: ADKSessionStore,
@@ -379,7 +477,7 @@ async def _cancel_invocation(
             },
         )
 
-    payload = await store.cancel_invocation(invocation_id)
+    payload = await store.get_invocation(invocation_id)
     if payload is None:
         return _build_result(
             status="error",
@@ -389,6 +487,21 @@ async def _cancel_invocation(
                 "type": "invocation_not_found",
             },
             session_id=request.session.session_id or request.session_id,
+        )
+
+    ownership_error = _ownership_error_type(
+        payload,
+        request_user_id=request.user_id,
+        resource="invocation",
+    )
+    if ownership_error is not None:
+        return _ownership_error_result(
+            resource="invocation",
+            error_type=ownership_error,
+            resource_id=invocation_id,
+            tool_name=tool_name,
+            lifecycle_action="cancel",
+            context=request.context,
         )
 
     if payload.get("tool_name") != tool_name:
@@ -402,6 +515,18 @@ async def _cancel_invocation(
                 "type": "invocation_tool_mismatch",
             },
             session_id=payload.get("session_id"),
+        )
+
+    payload = await store.cancel_invocation(invocation_id)
+    if payload is None:
+        return _build_result(
+            status="error",
+            result={
+                "message": f"Invocation '{invocation_id}' was not found",
+                "invocation_id": invocation_id,
+                "type": "invocation_not_found",
+            },
+            session_id=request.session.session_id or request.session_id,
         )
 
     _cancel_in_flight_task(invocation_id)
@@ -448,6 +573,20 @@ async def _resolve_session(
                 },
                 session_id=session_id,
             )
+        ownership_error = _ownership_error_type(
+            payload,
+            request_user_id=request.user_id,
+            resource="session",
+        )
+        if ownership_error is not None:
+            return _ownership_error_result(
+                resource="session",
+                error_type=ownership_error,
+                resource_id=session_id,
+                tool_name=tool_name,
+                lifecycle_action="close",
+                context=request_context,
+            )
         if payload.get("tool_name") != tool_name:
             return _build_result(
                 status="error",
@@ -481,6 +620,28 @@ async def _resolve_session(
                     "message": "Session id is required to resume a session",
                     "type": "session_id_required",
                 },
+            )
+        payload = await store.get_session(session_id)
+        if payload is None:
+            return _session_error(
+                "not_found",
+                session_id=session_id,
+                requested_tool=tool_name,
+                stored_tool=None,
+            )
+        ownership_error = _ownership_error_type(
+            payload,
+            request_user_id=request.user_id,
+            resource="session",
+        )
+        if ownership_error is not None:
+            return _ownership_error_result(
+                resource="session",
+                error_type=ownership_error,
+                resource_id=session_id,
+                tool_name=tool_name,
+                lifecycle_action="resume",
+                context=request_context,
             )
         payload, session_context, error = await store.prepare_resume(
             session_id,

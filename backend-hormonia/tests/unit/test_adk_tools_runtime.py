@@ -401,6 +401,7 @@ async def test_run_adk_tool_close_session_returns_closed_status(
     stored_session = await adk_runtime_store.get_session("session-close")
     assert stored_session is not None
     assert stored_session["status"] == "closed"
+    assert stored_session["user_id"] == "user-1"
 
 
 @pytest.mark.asyncio
@@ -532,6 +533,9 @@ async def test_run_adk_tool_cancel_discards_late_result(
         )
     )
     await started.wait()
+    running_invocation = await adk_runtime_store.get_invocation("inv-cancel")
+    assert running_invocation is not None
+    assert running_invocation["user_id"] == "user-1"
 
     cancel_result = await run_adk_tool(
         ADKToolRunRequest(
