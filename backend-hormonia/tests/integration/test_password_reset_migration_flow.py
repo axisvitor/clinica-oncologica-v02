@@ -28,8 +28,16 @@ class RecordingRecoveryRedisCache:
 
     def __init__(self):
         self.sessions: dict[str, dict] = {}
+        self.values: dict[str, str] = {}
         self.invalidated_sessions: list[str] = []
         self.invalidated_identities: list[str] = []
+
+    async def set(self, key: str, value: str, *args, **kwargs):
+        _ = args
+        if kwargs.get("nx") and key in self.values:
+            return False
+        self.values[key] = value
+        return True
 
     async def create_session(self, *args, **kwargs):
         session_id = kwargs.get("session_id") or args[0]

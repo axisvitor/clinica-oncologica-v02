@@ -1286,8 +1286,10 @@ def client(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> AsyncTestCli
             return self._kv.get(key)
 
         async def set(self, key, value, ttl=300, ex=None, px=None, **kwargs):
-            # Keep compatibility with redis-py style args (`ex`, `px`, etc.).
-            _ = ttl, ex, px, kwargs
+            # Keep compatibility with redis-py style args (`ex`, `px`, `nx`, etc.).
+            _ = ttl, ex, px
+            if kwargs.get("nx") and key in self._kv:
+                return False
             self._kv[key] = value
             return True
 

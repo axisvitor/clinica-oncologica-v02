@@ -122,6 +122,8 @@ class _NullRedisPipelineBase:
         return self._record(self._store.get(key))
 
     def set(self, key: str, value: Any, ex: Optional[int] = None, **kwargs):
+        if kwargs.get("nx") and key in self._store:
+            return self._record(False)
         self._store[key] = value
         return self._record(True)
 
@@ -317,6 +319,8 @@ class _NullRedis:
         return self._store.get(key)
 
     def set(self, key: str, value: Any, ex: Optional[int] = None, **kwargs):
+        if kwargs.get("nx") and key in self._store:
+            return False
         self._store[key] = value
         return True
 
@@ -526,6 +530,8 @@ class _NullAsyncRedis:
         return self._store.get(key)
 
     async def set(self, key: str, value: Any, ex: Optional[int] = None, **kwargs):
+        if kwargs.get("nx") and key in self._store:
+            return False
         self._store[key] = value
         return True
 

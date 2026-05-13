@@ -3,12 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 from urllib.parse import urlencode
+import hashlib
 import logging
 
 from fastapi import HTTPException, status
 
 from app.config import settings
-from app.core.security import create_password_reset_token, verify_password_reset_token
+from app.core.security import (
+    PasswordResetTokenClaims,
+    create_password_reset_token,
+    verify_password_reset_token_claims,
+)
 from app.models.user import AuthProvider, User
 from app.repositories.session import SessionRepository
 from app.repositories.user import UserRepository
@@ -25,8 +30,10 @@ RESET_CONFIRM_SUCCESS_MESSAGE = "Password reset successful"
 RESET_DELIVERY_ERROR = "AUTH_PASSWORD_RESET_DELIVERY_FAILED"
 RESET_WEAK_PASSWORD_ERROR = "AUTH_PASSWORD_WEAK"
 RESET_TOKEN_ERROR = "AUTH_RESET_TOKEN_INVALID_OR_EXPIRED"
+RESET_TOKEN_REPLAY_ERROR = "AUTH_RESET_TOKEN_REPLAYED"
 RESET_SERVICE_ERROR = "AUTH_PASSWORD_RESET_SERVICE_UNAVAILABLE"
 RESET_SESSION_REVOCATION_ERROR = "AUTH_PASSWORD_RESET_SESSION_REVOCATION_FAILED"
+RESET_TOKEN_CONSUMPTION_KEY_PREFIX = "auth:password_reset:consumed"
 
 
 @dataclass(slots=True)
@@ -36,6 +43,7 @@ class PasswordResetFailure(Exception):
     error_code: str
     message: str
     status_code: int
+    reason: str = "unspecified"
 
     def __post_init__(self) -> None:
         Exception.__init__(self, self.message)
@@ -101,33 +109,129 @@ class PasswordResetService:
                 error_code=RESET_WEAK_PASSWORD_ERROR,
                 message="Password does not meet security requirements.",
                 status_code=status.HTTP_400_BAD_REQUEST,
+                reason="weak_password",
             ) from exc
 
-    def _resolve_user_from_token(self, token: str) -> User:
+    def _resolve_user_from_token(self, token: str) -> tuple[User, PasswordResetTokenClaims]:
         try:
-            token_email = verify_password_reset_token(token)
+            token_claims = verify_password_reset_token_claims(token)
         except HTTPException as exc:
             raise PasswordResetFailure(
                 error_code=RESET_TOKEN_ERROR,
                 message="Invalid or expired reset token.",
                 status_code=status.HTTP_400_BAD_REQUEST,
+                reason="invalid_or_expired_token",
             ) from exc
         except Exception as exc:
             raise PasswordResetFailure(
                 error_code=RESET_TOKEN_ERROR,
                 message="Invalid or expired reset token.",
                 status_code=status.HTTP_400_BAD_REQUEST,
+                reason="invalid_or_expired_token",
             ) from exc
 
-        user = self.user_repository.get_by_email(self.normalize_email(token_email))
+        user = self.user_repository.get_by_email(self.normalize_email(token_claims.sub))
         if user is None:
             raise PasswordResetFailure(
                 error_code=RESET_TOKEN_ERROR,
                 message="Invalid or expired reset token.",
                 status_code=status.HTTP_400_BAD_REQUEST,
+                reason="unknown_token_subject",
             )
 
-        return user
+        return user, token_claims
+
+    @staticmethod
+    def _token_consumption_key(jti: str) -> str:
+        jti_digest = hashlib.sha256(jti.encode("utf-8")).hexdigest()
+        return f"{RESET_TOKEN_CONSUMPTION_KEY_PREFIX}:{jti_digest}"
+
+    @staticmethod
+    def _token_consumption_ttl(claims: PasswordResetTokenClaims) -> int:
+        ttl_seconds = int(claims.exp - now_sao_paulo().timestamp())
+        if ttl_seconds <= 0:
+            raise PasswordResetFailure(
+                error_code=RESET_TOKEN_ERROR,
+                message="Invalid or expired reset token.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                reason="expired_token_claim",
+            )
+        return ttl_seconds
+
+    async def _consume_reset_token(self, claims: PasswordResetTokenClaims) -> None:
+        """Atomically mark a reset-token JTI as used before credential mutation."""
+        if self.redis_cache is None:
+            logger.warning(
+                "Password reset token consumption unavailable",
+                extra={"token_consumption_reason": "cache_missing"},
+            )
+            raise PasswordResetFailure(
+                error_code=RESET_SERVICE_ERROR,
+                message="Password reset failed. Please try again later.",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                reason="cache_missing",
+            )
+
+        set_method = getattr(self.redis_cache, "set", None)
+        if not callable(set_method):
+            logger.warning(
+                "Password reset token consumption unsupported",
+                extra={"token_consumption_reason": "cache_set_missing"},
+            )
+            raise PasswordResetFailure(
+                error_code=RESET_SERVICE_ERROR,
+                message="Password reset failed. Please try again later.",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                reason="cache_set_missing",
+            )
+
+        key = self._token_consumption_key(claims.jti)
+        ttl_seconds = self._token_consumption_ttl(claims)
+
+        try:
+            consumed = set_method(key, "1", ex=ttl_seconds, nx=True)
+            if hasattr(consumed, "__await__"):
+                consumed = await consumed
+        except TypeError as exc:
+            logger.warning(
+                "Password reset token consumption unsupported",
+                extra={
+                    "token_consumption_reason": "cache_set_nx_ex_unsupported",
+                    "error_type": type(exc).__name__,
+                },
+            )
+            raise PasswordResetFailure(
+                error_code=RESET_SERVICE_ERROR,
+                message="Password reset failed. Please try again later.",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                reason="cache_set_nx_ex_unsupported",
+            ) from exc
+        except Exception as exc:
+            logger.warning(
+                "Password reset token consumption failed",
+                extra={
+                    "token_consumption_reason": "cache_set_exception",
+                    "error_type": type(exc).__name__,
+                },
+            )
+            raise PasswordResetFailure(
+                error_code=RESET_SERVICE_ERROR,
+                message="Password reset failed. Please try again later.",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                reason="cache_set_exception",
+            ) from exc
+
+        if not consumed:
+            logger.info(
+                "Password reset token replay denied",
+                extra={"token_consumption_reason": "jti_already_consumed"},
+            )
+            raise PasswordResetFailure(
+                error_code=RESET_TOKEN_REPLAY_ERROR,
+                message="Reset token has already been used.",
+                status_code=status.HTTP_409_CONFLICT,
+                reason="jti_already_consumed",
+            )
 
     async def _dispatch_reset_email(self, user: User) -> PasswordResetDeliveryResult:
         first_access = self.is_first_access_user(user)
@@ -195,7 +299,8 @@ class PasswordResetService:
     async def confirm_password_reset(self, token: str, new_password: str) -> User:
         """Validate a reset token, update credentials, and revoke active sessions."""
         self._validate_new_password(new_password)
-        user = self._resolve_user_from_token(token)
+        user, token_claims = self._resolve_user_from_token(token)
+        await self._consume_reset_token(token_claims)
         normalized_email = self.normalize_email(user.email)
         now = now_sao_paulo()
 
@@ -228,6 +333,7 @@ class PasswordResetService:
                 error_code=RESET_SERVICE_ERROR,
                 message="Password reset failed. Please try again later.",
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                reason="post_mutation_cleanup_failed",
             ) from exc
 
         self.db.commit()

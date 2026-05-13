@@ -90,7 +90,14 @@ def _get_request_id(request: Request) -> Optional[str]:
         if monitoring_request_id:
             return monitoring_request_id
 
-    return request.headers.get("X-Request-ID") or f"auth-{uuid.uuid4().hex}"
+    header_request_id = request.headers.get("X-Request-ID")
+    if header_request_id:
+        request.state.request_id = header_request_id
+        return header_request_id
+
+    generated_request_id = f"auth-{uuid.uuid4().hex}"
+    request.state.request_id = generated_request_id
+    return generated_request_id
 
 
 
@@ -564,6 +571,17 @@ async def confirm_password_reset(
         )
     except PasswordResetFailure as exc:
         db.rollback()
+        request_id = _get_request_id(request)
+        logger.info(
+            "Password reset confirmation rejected",
+            extra={
+                "request_id": request_id,
+                "outcome_class": "denied",
+                "error_code": exc.error_code,
+                "status_code": exc.status_code,
+                "token_consumption_reason": getattr(exc, "reason", "unspecified"),
+            },
+        )
         return _auth_json_response(
             status_code=exc.status_code,
             content=_auth_error_content(
