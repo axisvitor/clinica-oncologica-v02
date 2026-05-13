@@ -177,7 +177,7 @@ def _create_patient(db_session, *, doctor: User, name: str) -> Patient:
         doctor_id=doctor.id,
         name=name,
         birth_date=date(1980, 1, 1),
-        patient_data={"fixture": "report-ownership-closure"},
+        patient_data={},
     )
     db_session.add(patient)
     return patient
@@ -438,7 +438,16 @@ def _assert_generic_denial(response, *, forbidden_values: list[str] | None = Non
     }
 
     body = response.json() if response.content else {}
-    allowed_keys = {"detail", "status", "reason", "report_id", "export_id", "error", "message"}
+    allowed_keys = {
+        "detail",
+        "status",
+        "status_code",
+        "reason",
+        "report_id",
+        "export_id",
+        "error",
+        "message",
+    }
     if isinstance(body, dict):
         assert set(body.keys()) <= allowed_keys
         detail = body.get("detail")

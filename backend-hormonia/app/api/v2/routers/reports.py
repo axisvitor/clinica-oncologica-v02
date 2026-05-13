@@ -38,6 +38,11 @@ from app.models.user import UserRole
 from app.models.patient import Patient
 from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
 from app.api.v2.analytics_utils.user_context import get_role_and_user
+from app.services.reporting.report_access import (
+    assert_patient_ids_access,
+    assert_report_access,
+    parse_patient_id_query,
+)
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.utils.timezone import now_sao_paulo
@@ -235,9 +240,12 @@ async def _generate_report_async(
     report_type: str,
     format_type: str,
     user_id: UUID,
+    patient_ids: List[UUID],
     db: Any,
 ):
     """Background task to generate report asynchronously."""
+    serialized_patient_ids = [str(patient_id) for patient_id in patient_ids]
+
     try:
         logger.info(f"Starting async report generation: {report_id}")
 
@@ -252,6 +260,7 @@ async def _generate_report_async(
                 "status": "generating",
                 "created_at": now_sao_paulo().isoformat(),
                 "generated_by": str(user_id),
+                "patient_ids": serialized_patient_ids,
                 "progress": 10,
                 "message": "Collecting data",
                 "status_url": f"/api/v2/reports/{report_id}",
@@ -282,6 +291,7 @@ async def _generate_report_async(
             "status": "completed",
             "created_at": now_sao_paulo().isoformat(),
             "generated_by": str(user_id),
+            "patient_ids": serialized_patient_ids,
             "file_url": f"/api/v2/reports/{report_id}/download",
             "data": report_data,
         }
@@ -304,8 +314,10 @@ async def _generate_report_async(
         failed_data = {
             **existing,
             "id": str(report_id),
-            "status": "failed", 
-            "error": str(e)
+            "status": "failed",
+            "generated_by": str(user_id),
+            "patient_ids": serialized_patient_ids,
+            "error": str(e),
         }
         
         await _set_cached_result(
@@ -510,16 +522,20 @@ async def generate_report(
             detail=f"Invalid format. Must be one of: {', '.join(valid_formats)}",
         )
 
-    # Validate patient ID format if specified (access checks intentionally skipped)
-    if patient_ids:
-        try:
-            for pid in patient_ids.split(","):
-                UUID(pid.strip())
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid patient ID format",
-            )
+    try:
+        parsed_patient_ids = parse_patient_id_query(patient_ids)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid patient ID format",
+        )
+
+    await assert_patient_ids_access(
+        db,
+        parsed_patient_ids,
+        role=role,
+        user_id=user_id,
+    )
 
     # Create report ID
     report_id = uuid4()
@@ -534,6 +550,7 @@ async def generate_report(
         "status": "pending",
         "created_at": created_at.isoformat(),
         "generated_by": str(user_id),
+        "patient_ids": [str(patient_id) for patient_id in parsed_patient_ids],
         "status_url": f"/api/v2/reports/{report_id}",
         "download_url": f"/api/v2/reports/{report_id}/download",
     }
@@ -550,7 +567,14 @@ async def generate_report(
 
     # Schedule async generation
     background_tasks.add_task(
-        _generate_report_async, report_id, title, report_type, format, user_id, db
+        _generate_report_async,
+        report_id,
+        title,
+        report_type,
+        format,
+        user_id,
+        parsed_patient_ids,
+        db,
     )
 
     # Return immediate response with 202 Accepted
@@ -578,6 +602,7 @@ async def download_report(
         None, description="Override output format (json, csv, excel, pdf)"
     ),
     current_user=Depends(_get_current_user_from_session_dep),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Download generated report in specified format.
@@ -605,6 +630,15 @@ async def download_report(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Report not found"
         )
+
+    await assert_report_access(
+        db,
+        role=role,
+        user_id=user_id,
+        raw_metadata=report,
+        report_id=report_id,
+        metadata_source="redis.report_cache",
+    )
 
     if report.get("status") != "completed":
         raise HTTPException(
