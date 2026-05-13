@@ -35,9 +35,10 @@ def get_private_report_artifact_root(*, create: bool = True) -> Path:
 
 
 def _build_safe_report_path(base_dir: Path, report_id: UUID, report_type: str) -> Path:
-    """Build a report PDF path that cannot expose patient identifiers or escape base_dir."""
+    """Build an opaque report PDF path that cannot expose patient identifiers or escape base_dir."""
 
-    safe_filename = f"{report_id}_{_sanitize_report_type(report_type)}.pdf"
+    del report_type  # Report labels are untrusted free text; filenames must remain report-id-only.
+    safe_filename = f"{report_id}.pdf"
     output_path = (base_dir / safe_filename).resolve(strict=False)
     base_dir_resolved = base_dir.resolve(strict=False)
     try:

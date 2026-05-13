@@ -30,7 +30,6 @@ from app.tasks.taskiq_base import log_task_error, log_task_start, log_task_succe
 from app.tasks.helpers.reports_helpers import (
     _build_safe_report_path,
     _get_system_actor_uuid,
-    _sanitize_report_type,
     get_private_report_artifact_root,
 )
 
@@ -59,11 +58,7 @@ async def generate_patient_report(patient_id: str, report_type: str) -> dict:
     Returns:
         Dict with report status, report_id, and output_path.
     """
-    safe_report_type = _sanitize_report_type(report_type)
-    start_time = log_task_start(
-        "generate_patient_report",
-        report_type=safe_report_type,
-    )
+    start_time = log_task_start("generate_patient_report")
     report_id: str | None = None
 
     try:
@@ -76,7 +71,6 @@ async def generate_patient_report(patient_id: str, report_type: str) -> dict:
                 "event": "task_validation_failed",
                 "reason": "invalid_patient_id",
                 "status": "failed",
-                "report_type": safe_report_type,
             },
         )
         log_task_error(
@@ -85,7 +79,6 @@ async def generate_patient_report(patient_id: str, report_type: str) -> dict:
             start_time,
             reason="invalid_patient_id",
             status="failed",
-            report_type=safe_report_type,
         )
         return {"status": "failed", "error": "invalid_patient_id"}
 
@@ -105,7 +98,7 @@ async def generate_patient_report(patient_id: str, report_type: str) -> dict:
             report_id = str(report.id)
             pdf_content = service.generate_pdf_report(report.id)
             reports_dir = get_private_report_artifact_root(create=True)
-            output_path = _build_safe_report_path(reports_dir, report.id, safe_report_type)
+            output_path = _build_safe_report_path(reports_dir, report.id, report_type)
             output_path.write_bytes(pdf_content)
 
             result = {
@@ -118,7 +111,6 @@ async def generate_patient_report(patient_id: str, report_type: str) -> dict:
                 "generate_patient_report",
                 start_time,
                 report_id=report_id,
-                report_type=safe_report_type,
                 status="completed",
             )
             return result
@@ -127,7 +119,6 @@ async def generate_patient_report(patient_id: str, report_type: str) -> dict:
         log_context = {
             "reason": "report_generation_failed",
             "status": "failed",
-            "report_type": safe_report_type,
             "failure_type": type(exc).__name__,
         }
         if report_id:
