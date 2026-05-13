@@ -26,7 +26,6 @@ from fastapi import (
     status,
     Query,
     BackgroundTasks,
-    Response,
     Request,
     Cookie,
 )
@@ -46,6 +45,7 @@ from app.services.reporting.report_access import (
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.utils.timezone import now_sao_paulo
+from app.utils.download_responses import build_attachment_response
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -681,10 +681,10 @@ async def download_report(
 
     logger.info(f"Report downloaded: {report_id}, format: {output_format}")
 
-    return Response(
+    return build_attachment_response(
         content=content,
-        media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        declared_media_type=media_type,
+        filename=filename,
     )
 
 

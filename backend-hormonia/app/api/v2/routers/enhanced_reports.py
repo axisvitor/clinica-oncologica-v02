@@ -63,6 +63,7 @@ from app.utils.logging import get_logger
 from app.services import EnhancedReportsService
 from app.services.reporting.report_access import assert_report_access, parse_report_access_metadata
 from app.utils.timezone import now_sao_paulo, today_sao_paulo
+from app.utils.download_responses import build_attachment_response
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -663,10 +664,10 @@ async def download_builder_report(
         media_type = "application/json"
         filename = f"report_{builder_id}.json"
 
-    return Response(
+    return build_attachment_response(
         content=content,
-        media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        declared_media_type=media_type,
+        filename=filename,
     )
 
 
@@ -967,7 +968,7 @@ async def download_export(
 
     if not download_url:
         # Fallback: when export is completed but no download URL is available,
-        # return a minimal inline payload with the expected content type.
+        # return a minimal non-executable attachment payload.
         formats = export_status.get("formats") or []
         if format.value in formats:
             filename = f"export_{export_id}.{format.value}"
@@ -992,10 +993,10 @@ async def download_export(
             else:
                 content = b""
                 media_type = "application/octet-stream"
-            return Response(
+            return build_attachment_response(
                 content=content,
-                media_type=media_type,
-                headers={"Content-Disposition": f"attachment; filename={filename}"},
+                declared_media_type=media_type,
+                filename=filename,
             )
 
         raise HTTPException(

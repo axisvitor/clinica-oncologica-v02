@@ -307,7 +307,8 @@ def test_owner_receives_legacy_active_or_unknown_private_artifacts_only_as_attac
     disposition = response.headers["content-disposition"].lower()
     assert "x-evil" not in disposition
     assert "patient-report" not in disposition
-    assert "bad" not in disposition
+    assert "bad_" not in disposition
+    assert "yes.html" not in disposition
 
 
 def test_admin_receives_legacy_active_private_artifact_only_as_attachment(

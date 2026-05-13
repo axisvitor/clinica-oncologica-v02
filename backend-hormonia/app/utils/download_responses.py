@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from app.api.v2.routers.upload.active_content import (
     is_active_extension,
@@ -33,6 +33,7 @@ _UNKNOWN_MIME_TYPES = frozenset(
 
 _SAFE_DOWNLOAD_MIME_TYPES = frozenset(
     {
+        "application/json",
         "application/msword",
         "application/pdf",
         "application/vnd.ms-excel",
@@ -113,6 +114,28 @@ def attachment_headers(filename: str) -> dict[str, str]:
     }
 
 
+def build_attachment_response(
+    content: bytes | str,
+    *,
+    filename: str | None,
+    declared_media_type: str | None,
+    storage_path: str | None = None,
+) -> Response:
+    """Build an in-memory response that always downloads rather than inline-renders."""
+
+    safe_filename = safe_attachment_filename(filename)
+    media_type = safe_download_media_type(
+        declared_media_type,
+        filename=safe_filename,
+        storage_path=storage_path,
+    )
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers=attachment_headers(safe_filename),
+    )
+
+
 def build_attachment_file_response(
     path: Path,
     *,
@@ -133,3 +156,4 @@ def build_attachment_file_response(
         media_type=media_type,
         headers=attachment_headers(safe_filename),
     )
+

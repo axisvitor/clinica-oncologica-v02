@@ -476,6 +476,23 @@ def _assert_unauthenticated_denial(response) -> None:
     assert REPORT_SECRET not in response.text
 
 
+def _assert_safe_attachment_headers(
+    response,
+    *,
+    content_type_contains: str | None = None,
+    filename_suffix: str | None = None,
+) -> None:
+    assert response.status_code == status.HTTP_200_OK
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert "no-store" in response.headers["cache-control"].lower()
+    disposition = response.headers["content-disposition"].lower()
+    assert disposition.startswith("attachment")
+    if filename_suffix:
+        assert filename_suffix.lower() in disposition
+    if content_type_contains:
+        assert content_type_contains in response.headers["content-type"]
+
+
 # ---------------------------------------------------------------------------
 # Base report API ownership closure
 # ---------------------------------------------------------------------------
@@ -600,8 +617,16 @@ def test_base_completed_cached_report_download_allows_owner_and_admin(
     with auth_switcher.as_user(report_subjects.admin):
         admin_response = client.get(f"/api/v2/reports/{report_id}/download")
 
-    assert owner_response.status_code == status.HTTP_200_OK
-    assert admin_response.status_code == status.HTTP_200_OK
+    _assert_safe_attachment_headers(
+        owner_response,
+        content_type_contains="application/json",
+        filename_suffix=".json",
+    )
+    _assert_safe_attachment_headers(
+        admin_response,
+        content_type_contains="application/json",
+        filename_suffix=".json",
+    )
     assert REPORT_SECRET in owner_response.text
     assert REPORT_SECRET in admin_response.text
 
@@ -692,9 +717,17 @@ def test_builder_read_and_download_enforce_raw_cached_owner_metadata(
         foreign_download = client.get(f"/api/v2/enhanced-reports/builder/{builder_id}/download?format=csv")
 
     assert owner_read.status_code == status.HTTP_200_OK
-    assert owner_download.status_code == status.HTTP_200_OK
+    _assert_safe_attachment_headers(
+        owner_download,
+        content_type_contains="text/csv",
+        filename_suffix=".csv",
+    )
     assert admin_read.status_code == status.HTTP_200_OK
-    assert admin_download.status_code == status.HTTP_200_OK
+    _assert_safe_attachment_headers(
+        admin_download,
+        content_type_contains="text/csv",
+        filename_suffix=".csv",
+    )
     _assert_generic_denial(
         foreign_read,
         forbidden_values=[str(report_subjects.owner_patient.id), report_subjects.owner_patient.name],
@@ -855,8 +888,11 @@ def test_export_status_and_download_enforce_owner_and_hide_private_urls(
             )
 
         assert status_response.status_code == status.HTTP_200_OK
-        assert download_response.status_code == status.HTTP_200_OK
-        assert "application/pdf" in download_response.headers["content-type"]
+        _assert_safe_attachment_headers(
+            download_response,
+            content_type_contains="application/pdf",
+            filename_suffix=".pdf",
+        )
 
     report_owner_export_id = uuid4()
     _seed_export(
@@ -877,7 +913,11 @@ def test_export_status_and_download_enforce_owner_and_hide_private_urls(
             )
 
         assert report_owner_status.status_code == status.HTTP_200_OK
-        assert report_owner_download.status_code == status.HTTP_200_OK
+        _assert_safe_attachment_headers(
+            report_owner_download,
+            content_type_contains="application/pdf",
+            filename_suffix=".pdf",
+        )
 
     with auth_switcher.as_user(report_subjects.foreign_doctor):
         report_owner_foreign_status = client.get(
