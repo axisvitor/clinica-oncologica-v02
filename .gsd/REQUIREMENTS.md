@@ -4,17 +4,6 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Active
 
-### R006 — Uploads marcados como privados não podem ser servidos por rota estática pública; acesso privado deve passar por autenticação e ownership.
-- Class: compliance/security
-- Status: active
-- Description: Uploads marcados como privados não podem ser servidos por rota estática pública; acesso privado deve passar por autenticação e ownership.
-- Why it matters: URLs de upload podem vazar por logs, UI ou compartilhamento; `is_public=false` precisa ser controle real, não apenas metadado.
-- Source: report
-- Primary owning slice: M013/S04
-- Supporting slices: M013/S06
-- Validation: mapped
-- Notes: Cobre F-07. Separar público/privado ou substituir serving privado por endpoint autenticado; sem fallback público para conteúdo PHI.
-
 ### R007 — PDFs e relatórios de paciente gerados por workers não podem ficar em caminho público determinístico sem autorização de download.
 - Class: compliance/security
 - Status: active
@@ -23,8 +12,8 @@ This file is the explicit capability and coverage contract for the project.
 - Source: report
 - Primary owning slice: M013/S04
 - Supporting slices: M013/S05, M013/S06
-- Validation: mapped
-- Notes: Cobre F-08. Relatórios devem ser gravados fora do static root ou acessados por endpoint/URL assinada curta com ownership.
+- Validation: Pending: S04 closeout verification commands passed, but security closeout review found that free-form report_type can still enter generated PDF filenames/task result output_path/logs. R007 should only be validated after report artifacts use opaque/allowlisted non-PHI naming and PHI-safe outputs/logging are retested.
+- Notes: M013/S04 closeout reopened T03 for report artifact naming/logging remediation.
 
 ### R008 — Downloads, exportações, compartilhamento e histórico de relatórios no escopo M013 devem validar ownership ou patient assignment antes de retornar dados.
 - Class: compliance/security
@@ -115,6 +104,17 @@ This file is the explicit capability and coverage contract for the project.
 - Supporting slices: M013/S06
 - Validation: S03 verified public quiz current/access/submit/session/logout boundaries for token hash, active link state, signed compatibility session state, patient/template/session binding, and expiration. Evidence: focused public-token and compatibility pytest selections exited 0; full S03 proof `tests/api/v2/test_quiz_link_session_boundary.py tests/api/v2/test_monthly_quiz_compatibility.py tests/api/v2/test_quiz_extensions.py tests/api/v2/test_phase25_messages_quiz_async.py -q` plus planning-artifact audit exited 0.
 - Notes: Validated by M013/S03. Public quiz routes now require signed access/token state plus persisted active QuizSession metadata and reject raw-cookie-only, forged, mismatched, expired, cancelled/used, and token-hash-mismatched states before payload reads or response writes.
+
+### R006 — Uploads marcados como privados não podem ser servidos por rota estática pública; acesso privado deve passar por autenticação e ownership.
+- Class: compliance/security
+- Status: validated
+- Description: Uploads marcados como privados não podem ser servidos por rota estática pública; acesso privado deve passar por autenticação e ownership.
+- Why it matters: URLs de upload podem vazar por logs, UI ou compartilhamento; `is_public=false` precisa ser controle real, não apenas metadado.
+- Source: report
+- Primary owning slice: M013/S04
+- Supporting slices: M013/S06
+- Validation: M013/S04 verified by `cd backend-hormonia && pytest tests/api/v2/test_private_upload_serving.py -q` (gsd_exec d7459df8-9e7f-4901-9d7f-28d9d12eb170). Proof covers private upload responses without public `/uploads` URLs, public static denial for private files/derivatives, owner/admin gated download success, and anonymous/foreign/deleted/missing/path-traversal failure cases.
+- Notes: Cobre F-07. Separar público/privado ou substituir serving privado por endpoint autenticado; sem fallback público para conteúdo PHI.
 
 ### R009 — Respostas livres e overrides de fluxo do paciente devem exigir admin ou médico responsável pelo paciente antes de leitura ou alteração.
 - Class: compliance/security
@@ -217,8 +217,8 @@ This file is the explicit capability and coverage contract for the project.
 | R003 | compliance/security | validated | M013/S02 | M013/S06 | M013/S02 verified message read/list/conversation/unread/read-state/send/bulk-send/delete/cancel boundaries with `cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py tests/api/v2/test_phase25_messages_quiz_async.py -q` (exit 0; 1 expected skip for rate limiting disabled). |
 | R004 | compliance/security | validated | M013/S03 | M013/S06 | S03 verified authenticated monthly-quiz link creation, status/history, and active-link listing with admin-or-assigned-doctor ownership. Evidence: focused ownership pytest selection exited 0; full S03 proof `tests/api/v2/test_quiz_link_session_boundary.py tests/api/v2/test_monthly_quiz_compatibility.py tests/api/v2/test_quiz_extensions.py tests/api/v2/test_phase25_messages_quiz_async.py -q` plus planning-artifact audit exited 0. |
 | R005 | compliance/security | validated | M013/S03 | M013/S06 | S03 verified public quiz current/access/submit/session/logout boundaries for token hash, active link state, signed compatibility session state, patient/template/session binding, and expiration. Evidence: focused public-token and compatibility pytest selections exited 0; full S03 proof `tests/api/v2/test_quiz_link_session_boundary.py tests/api/v2/test_monthly_quiz_compatibility.py tests/api/v2/test_quiz_extensions.py tests/api/v2/test_phase25_messages_quiz_async.py -q` plus planning-artifact audit exited 0. |
-| R006 | compliance/security | active | M013/S04 | M013/S06 | mapped |
-| R007 | compliance/security | active | M013/S04 | M013/S05, M013/S06 | mapped |
+| R006 | compliance/security | validated | M013/S04 | M013/S06 | M013/S04 verified by `cd backend-hormonia && pytest tests/api/v2/test_private_upload_serving.py -q` (gsd_exec d7459df8-9e7f-4901-9d7f-28d9d12eb170). Proof covers private upload responses without public `/uploads` URLs, public static denial for private files/derivatives, owner/admin gated download success, and anonymous/foreign/deleted/missing/path-traversal failure cases. |
+| R007 | compliance/security | active | M013/S04 | M013/S05, M013/S06 | Pending: S04 closeout verification commands passed, but security closeout review found that free-form report_type can still enter generated PDF filenames/task result output_path/logs. R007 should only be validated after report artifacts use opaque/allowlisted non-PHI naming and PHI-safe outputs/logging are retested. |
 | R008 | compliance/security | active | M013/S05 | M013/S04, M013/S06 | mapped |
 | R009 | compliance/security | validated | M013/S02 | M013/S06 | M013/S02 verified flow response and flow override GET/PUT ownership denial and assigned-doctor/admin positives with `cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py tests/api/v2/test_phase25_messages_quiz_async.py -q` (exit 0; boundary suite includes flow-response/override tests). |
 | R010 | quality-attribute | active | M013/S06 | M013/S02, M013/S03, M013/S04, M013/S05 | mapped |
@@ -233,7 +233,7 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Coverage Summary
 
-- Active requirements: 5
-- Mapped to slices: 5
-- Validated: 6 (R001, R002, R003, R004, R005, R009)
+- Active requirements: 4
+- Mapped to slices: 4
+- Validated: 7 (R001, R002, R003, R004, R005, R006, R009)
 - Unmapped active requirements: 0

@@ -21,10 +21,10 @@
 - [x] **S03: S03** `risk:high` `depends:[]`
   > After this: Quiz link creation, status/history, active links and public submit reject foreign, expired, forged or mismatched state while a legitimate fixture quiz still completes.
 
-- [ ] **S04: S04** `risk:high` `depends:[]`
+- [x] **S04: S04** `risk:high` `depends:[]`
   > After this: Private uploads and generated patient PDFs are not reachable through public `/uploads`; authorized gated download works in tests.
 
-- [ ] **S05: Report Ownership Closure** `risk:high` `depends:[S04]`
+- [ ] **S05: S05** `risk:high` `depends:[]`
   > After this: Direct report download/export/share/history reject cross-user or cross-doctor report IDs and preserve legitimate owner/admin behavior.
 
 - [ ] **S06: Integrated Security Proof** `risk:medium` `depends:[S01,S02,S03,S04,S05]`

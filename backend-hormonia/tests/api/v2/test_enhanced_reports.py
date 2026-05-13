@@ -158,6 +158,8 @@ class TestReportBuilder:
         builder_id = uuid4()
         cached_report = {
             "id": str(builder_id),
+            "report_id": str(builder_id),
+            "created_by": str(mock_current_user_doctor["id"]),
             "name": "Test Report",
             "fields": [],
             "row_count": 100,
@@ -179,6 +181,8 @@ class TestReportBuilder:
         builder_id = uuid4()
         cached_report = {
             "id": str(builder_id),
+            "report_id": str(builder_id),
+            "created_by": str(mock_current_user_doctor["id"]),
             "name": "Test Report",
             "data": [
                 {"patient_id": "1", "name": "John"},
@@ -274,6 +278,8 @@ class TestVisualizations:
         viz_id = uuid4()
         cached_viz = {
             "id": str(viz_id),
+            "report_id": str(viz_id),
+            "created_by": str(mock_current_user_doctor["id"]),
             "config": {"type": "bar_chart", "title": "Test"},
             "data": {"labels": [], "data": []}
         }
@@ -395,6 +401,8 @@ class TestScheduledDelivery:
         schedule_id = uuid4()
         cached_schedule = {
             "id": str(schedule_id),
+            "report_id": str(schedule_id),
+            "created_by": str(mock_current_user_doctor["id"]),
             "name": "Test Schedule",
             "method": "email",
             "is_active": True
@@ -559,6 +567,8 @@ class TestMultiFormatExport:
         export_id = uuid4()
         cached_export = {
             "export_id": str(export_id),
+            "report_id": str(uuid4()),
+            "created_by": str(mock_current_user_doctor["id"]),
             "status": "completed",
             "formats": ["pdf", "excel"],
             "download_urls": {
@@ -582,6 +592,8 @@ class TestMultiFormatExport:
         export_id = uuid4()
         cached_export = {
             "export_id": str(export_id),
+            "report_id": str(uuid4()),
+            "created_by": str(mock_current_user_doctor["id"]),
             "status": "completed",
             "formats": ["pdf"]
         }
@@ -720,6 +732,8 @@ class TestDashboards:
         dashboard_id = uuid4()
         cached_dashboard = {
             "id": str(dashboard_id),
+            "report_id": str(dashboard_id),
+            "created_by": str(mock_current_user_doctor["id"]),
             "name": "Test Dashboard",
             "layout": "grid",
             "widgets": [],
@@ -741,6 +755,8 @@ class TestDashboards:
         dashboard_id = uuid4()
         existing_dashboard = {
             "id": str(dashboard_id),
+            "report_id": str(dashboard_id),
+            "created_by": str(mock_current_user_doctor["id"]),
             "name": "Old Name",
             "widgets": []
         }
@@ -806,6 +822,8 @@ class TestCaching:
         builder_id = uuid4()
         cached_report = {
             "id": str(builder_id),
+            "report_id": str(builder_id),
+            "created_by": str(mock_current_user_doctor["id"]),
             "name": "Cached Report",
             "row_count": 50
         }
@@ -823,6 +841,8 @@ class TestCaching:
         viz_id = uuid4()
         cached_viz = {
             "id": str(viz_id),
+            "report_id": str(viz_id),
+            "created_by": str(mock_current_user_doctor["id"]),
             "config": {"type": "line_chart"},
             "data": {}
         }

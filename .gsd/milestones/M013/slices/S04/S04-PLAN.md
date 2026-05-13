@@ -37,12 +37,12 @@ Integration closure: S04 consumes existing `app.dependencies.auth_dependencies.g
   - Files: `backend-hormonia/tests/api/v2/test_private_upload_serving.py`
   - Verify: cd backend-hormonia && pytest tests/api/v2/test_private_upload_serving.py -q
 
-- [ ] **T02: Implement public-only static mount and gated upload download** `est:3h`
+- [x] **T02: Implement public-only static mount and gated upload download** `est:3h`
   Expected executor task-plan metadata: estimated_steps=10; estimated_files=7; skills_used=[api-design, security-review, tdd, verify-before-complete].
   - Files: `backend-hormonia/app/config/settings/features.py`, `backend-hormonia/app/core/application_factory.py`, `backend-hormonia/app/api/v2/routers/upload/config.py`, `backend-hormonia/app/api/v2/routers/upload/storage.py`, `backend-hormonia/app/api/v2/routers/upload/processing.py`, `backend-hormonia/app/api/v2/routers/upload/handlers.py`, `backend-hormonia/app/api/v2/routers/upload/__init__.py`
   - Verify: cd backend-hormonia && pytest tests/api/v2/test_private_upload_serving.py -q
 
-- [ ] **T03: Move generated patient reports to private non-identifying artifacts** `est:2h`
+- [x] **T03: Move generated patient reports to private non-identifying artifacts** `est:2h`
   Expected executor task-plan metadata: estimated_steps=8; estimated_files=3; skills_used=[security-review, tdd, verify-before-complete].
   - Files: `backend-hormonia/app/tasks/helpers/reports_helpers.py`, `backend-hormonia/app/tasks/reports_taskiq.py`, `backend-hormonia/tests/tasks/test_reports_tasks.py`
   - Verify: cd backend-hormonia && pytest tests/tasks/test_reports_tasks.py -q && pytest tests/api/v2/test_private_upload_serving.py -q && pytest tests/api/v2/test_enhanced_reports.py tests/services/test_report_service_task_compat.py -q
