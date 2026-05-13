@@ -27,8 +27,10 @@ Usage:
         return {"csrf_token": token}
 """
 
+import hashlib
 import hmac
 import logging
+import re
 from fastapi import Request
 from fastapi.responses import Response, JSONResponse
 from starlette.types import ASGIApp, Scope, Receive, Send
@@ -53,31 +55,43 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ============================================================================
 
-# Paths exempt from CSRF protection
-EXEMPT_PATHS = frozenset({
+# Paths exempt from CSRF protection.
+#
+# Keep this set intentionally narrow: browser/session-backed mutating APIs must
+# prove a double-submit CSRF token before route dependencies, DB writes, queues,
+# or provider calls.  Provider webhooks and intentionally public tokenized APIs
+# stay exempt because they are protected by non-cookie ingress controls.
+EXACT_EXEMPT_PATHS = frozenset({
     "/health",
     "/docs",
     "/redoc",
     "/openapi.json",
     "/csrf-token",
     "/api/v2/auth/csrf-token",
-    "/api/v2/auth/login",
-    "/api/v2/auth/register",
-    "/api/v2/auth/refresh",
-    "/api/v2/auth/logout",
-    "/api/v2/auth/password/reset-request",
-    "/api/v2/auth/password/reset-confirm",
-    "/webhooks/",
-    "/api/v2/webhooks/",  # WhatsApp/Evolution webhooks
-    "/api/public/",
-    "/api/v2/quiz-extensions/monthly/public",
-    "/api/v2/messages",  # Exempt: Protected by session auth (get_current_user_from_session)
-    "/api/v2/enhanced-messages",  # Exempt: Protected by session auth (enhanced messaging API)
-    "/api/v2/flows",  # Exempt: Protected by session auth (flow management)
 })
+
+PREFIX_EXEMPT_PATHS = frozenset({
+    "/health/",
+    "/webhooks/",
+    "/api/v2/webhooks/",  # WhatsApp/Evolution webhooks; HMAC/idempotency covered separately.
+    "/api/public/",
+    "/api/v2/quiz-extensions/monthly/public",  # Tokenized public quiz flow, not cookie/session auth.
+    "/static/",
+    "/uploads/",
+})
+
+EXEMPT_PATHS = EXACT_EXEMPT_PATHS | PREFIX_EXEMPT_PATHS
+
+# Authorization/X-API-Key may bypass CSRF only for endpoints that are truly
+# token-authenticated and not cookie/session backed.  Keep empty until a route
+# has an explicit non-cookie auth contract; webhooks/public APIs are already
+# exempt above by path and verified by their own ingress controls.
+TOKEN_AUTH_BYPASS_PATH_PREFIXES = frozenset()
 
 # Safe HTTP methods (no state changes)
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+
+_SAFE_REQUEST_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 
 
 # ============================================================================
@@ -176,40 +190,119 @@ def set_csrf_cookie(response: Response, token: str) -> str:
     return token
 
 
+def _matches_prefix(path: str, prefix: str) -> bool:
+    """Return True when ``path`` is inside an exempt prefix boundary."""
+    if prefix.endswith("/"):
+        return path.startswith(prefix)
+    return path == prefix or path.startswith(f"{prefix}/")
+
+
 def is_csrf_exempt(path: str, method: str) -> bool:
     """Check if request is exempt from CSRF protection."""
     if method in SAFE_METHODS:
         return True
 
-    if path in EXEMPT_PATHS:
+    if path in EXACT_EXEMPT_PATHS:
         return True
 
-    for exempt in EXEMPT_PATHS:
-        if path.startswith(exempt):
-            return True
+    return any(_matches_prefix(path, exempt) for exempt in PREFIX_EXEMPT_PATHS)
 
-    if path.startswith("/static/") or path.startswith("/uploads/"):
-        return True
 
-    return False
+def _path_allows_token_auth_bypass(path: str) -> bool:
+    """Return True only for explicit non-cookie token-auth ingress paths."""
+    return any(
+        _matches_prefix(path, exempt)
+        for exempt in TOKEN_AUTH_BYPASS_PATH_PREFIXES
+    )
 
 
 def _has_auth_header(request: Request) -> bool:
     """
-    Allow token-authenticated requests to bypass CSRF checks.
+    Allow CSRF bypass only for explicitly token-authenticated paths.
 
-    CSRF protection is intended for cookie-auth flows. If a request includes
-    an Authorization or X-API-Key header, we treat it as token-authenticated
-    and skip CSRF validation.
-
-    NOTE: X-Session-ID was removed from this check because custom headers
-    can be set by attackers in cross-origin requests. If session auth relies
-    on cookies, the X-Session-ID header alone should not bypass CSRF.
+    CSRF protection is intended for cookie-auth flows, but a generic
+    Authorization/X-API-Key bypass is unsafe because browser/session endpoints
+    in this app intentionally reject legacy bearer/X-Session transports and
+    resolve staff auth from cookies only.  A request header alone must not skip
+    CSRF for session-backed state changes.
     """
+    if not _path_allows_token_auth_bypass(request.url.path):
+        return False
+
     return bool(
         request.headers.get("Authorization")
         or request.headers.get("X-API-Key")
     )
+
+
+def _stable_hash(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8", errors="ignore")).hexdigest()[:16]
+
+
+def _safe_request_identifier(value: object) -> Optional[str]:
+    if value is None:
+        return None
+
+    request_id = str(value)
+    if _SAFE_REQUEST_ID.fullmatch(request_id):
+        return request_id
+
+    return f"hashed-{_stable_hash(request_id)}"
+
+
+def _get_request_id(request: Request) -> Optional[str]:
+    """Best-effort PHI-safe request correlation identifier."""
+    request_id = _safe_request_identifier(getattr(request.state, "request_id", None))
+    if request_id:
+        return request_id
+
+    monitoring_state = getattr(request.state, "monitoring", None)
+    if isinstance(monitoring_state, dict):
+        request_id = _safe_request_identifier(monitoring_state.get("request_id"))
+        if request_id:
+            return request_id
+
+    return _safe_request_identifier(request.headers.get("X-Request-ID"))
+
+
+def _client_identity_hash(request: Request) -> Optional[str]:
+    if not request.client or not request.client.host:
+        return None
+    return _stable_hash(request.client.host)
+
+
+def _log_csrf_denial(request: Request, *, reason: str) -> Optional[str]:
+    """Emit PHI-safe structured diagnostics for a denied CSRF request."""
+    request_id = _get_request_id(request)
+    logger.warning(
+        "CSRF validation denied",
+        extra={
+            "event_type": "csrf_denied",
+            "reason": reason,
+            "method": request.method,
+            "path": request.url.path,
+            "request_id": request_id,
+            "client_identity_hash": _client_identity_hash(request),
+        },
+    )
+    return request_id
+
+
+def _csrf_denied_response(
+    request: Request,
+    *,
+    reason: str,
+    error: str,
+    message: str,
+) -> JSONResponse:
+    request_id = _log_csrf_denial(request, reason=reason)
+    content = {
+        "error": error,
+        "message": message,
+    }
+    if request_id:
+        content["request_id"] = request_id
+    return JSONResponse(status_code=403, content=content)
 
 
 # ============================================================================
@@ -277,10 +370,6 @@ class CSRFMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # Extract client information for logging
-        client_ip = request.client.host if request.client else "unknown"
-        user_agent = request.headers.get("user-agent", "unknown")[:100]  # Truncate for security
-
         # Get token from header (support multiple header names for compatibility)
         header_token = (
             request.headers.get("X-CSRF-Token") or
@@ -289,32 +378,22 @@ class CSRFMiddleware:
         )
 
         if not header_token:
-            logger.warning(
-                f"CSRF token missing in header: {request.method} {request.url.path} "
-                f"from {client_ip} ({user_agent})"
-            )
-            response = JSONResponse(
-                status_code=403,
-                content={
-                    "error": "csrf_token_missing",
-                    "message": "CSRF token required in X-CSRF-Token header"
-                }
+            response = _csrf_denied_response(
+                request,
+                reason="missing_header",
+                error="csrf_token_missing",
+                message="CSRF token required in X-CSRF-Token header",
             )
             await response(scope, receive, send)
             return
 
         # Validate header token format and signature
         if not validate_csrf_token(header_token):
-            logger.warning(
-                f"CSRF token invalid in header: {request.method} {request.url.path} "
-                f"from {client_ip} (token_length={len(header_token)})"
-            )
-            response = JSONResponse(
-                status_code=403,
-                content={
-                    "error": "csrf_token_invalid",
-                    "message": "CSRF token invalid or expired"
-                }
+            response = _csrf_denied_response(
+                request,
+                reason="invalid_header",
+                error="csrf_token_invalid",
+                message="CSRF token invalid or expired",
             )
             await response(scope, receive, send)
             return
@@ -323,48 +402,33 @@ class CSRFMiddleware:
         cookie_token = request.cookies.get(COOKIE_NAME)
 
         if not cookie_token:
-            logger.warning(
-                f"CSRF cookie missing: {request.method} {request.url.path} "
-                f"from {client_ip}"
-            )
-            response = JSONResponse(
-                status_code=403,
-                content={
-                    "error": "csrf_cookie_missing",
-                    "message": "CSRF cookie required"
-                }
+            response = _csrf_denied_response(
+                request,
+                reason="missing_cookie",
+                error="csrf_cookie_missing",
+                message="CSRF cookie required",
             )
             await response(scope, receive, send)
             return
 
         # Validate cookie token format and signature
         if not validate_csrf_token(cookie_token):
-            logger.warning(
-                f"CSRF cookie invalid: {request.method} {request.url.path} "
-                f"from {client_ip}"
-            )
-            response = JSONResponse(
-                status_code=403,
-                content={
-                    "error": "csrf_cookie_invalid",
-                    "message": "CSRF cookie invalid or expired"
-                }
+            response = _csrf_denied_response(
+                request,
+                reason="invalid_cookie",
+                error="csrf_cookie_invalid",
+                message="CSRF cookie invalid or expired",
             )
             await response(scope, receive, send)
             return
 
         # Double Submit: header must match cookie (constant-time comparison)
         if not hmac.compare_digest(header_token, cookie_token):
-            logger.warning(
-                f"CSRF mismatch: {request.method} {request.url.path} "
-                f"from {client_ip} - header and cookie tokens do not match"
-            )
-            response = JSONResponse(
-                status_code=403,
-                content={
-                    "error": "csrf_mismatch",
-                    "message": "CSRF token mismatch between header and cookie"
-                }
+            response = _csrf_denied_response(
+                request,
+                reason="mismatch",
+                error="csrf_mismatch",
+                message="CSRF token mismatch between header and cookie",
             )
             await response(scope, receive, send)
             return
@@ -388,6 +452,9 @@ __all__ = [
     "generate_csrf_token",
     "is_csrf_exempt",
     "EXEMPT_PATHS",
+    "EXACT_EXEMPT_PATHS",
+    "PREFIX_EXEMPT_PATHS",
+    "TOKEN_AUTH_BYPASS_PATH_PREFIXES",
     "SAFE_METHODS",
     "TOKEN_EXPIRY",
     "COOKIE_NAME",

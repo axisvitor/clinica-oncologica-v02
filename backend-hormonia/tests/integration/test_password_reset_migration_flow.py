@@ -11,7 +11,6 @@ from fastapi import status
 from app.core.security import create_password_reset_token
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.main import app
-from app.middleware.csrf import get_csrf_token
 from app.models.session import Session as SessionModel
 from app.models.user import AuthProvider, User, UserRole
 from app.services import notification_service as notification_service_module
@@ -201,12 +200,10 @@ def _seed_active_session(db_session, redis_cache: RecordingRecoveryRedisCache, u
     return session
 
 
-def _csrf_headers() -> dict[str, str]:
-    csrf_token = get_csrf_token()
-    return {
-        "X-CSRF-Token": csrf_token,
-        "Cookie": f"csrf_token={csrf_token}",
-    }
+def _csrf_headers(client) -> dict[str, str]:
+    response = client.get("/api/v2/auth/csrf-token")
+    assert response.status_code == status.HTTP_200_OK, response.text
+    return {"X-CSRF-Token": response.json()["csrf_token"]}
 
 
 @pytest.mark.parametrize(
@@ -230,7 +227,7 @@ def test_password_reset_migrates_user_state_revokes_sessions_and_restores_local_
 
     reset_request_response = client.post(
         "/api/v2/auth/password/reset-request",
-        headers=_csrf_headers(),
+        headers=_csrf_headers(client),
         json={"email": user.email},
     )
 
@@ -244,6 +241,7 @@ def test_password_reset_migrates_user_state_revokes_sessions_and_restores_local_
 
     reset_confirm_response = client.post(
         "/api/v2/auth/password/reset-confirm",
+        headers=_csrf_headers(client),
         json={
             "token": create_password_reset_token(user.email),
             "new_password": new_password,
@@ -283,6 +281,7 @@ def test_password_reset_migrates_user_state_revokes_sessions_and_restores_local_
 
     login_response = client.post(
         "/api/v2/auth/login",
+        headers=_csrf_headers(client),
         json={
             "email": user.email,
             "password": new_password,

@@ -181,6 +181,14 @@ def test_app(csrf_module):
     async def login():
         return {"status": "logged_in"}
 
+    @app.post("/api/v2/webhooks/provider")
+    async def provider_webhook():
+        return {"status": "accepted"}
+
+    @app.post("/api/public/data")
+    async def public_api():
+        return {"status": "accepted"}
+
     @app.get("/csrf-token")
     async def csrf_token_endpoint(response: Response):
         token = csrf_module["get_csrf_token"]()
@@ -660,11 +668,18 @@ class TestCsrfExemptPaths:
         assert csrf_module["is_csrf_exempt"]("/csrf-token", "POST") is True
         assert csrf_module["is_csrf_exempt"]("/api/v2/auth/csrf-token", "POST") is True
 
-    def test_auth_endpoints_exempt(self, csrf_module):
-        """Auth endpoints (login, register, refresh) should be exempt."""
-        assert csrf_module["is_csrf_exempt"]("/api/v2/auth/login", "POST") is True
-        assert csrf_module["is_csrf_exempt"]("/api/v2/auth/register", "POST") is True
-        assert csrf_module["is_csrf_exempt"]("/api/v2/auth/refresh", "POST") is True
+    def test_session_auth_endpoints_not_exempt(self, csrf_module):
+        """Browser/session auth endpoints must prove CSRF on unsafe methods."""
+        protected_paths = [
+            "/api/v2/auth/login",
+            "/api/v2/auth/register",
+            "/api/v2/auth/refresh",
+            "/api/v2/auth/logout",
+            "/api/v2/auth/password/reset-request",
+            "/api/v2/auth/password/reset-confirm",
+        ]
+        for path in protected_paths:
+            assert csrf_module["is_csrf_exempt"](path, "POST") is False
 
     def test_webhook_endpoints_exempt(self, csrf_module):
         """Webhook endpoints should be exempt."""
@@ -681,14 +696,13 @@ class TestCsrfExemptPaths:
         assert csrf_module["is_csrf_exempt"]("/uploads/image.png", "POST") is True
 
     def test_protected_paths_not_exempt(self, csrf_module):
-        """Protected API paths should not be exempt.
-        
-        Note: /api/v2/patients is intentionally exempt (see csrf.py EXEMPT_PATHS)
-        so we test with other protected endpoints instead.
-        """
+        """Protected session-backed API paths should not be exempt."""
         assert csrf_module["is_csrf_exempt"]("/api/v2/treatments", "POST") is False
         assert csrf_module["is_csrf_exempt"]("/api/v2/notifications", "POST") is False
         assert csrf_module["is_csrf_exempt"]("/api/v2/users/profile", "PUT") is False
+        assert csrf_module["is_csrf_exempt"]("/api/v2/messages", "POST") is False
+        assert csrf_module["is_csrf_exempt"]("/api/v2/enhanced-messages", "POST") is False
+        assert csrf_module["is_csrf_exempt"]("/api/v2/flows", "POST") is False
 
     def test_exempt_paths_are_frozen(self, csrf_module):
         """EXEMPT_PATHS should be immutable (frozenset)."""
@@ -817,11 +831,27 @@ class TestFastAPIIntegration:
         assert response.status_code == 403
 
     def test_exempt_path_no_csrf_required(self, client):
-        """Exempt paths should not require CSRF token."""
+        """Provider webhook and public API paths should not require CSRF tokens."""
         response = client.get("/health")
         assert response.status_code == 200
 
+        response = client.post("/api/v2/webhooks/provider")
+        assert response.status_code == 200
+
+        response = client.post("/api/public/data")
+        assert response.status_code == 200
+
+    def test_browser_auth_path_requires_csrf(self, client, valid_token):
+        """Session-creating auth paths are protected by double-submit CSRF."""
         response = client.post("/api/v2/auth/login")
+        assert response.status_code == 403
+        assert response.json()["error"] == "csrf_token_missing"
+
+        response = client.post(
+            "/api/v2/auth/login",
+            headers={"X-CSRF-Token": valid_token},
+            cookies={"csrf_token": valid_token},
+        )
         assert response.status_code == 200
 
     def test_csrf_token_endpoint_returns_token(self, client):

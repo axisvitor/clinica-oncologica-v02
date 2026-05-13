@@ -71,6 +71,13 @@ def _assert_stable_auth_error(payload: dict, error_code: str) -> None:
     _assert_no_secret_fields(payload)
 
 
+def _csrf_headers(client) -> dict[str, str]:
+    response = client.get("/api/v2/auth/csrf-token")
+    assert response.status_code == status.HTTP_200_OK, response.text
+    token = response.json()["csrf_token"]
+    return {"X-CSRF-Token": token}
+
+
 @pytest.fixture
 def recovery_user(db_session):
     password = "RecoverMe123!"
@@ -104,6 +111,7 @@ def email_capture(monkeypatch):
 def test_reset_request_returns_generic_success_and_dispatches_email(client, recovery_user, email_capture):
     response = client.post(
         "/api/v2/auth/password/reset-request",
+        headers=_csrf_headers(client),
         json={"email": recovery_user.email},
     )
 
@@ -122,10 +130,12 @@ def test_reset_request_returns_generic_success_and_dispatches_email(client, reco
 def test_reset_request_does_not_enumerate_unknown_accounts(client, recovery_user, email_capture):
     known_response = client.post(
         "/api/v2/auth/password/reset-request",
+        headers=_csrf_headers(client),
         json={"email": recovery_user.email},
     )
     unknown_response = client.post(
         "/api/v2/auth/password/reset-request",
+        headers=_csrf_headers(client),
         json={"email": f"missing-{uuid4().hex[:8]}@example.com"},
     )
 
@@ -149,18 +159,19 @@ def test_reset_request_surfaces_delivery_failures_with_redacted_diagnostics(
     recovery_user,
     monkeypatch,
 ):
-    async def _failing_send_email(_service, subject, message, recipients, template_data):
-        _ = subject, message, recipients, template_data
+    async def _failing_send_password_reset_email(_service, **kwargs):
+        _ = kwargs
         raise RuntimeError("smtp offline")
 
     monkeypatch.setattr(
         notification_service_module.NotificationService,
-        "_send_email",
-        _failing_send_email,
+        "send_password_reset_email",
+        _failing_send_password_reset_email,
     )
 
     response = client.post(
         "/api/v2/auth/password/reset-request",
+        headers=_csrf_headers(client),
         json={"email": recovery_user.email},
     )
 
@@ -173,6 +184,7 @@ def test_reset_request_surfaces_delivery_failures_with_redacted_diagnostics(
 def test_reset_confirm_rejects_weak_password_with_stable_diagnostics(client, recovery_user):
     response = client.post(
         "/api/v2/auth/password/reset-confirm",
+        headers=_csrf_headers(client),
         json={
             "token": create_password_reset_token(recovery_user.email),
             "new_password": "weakpass",
@@ -188,6 +200,7 @@ def test_reset_confirm_rejects_weak_password_with_stable_diagnostics(client, rec
 def test_reset_confirm_rejects_invalid_token_with_stable_diagnostics(client):
     response = client.post(
         "/api/v2/auth/password/reset-confirm",
+        headers=_csrf_headers(client),
         json={
             "token": "not-a-valid-reset-token",
             "new_password": "StrongPass123!",
@@ -203,6 +216,7 @@ def test_reset_confirm_rejects_invalid_token_with_stable_diagnostics(client):
 def test_reset_confirm_rejects_expired_token_with_stable_diagnostics(client, recovery_user):
     response = client.post(
         "/api/v2/auth/password/reset-confirm",
+        headers=_csrf_headers(client),
         json={
             "token": create_password_reset_token(
                 recovery_user.email,
