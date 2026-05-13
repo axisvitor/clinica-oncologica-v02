@@ -12,6 +12,8 @@ Tests cover:
 - Interactive dashboards
 """
 
+import json
+
 import pytest
 from datetime import datetime, timedelta
 from uuid import uuid4
@@ -26,13 +28,22 @@ from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 @pytest.fixture
 def mock_redis():
     """Mock Redis client."""
-    with patch("app.core.redis_manager.get_async_redis_client") as mock:
+    with patch("app.core.redis_manager.get_async_redis_client") as mock, \
+         patch("app.services.cache.json_cache_mixin.get_async_redis") as cache_get_redis, \
+         patch("app.services.reporting.enhanced_reports_service.get_async_redis") as service_get_redis:
         redis_mock = AsyncMock()
+        async def _empty_scan_iter(*args, **kwargs):
+            _ = args, kwargs
+            if False:
+                yield None
+
         redis_mock.get = AsyncMock(return_value=None)
         redis_mock.setex = AsyncMock()
         redis_mock.delete = AsyncMock()
-        redis_mock.scan_iter = AsyncMock(return_value=iter([]))
+        redis_mock.scan_iter = _empty_scan_iter
         mock.return_value = redis_mock
+        cache_get_redis.return_value = redis_mock
+        service_get_redis.return_value = redis_mock
         yield redis_mock
 
 
@@ -545,6 +556,29 @@ class TestMultiFormatExport:
             assert len(data["formats"]) == 3
             assert data["status"] == "pending"
             assert "export_id" in data
+
+            cached_exports = [
+                json.loads(call.args[2])
+                for call in mock_redis.setex.await_args_list
+                if len(call.args) >= 3
+            ]
+            matching_exports = [
+                payload
+                for payload in cached_exports
+                if payload.get("export_id") == data["export_id"]
+            ]
+            assert matching_exports
+            assert all(
+                payload["created_by"] == mock_current_user_doctor["id"]
+                for payload in matching_exports
+            )
+            assert all(
+                payload["report_id"] == request_data["report_id"]
+                for payload in matching_exports
+            )
+            assert all(payload["formats"] == request_data["formats"] for payload in matching_exports)
+            assert all(payload["status"] == "pending" for payload in matching_exports)
+            assert all("created_at" in payload and "updated_at" in payload for payload in matching_exports)
 
     def test_export_single_format(self, client, mock_redis, mock_db, mock_current_user_admin):
         """Test exporting report in single format."""

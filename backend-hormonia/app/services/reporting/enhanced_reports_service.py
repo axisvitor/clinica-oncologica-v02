@@ -441,16 +441,31 @@ class EnhancedReportsService(RedisJsonCacheMixin):
         )
 
         export_id = uuid4()
+        export_created_at = now_sao_paulo()
         response = {
             "export_id": str(export_id),
             "report_id": str(data.report_id),
             "formats": [f.value for f in data.formats],
             "status": "pending",
-            "created_at": now_sao_paulo().isoformat(),
+            "download_urls": {},
+            "file_sizes": {},
+            "expires_at": (export_created_at + timedelta(days=1)).isoformat(),
+            "created_at": export_created_at.isoformat(),
+            "updated_at": export_created_at.isoformat(),
+            "created_by": str(user_id),
+            "generated_by": str(user_id),
         }
-        return self._normalize_export_response(
+        normalized_response = self._normalize_export_response(
             response, export_id=export_id, report_id=data.report_id
         )
+        persisted_metadata = dict(response)
+        persisted_metadata.update(normalized_response)
+        persisted_metadata["created_by"] = str(user_id)
+        persisted_metadata["generated_by"] = str(user_id)
+        persisted_metadata["updated_at"] = response["updated_at"]
+        for cache_key, _metadata_source in self._export_access_cache_candidates(export_id):
+            await self._set_cached_result(cache_key, persisted_metadata, REPORT_CACHE_TTL)
+        return normalized_response
 
     async def get_export_status(self, export_id: UUID) -> Dict[str, Any]:
         cache_key = self._get_cache_key("export", export_id=str(export_id))

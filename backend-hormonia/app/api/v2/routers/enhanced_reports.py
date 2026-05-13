@@ -4,6 +4,7 @@ Advanced reporting features extending base reports with custom builders, visuali
 Delegates logic to EnhancedReportsService.
 """
 
+from collections.abc import Mapping
 from typing import Any, Optional, List
 import asyncio
 import hashlib
@@ -60,7 +61,7 @@ from app.utils.auth_helpers import extract_user_role_and_uuid
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.services import EnhancedReportsService
-from app.services.reporting.report_access import assert_report_access
+from app.services.reporting.report_access import assert_report_access, parse_report_access_metadata
 from app.utils.timezone import now_sao_paulo, today_sao_paulo
 
 logger = get_logger(__name__)
@@ -266,16 +267,68 @@ async def _assert_enhanced_export_access(
     if raw_metadata is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
 
-    await assert_report_access(
-        getattr(service, "db", None),
-        role=role,
-        user_id=user_id,
-        raw_metadata=raw_metadata,
-        report_id=None,
+    evidence = parse_report_access_metadata(
+        raw_metadata,
         export_id=export_id,
-        metadata_source=metadata_source,
-        missing_resource_status_code=status.HTTP_404_NOT_FOUND,
+        source=metadata_source,
     )
+    if evidence.is_malformed or not (
+        evidence.has_access_evidence or evidence.linked_report_id is not None
+    ):
+        reason = (
+            "malformed_export_access_metadata"
+            if evidence.is_malformed
+            else "missing_export_access_metadata"
+        )
+        logger.warning(
+            "Report access denied",
+            extra={
+                "report_id": str(evidence.linked_report_id) if evidence.linked_report_id else None,
+                "export_id": str(export_id),
+                "user_id": str(user_id),
+                "role": role.value if hasattr(role, "value") else str(role),
+                "status": "denied",
+                "response_status": status.HTTP_403_FORBIDDEN,
+                "reason": reason,
+                "metadata_source": metadata_source,
+                "patient_id_count": len(evidence.patient_ids),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+
+    if role == UserRole.ADMIN or user_id in evidence.owner_ids:
+        return role, user_id, raw_metadata
+
+    linked_report_denial: HTTPException | None = None
+    if evidence.linked_report_id is not None:
+        try:
+            await _assert_enhanced_report_access(
+                evidence.linked_report_id,
+                current_user,
+                service,
+            )
+            return role, user_id, raw_metadata
+        except HTTPException as exc:
+            linked_report_denial = exc
+
+    try:
+        await assert_report_access(
+            getattr(service, "db", None),
+            role=role,
+            user_id=user_id,
+            raw_metadata=raw_metadata,
+            report_id=None,
+            export_id=export_id,
+            metadata_source=metadata_source,
+            missing_resource_status_code=status.HTTP_404_NOT_FOUND,
+        )
+    except HTTPException:
+        if linked_report_denial is not None:
+            raise linked_report_denial
+        raise
     return role, user_id, raw_metadata
 
 
@@ -387,6 +440,95 @@ def _normalize_export_response(
         "file_sizes": data.get("file_sizes", {}),
         "created_at": data.get("created_at", now),
     }
+
+
+def _is_safe_export_download_url(download_url: Any) -> bool:
+    """Return True only for URLs that are safe to expose after auth."""
+
+    if not isinstance(download_url, str):
+        return False
+
+    normalized_url = download_url.strip()
+    if not normalized_url:
+        return False
+
+    lowered_url = normalized_url.lower()
+    if "\\" in normalized_url:
+        return False
+    if lowered_url.startswith(("file:", "data:", "javascript:")):
+        return False
+    if len(lowered_url) >= 3 and lowered_url[1] == ":" and lowered_url[2] == "/":
+        return False
+    if lowered_url.startswith(
+        ("/home/", "/mnt/", "/opt/", "/root/", "/srv/", "/tmp/", "/var/")
+    ):
+        return False
+    if lowered_url.startswith(("/uploads", "uploads/")) or "/uploads/" in lowered_url:
+        return False
+    return True
+
+
+def _log_blocked_export_download_url(
+    *,
+    export_id: UUID,
+    report_id: Any,
+    role: UserRole,
+    user_id: UUID,
+    reason: str,
+    response_status: int,
+) -> None:
+    logger.warning(
+        "Blocked unsafe export download URL",
+        extra={
+            "export_id": str(export_id),
+            "report_id": str(report_id) if report_id else None,
+            "user_id": str(user_id),
+            "role": role.value if hasattr(role, "value") else str(role),
+            "status": "denied",
+            "response_status": response_status,
+            "reason": reason,
+        },
+    )
+
+
+def _sanitize_export_download_urls(
+    export_status: dict,
+    *,
+    export_id: UUID,
+    role: UserRole,
+    user_id: UUID,
+) -> dict:
+    """Withhold legacy private artifact URLs from status responses."""
+
+    sanitized = dict(export_status)
+    download_urls = sanitized.get("download_urls") or {}
+    if not isinstance(download_urls, Mapping):
+        sanitized["download_urls"] = {}
+        _log_blocked_export_download_url(
+            export_id=export_id,
+            report_id=sanitized.get("report_id"),
+            role=role,
+            user_id=user_id,
+            reason="malformed_download_urls",
+            response_status=status.HTTP_200_OK,
+        )
+        return sanitized
+
+    safe_download_urls: dict[str, str] = {}
+    for format_name, download_url in download_urls.items():
+        if _is_safe_export_download_url(download_url):
+            safe_download_urls[str(format_name)] = str(download_url)
+            continue
+        _log_blocked_export_download_url(
+            export_id=export_id,
+            report_id=sanitized.get("report_id"),
+            role=role,
+            user_id=user_id,
+            reason="unsafe_download_url_withheld",
+            response_status=status.HTTP_200_OK,
+        )
+    sanitized["download_urls"] = safe_download_urls
+    return sanitized
 
 
 def _normalize_dashboard_response(
@@ -769,12 +911,18 @@ async def get_export_status(
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
     current_user=Depends(_get_current_user_from_session_dep),
 ):
-    _, _, raw_status = await _assert_enhanced_export_access(
+    role, user_id, raw_status = await _assert_enhanced_export_access(
         export_id,
         current_user,
         service,
     )
-    return _normalize_export_response(raw_status, export_id)
+    export_status = _normalize_export_response(raw_status, export_id)
+    return _sanitize_export_download_urls(
+        export_status,
+        export_id=export_id,
+        role=role,
+        user_id=user_id,
+    )
 
 
 @router.get("/export/{export_id}/download")
@@ -784,7 +932,7 @@ async def download_export(
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
     current_user=Depends(_get_current_user_from_session_dep),
 ):
-    _, _, raw_status = await _assert_enhanced_export_access(
+    role, user_id, raw_status = await _assert_enhanced_export_access(
         export_id,
         current_user,
         service,
@@ -794,7 +942,29 @@ async def download_export(
         raise HTTPException(status_code=400, detail="Export not ready")
 
     download_urls = export_status.get("download_urls") or {}
+    if not isinstance(download_urls, Mapping):
+        _log_blocked_export_download_url(
+            export_id=export_id,
+            report_id=export_status.get("report_id"),
+            role=role,
+            user_id=user_id,
+            reason="malformed_download_urls",
+            response_status=status.HTTP_404_NOT_FOUND,
+        )
+        raise HTTPException(status_code=404, detail="Download artifact not available")
+
     download_url = download_urls.get(format.value)
+    if download_url and not _is_safe_export_download_url(download_url):
+        _log_blocked_export_download_url(
+            export_id=export_id,
+            report_id=export_status.get("report_id"),
+            role=role,
+            user_id=user_id,
+            reason="unsafe_download_url_blocked",
+            response_status=status.HTTP_404_NOT_FOUND,
+        )
+        raise HTTPException(status_code=404, detail="Download artifact not available")
+
     if not download_url:
         # Fallback: when export is completed but no download URL is available,
         # return a minimal inline payload with the expected content type.

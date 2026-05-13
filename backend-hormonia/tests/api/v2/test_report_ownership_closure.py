@@ -858,6 +858,37 @@ def test_export_status_and_download_enforce_owner_and_hide_private_urls(
         assert download_response.status_code == status.HTTP_200_OK
         assert "application/pdf" in download_response.headers["content-type"]
 
+    report_owner_export_id = uuid4()
+    _seed_export(
+        report_cache,
+        export_id=report_owner_export_id,
+        report_id=report_id,
+        owner=None,
+        include_owner=False,
+    )
+
+    for allowed_user in (report_subjects.owner_doctor, report_subjects.admin):
+        with auth_switcher.as_user(allowed_user):
+            report_owner_status = client.get(
+                f"/api/v2/enhanced-reports/export/{report_owner_export_id}"
+            )
+            report_owner_download = client.get(
+                f"/api/v2/enhanced-reports/export/{report_owner_export_id}/download?format=pdf"
+            )
+
+        assert report_owner_status.status_code == status.HTTP_200_OK
+        assert report_owner_download.status_code == status.HTTP_200_OK
+
+    with auth_switcher.as_user(report_subjects.foreign_doctor):
+        report_owner_foreign_status = client.get(
+            f"/api/v2/enhanced-reports/export/{report_owner_export_id}"
+        )
+
+    _assert_generic_denial(
+        report_owner_foreign_status,
+        forbidden_values=[str(report_subjects.owner_patient.id), report_subjects.owner_patient.name],
+    )
+
     with auth_switcher.as_user(report_subjects.foreign_doctor):
         foreign_status = client.get(f"/api/v2/enhanced-reports/export/{export_id}")
 
@@ -874,6 +905,20 @@ def test_export_status_and_download_enforce_owner_and_hide_private_urls(
         owner=report_subjects.owner_doctor,
         download_urls={"pdf": PRIVATE_DOWNLOAD_URL},
     )
+
+    with auth_switcher.as_user(report_subjects.owner_doctor):
+        private_status_owner = client.get(f"/api/v2/enhanced-reports/export/{private_export_id}")
+        private_download_owner = client.get(
+            f"/api/v2/enhanced-reports/export/{private_export_id}/download?format=pdf"
+        )
+
+    assert private_status_owner.status_code == status.HTTP_200_OK
+    assert private_status_owner.json()["download_urls"] == {}
+    assert PRIVATE_DOWNLOAD_URL not in _all_response_text(private_status_owner)
+    assert private_download_owner.status_code == status.HTTP_404_NOT_FOUND
+    assert private_download_owner.history == []
+    assert "location" not in {header.lower() for header in private_download_owner.headers}
+    assert PRIVATE_DOWNLOAD_URL not in _all_response_text(private_download_owner)
 
     with auth_switcher.as_user(report_subjects.foreign_doctor):
         private_download_probe = client.get(
@@ -902,9 +947,14 @@ def test_export_status_and_download_enforce_owner_and_hide_private_urls(
         missing_raw_download = client.get(
             f"/api/v2/enhanced-reports/export/{missing_raw_export_id}/download?format=pdf"
         )
+    with auth_switcher.as_user(report_subjects.admin):
+        missing_raw_admin_status = client.get(
+            f"/api/v2/enhanced-reports/export/{missing_raw_export_id}"
+        )
 
     _assert_generic_denial(missing_raw_status)
     _assert_generic_denial(missing_raw_download)
+    _assert_generic_denial(missing_raw_admin_status)
 
 
 def test_unknown_export_id_returns_generic_not_found(
