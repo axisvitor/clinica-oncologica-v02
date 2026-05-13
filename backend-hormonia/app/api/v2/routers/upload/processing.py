@@ -7,7 +7,8 @@ Contains:
 - Processing status tracking
 """
 
-from datetime import datetime, timezone
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Optional
 
@@ -20,6 +21,8 @@ from app.schemas.v2.upload import (
 )
 from app.utils.logging import get_logger
 from app.utils.timezone import now_sao_paulo
+
+from .config import build_storage_path, public_url_for_storage_path
 
 logger = get_logger(__name__)
 
@@ -53,8 +56,17 @@ def get_image_metadata(file_path: Path) -> Optional[ImageMetadata]:
                 color_mode=img.mode,
             )
     except Exception as e:
-        logger.warning(f"Failed to extract image metadata: {e}")
+        logger.warning("Failed to extract image metadata: %s", e.__class__.__name__)
         return None
+
+
+def _public_derivative_url(derived_path: Path, *, public: bool) -> str | None:
+    """Return a public derivative URL only for intentionally public uploads."""
+
+    if not public:
+        return None
+    storage_path = build_storage_path(derived_path, public=True)
+    return public_url_for_storage_path(storage_path)
 
 
 async def process_image(
@@ -65,7 +77,7 @@ async def process_image(
     Process uploaded image (thumbnails, previews, etc).
 
     Args:
-        file_path: Path to image file
+        file_path: Path to file
         options: Processing options
 
     Returns:
@@ -91,29 +103,33 @@ async def process_image(
                 thumb_path = (
                     base_dir / "thumbnails" / f"{base_name}_thumb{file_path.suffix}"
                 )
-                thumb_path.parent.mkdir(exist_ok=True)
+                thumb_path.parent.mkdir(parents=True, exist_ok=True)
                 img_copy = img.copy()
                 img_copy.thumbnail((128, 128))
                 img_copy.save(thumb_path, quality=options.quality)
-                processing_info.thumbnail_url = f"/uploads/thumbnails/{thumb_path.name}"
+                processing_info.thumbnail_url = _public_derivative_url(
+                    thumb_path, public=options.public
+                )
 
             # Generate preview (800x600)
             if options.generate_preview:
                 preview_path = (
                     base_dir / "previews" / f"{base_name}_preview{file_path.suffix}"
                 )
-                preview_path.parent.mkdir(exist_ok=True)
+                preview_path.parent.mkdir(parents=True, exist_ok=True)
                 img_copy = img.copy()
                 img_copy.thumbnail((800, 600))
                 img_copy.save(preview_path, quality=options.quality)
-                processing_info.preview_url = f"/uploads/previews/{preview_path.name}"
+                processing_info.preview_url = _public_derivative_url(
+                    preview_path, public=options.public
+                )
 
             # Resize if requested
             if options.resize_width or options.resize_height:
                 resized_path = (
                     base_dir / "resized" / f"{base_name}_resized{file_path.suffix}"
                 )
-                resized_path.parent.mkdir(exist_ok=True)
+                resized_path.parent.mkdir(parents=True, exist_ok=True)
 
                 # Calculate new dimensions maintaining aspect ratio
                 width, height = img.size
@@ -129,12 +145,14 @@ async def process_image(
                 img_copy = img.copy()
                 img_copy.thumbnail(new_size)
                 img_copy.save(resized_path, quality=options.quality)
-                processing_info.resized_url = f"/uploads/resized/{resized_path.name}"
+                processing_info.resized_url = _public_derivative_url(
+                    resized_path, public=options.public
+                )
 
         processing_info.status = ProcessingStatus.COMPLETED
 
     except Exception as e:
-        logger.error(f"Image processing failed: {e}", exc_info=True)
+        logger.error("Image processing failed: %s", e.__class__.__name__)
         processing_info.status = ProcessingStatus.FAILED
 
     # Calculate processing time

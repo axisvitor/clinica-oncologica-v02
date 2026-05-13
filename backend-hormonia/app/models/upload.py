@@ -5,7 +5,7 @@ Tracks uploaded files for quota management and file lifecycle.
 Supports soft deletes for compliance and data retention.
 """
 
-from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Index
+from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Index, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 
@@ -66,6 +66,9 @@ class Upload(BaseModel):
         Boolean, nullable=False, default=False, server_default="false"
     )
     virus_clean = Column(Boolean, nullable=True)  # Null if not scanned
+
+    # Lifecycle
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     # Relationships
     user = relationship("User", backref="uploads")

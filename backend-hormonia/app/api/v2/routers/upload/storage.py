@@ -8,10 +8,11 @@ Contains:
 - File path management
 """
 
+from __future__ import annotations
+
 import hashlib
 import shutil
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple
 from uuid import UUID
@@ -21,8 +22,12 @@ from fastapi import UploadFile
 from app.schemas.v2.upload import FileCategory
 from app.utils.logging import get_logger
 
-from .config import UPLOAD_DIR
+from . import config as upload_config
+from .config import build_storage_path, get_storage_root
 from .validators import guess_extension
+
+# Compatibility seam for legacy tests that monkeypatch this module directly.
+UPLOAD_DIR = upload_config.UPLOAD_DIR
 from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
@@ -73,20 +78,25 @@ async def save_upload_file(
     file: UploadFile,
     category: FileCategory,
     user_id: UUID,
-) -> Tuple[Path, str, str]:
+    *,
+    public: bool = False,
+) -> Tuple[Path, str, str, str]:
     """
-    Save uploaded file to disk.
+    Save uploaded file to public or private local storage.
 
     Args:
         file: Uploaded file
         category: File category
         user_id: User ID
+        public: Whether the file is intentionally public
 
     Returns:
-        Tuple of (file_path, safe_filename, checksum)
+        Tuple of (file_path, safe_filename, checksum, storage_path)
     """
-    # Create directory structure: uploads/{category}/{user_id}/
-    category_dir = UPLOAD_DIR / category.value / str(user_id)
+    storage_root = get_storage_root(public=public)
+
+    # Create directory structure under the selected root: {category}/{user_id}/
+    category_dir = storage_root / category.value / str(user_id)
     category_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate safe filename
@@ -95,7 +105,7 @@ async def save_upload_file(
     )
     file_path = category_dir / safe_filename
 
-    # Save file
+    # Save file without reading it into memory
     try:
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
@@ -104,5 +114,6 @@ async def save_upload_file(
 
     # Calculate checksum
     checksum = calculate_checksum(file_path)
+    storage_path = build_storage_path(file_path, public=public)
 
-    return file_path, safe_filename, checksum
+    return file_path, safe_filename, checksum, storage_path

@@ -37,6 +37,7 @@ from fastapi import (
     BackgroundTasks,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.responses import FileResponse
 
 from app.models.user import User
 from app.core.database.async_engine import get_async_db
@@ -48,12 +49,15 @@ from app.schemas.v2.upload import (
 
 from .handlers import (
     upload_file_handler,
+    download_upload_handler,
     get_upload_info_handler,
     delete_upload_handler,
 )
 
-# Initialize main router
-router = APIRouter(prefix="/upload", tags=["Upload v2"])
+# Initialize main router.  The parent API router mounts this package at
+# /api/v2/upload; keeping this router un-prefixed avoids the historical
+# /upload/upload double prefix and exposes /api/v2/upload/{id}/download.
+router = APIRouter(tags=["Upload v2"])
 
 
 # ============================================================================
@@ -132,6 +136,36 @@ async def upload_file(
 
 
 @router.get(
+    "/{upload_id}/download",
+    response_class=FileResponse,
+    summary="Download Upload",
+    description="""
+    Stream an uploaded file through the authenticated upload gate.
+
+    Private uploads are never served from the public `/uploads` static mount;
+    owner or admin authorization is required before local file IO.
+    """,
+    responses={
+        200: {"description": "Upload bytes streamed"},
+        401: {"model": UploadError, "description": "Not authenticated"},
+        403: {"model": UploadError, "description": "Forbidden"},
+        404: {"model": UploadError, "description": "Upload not found"},
+    },
+)
+async def download_upload(
+    upload_id: UUID,
+    current_user: User = Depends(get_current_user_object_from_session),
+    db: AsyncSession = Depends(get_async_db),
+) -> FileResponse:
+    """Download an upload after authz checks."""
+    return await download_upload_handler(
+        upload_id=upload_id,
+        current_user=current_user,
+        db=db,
+    )
+
+
+@router.get(
     "/{upload_id}",
     response_model=UploadResponse,
     summary="Get Upload Info",
@@ -152,12 +186,14 @@ async def get_upload_info(
     upload_id: UUID,
     fields: Optional[str] = Query(None, description="Fields to return"),
     current_user: User = Depends(get_current_user_object_from_session),
+    db: AsyncSession = Depends(get_async_db),
 ) -> Dict[str, Any]:
     """Get upload information."""
     return await get_upload_info_handler(
         upload_id=upload_id,
         fields=fields,
         current_user=current_user,
+        db=db,
     )
 
 
@@ -182,11 +218,13 @@ async def get_upload_info(
 async def delete_upload(
     upload_id: UUID,
     current_user: User = Depends(get_current_user_object_from_session),
+    db: AsyncSession = Depends(get_async_db),
 ) -> None:
     """Delete an uploaded file."""
     return await delete_upload_handler(
         upload_id=upload_id,
         current_user=current_user,
+        db=db,
     )
 
 
@@ -198,6 +236,7 @@ async def delete_upload(
 __all__ = [
     "router",
     "upload_file",
+    "download_upload",
     "get_upload_info",
     "delete_upload",
 ]

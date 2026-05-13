@@ -3,12 +3,15 @@ Route handlers for upload module.
 
 Contains:
 - Upload file endpoint
+- Gated upload download endpoint
 - Get upload info endpoint
 - Delete upload endpoint
 """
 
+from __future__ import annotations
+
 import uuid
-from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 from fastapi import (
@@ -20,11 +23,12 @@ from fastapi import (
     BackgroundTasks,
     Depends,
 )
+from fastapi.responses import FileResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.async_engine import get_async_db
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.upload import Upload
 from app.dependencies.auth_dependencies import get_current_user_object_from_session
 from app.schemas.v2.upload import (
@@ -32,6 +36,7 @@ from app.schemas.v2.upload import (
     UploadResponse,
     FileMetadata,
     FileCategory,
+    ImageMetadata,
     StorageProvider,
     ProcessingStatus,
     ProcessingInfo,
@@ -39,10 +44,14 @@ from app.schemas.v2.upload import (
 from app.schemas.v2.common import FieldSelector
 from app.utils.logging import get_logger
 
+from . import config as upload_config
 from .config import (
     MAX_FILE_SIZE_ABSOLUTE,
     CACHE_TTL_METADATA,
-    UPLOAD_DIR,
+    UnsafeUploadPath,
+    gated_download_url,
+    resolve_local_upload_path,
+    response_url_for_upload,
 )
 from .dependencies import (
     get_redis_client,
@@ -58,50 +67,219 @@ from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
+# Compatibility seam for legacy tests that monkeypatch this module directly.
+UPLOAD_DIR = upload_config.UPLOAD_DIR
+
+
+def _safe_role_value(user: User | None) -> str:
+    role = getattr(user, "role", None)
+    if hasattr(role, "value"):
+        return str(role.value)
+    return str(role or "")
+
+
+def _is_admin(user: User | None) -> bool:
+    role = getattr(user, "role", None)
+    return role == UserRole.ADMIN or _safe_role_value(user).lower() == UserRole.ADMIN.value
+
+
+def _authorize_upload_record(upload_record: Upload, current_user: User) -> None:
+    if upload_record.user_id == current_user.id or _is_admin(current_user):
+        return
+
+    logger.warning(
+        "upload_access_denied",
+        extra={
+            "upload_id": str(upload_record.id),
+            "user_id": str(getattr(current_user, "id", "unknown")),
+            "reason": "foreign_owner",
+            "status": status.HTTP_403_FORBIDDEN,
+        },
+    )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Forbidden",
+    )
+
+
+async def _load_upload_record(upload_id, db: AsyncSession | None) -> Upload | None:
+    if db is None:
+        logger.warning(
+            "upload_lookup_failed",
+            extra={
+                "upload_id": str(upload_id),
+                "reason": "missing_db_session",
+                "status": status.HTTP_404_NOT_FOUND,
+            },
+        )
+        return None
+
+    result = await db.execute(
+        select(Upload).where(Upload.id == upload_id, Upload.deleted_at.is_(None))
+    )
+    return result.scalar_one_or_none()
+
+
+async def _get_authorized_upload_record(
+    upload_id,
+    current_user: User,
+    db: AsyncSession | None,
+) -> Upload:
+    upload_record = await _load_upload_record(upload_id, db)
+    if not upload_record:
+        logger.info(
+            "upload_lookup_not_found",
+            extra={
+                "upload_id": str(upload_id),
+                "user_id": str(getattr(current_user, "id", "unknown")),
+                "reason": "missing_or_deleted",
+                "status": status.HTTP_404_NOT_FOUND,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload not found",
+        )
+
+    _authorize_upload_record(upload_record, current_user)
+    return upload_record
+
+
+def _storage_provider(value: str | None) -> StorageProvider:
+    try:
+        return StorageProvider(value or StorageProvider.LOCAL.value)
+    except ValueError:
+        return StorageProvider.LOCAL
+
+
+def _metadata_dict(upload_record: Upload) -> dict[str, Any]:
+    metadata = upload_record.file_metadata or {}
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def _file_category(upload_record: Upload) -> FileCategory:
+    metadata = _metadata_dict(upload_record)
+    category = metadata.get("category")
+    if category:
+        try:
+            return FileCategory(category)
+        except ValueError:
+            pass
+    return get_file_category(upload_record.file_type or "application/octet-stream")
+
+
+def _image_metadata(upload_record: Upload) -> ImageMetadata | None:
+    metadata = _metadata_dict(upload_record).get("image_metadata")
+    if not metadata:
+        return None
+    try:
+        return ImageMetadata.model_validate(metadata)
+    except Exception:
+        return None
+
+
+def _processing_info(upload_record: Upload) -> ProcessingInfo:
+    metadata = _metadata_dict(upload_record)
+    processing = metadata.get("processing")
+    if isinstance(processing, dict):
+        try:
+            return ProcessingInfo.model_validate(processing)
+        except Exception:
+            pass
+
+    return ProcessingInfo(
+        status=ProcessingStatus.COMPLETED,
+        virus_scan_clean=upload_record.virus_clean,
+    )
+
 
 def _build_upload_response(upload_record: Upload) -> UploadResponse:
     """Build UploadResponse payload from Upload ORM record."""
+
+    metadata = _metadata_dict(upload_record)
+    is_public = bool(upload_record.is_public)
+    safe_filename = metadata.get("safe_filename") or Path(
+        str(upload_record.storage_path)
+    ).name
+    file_type = upload_record.file_type or "application/octet-stream"
+
     return UploadResponse(
         id=upload_record.id,
-        url=f"/uploads/{upload_record.storage_path}",
-        download_url=f"/api/v2/upload/{upload_record.id}/download",
+        url=response_url_for_upload(
+            upload_record.id,
+            upload_record.storage_path,
+            public=is_public,
+        ),
+        download_url=gated_download_url(upload_record.id),
         file=FileMetadata(
             id=upload_record.id,
             filename=upload_record.file_name,
-            safe_filename=upload_record.file_name,
-            content_type=upload_record.file_type or "application/octet-stream",
-            category=get_file_category(upload_record.file_type or "application/octet-stream"),
+            safe_filename=safe_filename,
+            content_type=file_type,
+            category=_file_category(upload_record),
             size=upload_record.file_size,
             checksum=upload_record.content_hash,
         ),
-        image_metadata=None,
-        processing=ProcessingInfo(
-            status=ProcessingStatus.COMPLETED,
-            virus_scan_clean=upload_record.virus_clean,
-        ),
-        storage_provider=StorageProvider(upload_record.storage_provider),
+        image_metadata=_image_metadata(upload_record),
+        processing=_processing_info(upload_record),
+        storage_provider=_storage_provider(upload_record.storage_provider),
         storage_path=upload_record.storage_path,
         uploaded_by=upload_record.user_id,
         uploaded_at=upload_record.created_at,
-        is_public=upload_record.is_public,
+        is_public=is_public,
         expires_at=None,
-        custom_metadata=upload_record.file_metadata,
+        custom_metadata=metadata,
     )
+
+
+def _apply_field_selection(response_data: UploadResponse, fields: Optional[str]) -> Dict[str, Any]:
+    response_dict = response_data.model_dump()
+    if fields:
+        field_set = FieldSelector.parse_fields(fields)
+        response_dict = FieldSelector.filter_dict(response_dict, field_set)
+    return response_dict
+
+
+def _generic_download_filename(upload_record: Upload) -> str:
+    suffix = Path(upload_record.file_name or upload_record.storage_path or "").suffix
+    if len(suffix) > 16 or any(ch in suffix for ch in ("/", "\\", ":")):
+        suffix = ""
+    return f"upload-{upload_record.id}{suffix}"
+
+
+def _delete_known_derivatives(file_path: Path, upload_id) -> None:
+    """Best-effort cleanup for derivatives stored beside the source file."""
+
+    for subdir in ("thumbnails", "previews", "resized"):
+        derived_dir = file_path.parent / subdir
+        if not derived_dir.is_dir():
+            continue
+        for derived_file in derived_dir.glob(f"{file_path.stem}_*{file_path.suffix}"):
+            try:
+                if derived_file.is_file():
+                    derived_file.unlink()
+                    logger.info(
+                        "upload_derivative_deleted",
+                        extra={"upload_id": str(upload_id), "status": "deleted"},
+                    )
+            except OSError as exc:
+                logger.warning(
+                    "upload_derivative_delete_failed",
+                    extra={
+                        "upload_id": str(upload_id),
+                        "reason": exc.__class__.__name__,
+                        "status": "skipped",
+                    },
+                )
 
 
 async def upload_file_handler(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="File to upload"),
-    generate_thumbnail: bool = Query(
-        False, description="Generate thumbnail for images"
-    ),
+    generate_thumbnail: bool = Query(False, description="Generate thumbnail for images"),
     generate_preview: bool = Query(False, description="Generate preview for images"),
-    resize_width: Optional[int] = Query(
-        None, ge=100, le=4000, description="Resize width"
-    ),
-    resize_height: Optional[int] = Query(
-        None, ge=100, le=4000, description="Resize height"
-    ),
+    resize_width: Optional[int] = Query(None, ge=100, le=4000, description="Resize width"),
+    resize_height: Optional[int] = Query(None, ge=100, le=4000, description="Resize height"),
     quality: int = Query(85, ge=1, le=100, description="Image quality"),
     scan_virus_flag: bool = Query(True, description="Enable virus scanning"),
     public: bool = Query(False, description="Make file publicly accessible"),
@@ -109,39 +287,25 @@ async def upload_file_handler(
     current_user: User = Depends(get_current_user_object_from_session),
     db: AsyncSession = Depends(get_async_db),
 ) -> Dict[str, Any]:
-    """
-    Upload a file with optional processing.
+    """Upload a file with optional processing."""
 
-    Args:
-        background_tasks: FastAPI background tasks
-        file: Uploaded file
-        generate_thumbnail: Generate thumbnail
-        generate_preview: Generate preview
-        resize_width: Resize width
-        resize_height: Resize height
-        quality: Image compression quality
-        scan_virus_flag: Enable virus scanning
-        public: Make file public
-        fields: Fields to return
-        current_user: Authenticated user
-        db: Database session
-
-    Returns:
-        Upload response with file info
-
-    Raises:
-        HTTPException: If upload fails
-    """
     redis_client = await get_redis_client()
     start_time = now_sao_paulo()
+    file_path: Path | None = None
+    upload_id = uuid.uuid4()
 
     try:
         logger.info(
-            f"Upload request from user {current_user.id}: "
-            f"{file.filename} ({file.content_type})"
+            "upload_request_received",
+            extra={
+                "upload_id": str(upload_id),
+                "user_id": str(current_user.id),
+                "visibility": "public" if public else "private",
+                "content_type": file.content_type or "application/octet-stream",
+            },
         )
 
-        # Get file size
+        # Get file size without loading the full upload into memory.
         file.file.seek(0, 2)
         file_size = file.file.tell()
         file.file.seek(0)
@@ -150,56 +314,41 @@ async def upload_file_handler(
         if file_size > MAX_FILE_SIZE_ABSOLUTE:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail=f"File size ({file_size} bytes) exceeds maximum ({MAX_FILE_SIZE_ABSOLUTE} bytes)",
+                detail="File exceeds maximum allowed size",
             )
 
-        # Check rate limit
+        # Check rate limit and quota before writing bytes.
         await check_rate_limit(redis_client, current_user.id, file_size)
-
-        # Check user quota
         await check_user_quota(db, current_user.id, file_size, redis_client)
 
-        # Validate file type
         validate_file_type(
             file.filename or "upload",
             file.content_type or "application/octet-stream",
         )
 
-        # Determine category
         category = get_file_category(file.content_type or "application/octet-stream")
 
-        # Save file temporarily for security scanning
-        file_path, safe_filename, checksum = await save_upload_file(
-            file, category, current_user.id
+        file_path, safe_filename, checksum, storage_path = await save_upload_file(
+            file,
+            category,
+            current_user.id,
+            public=public,
         )
 
         try:
-            # ===== SECURITY SCANNING (CVE Fixes) =====
-
-            # 1. MIME type validation (CVE-CLINIC-2025-002)
+            # SECURITY SCANNING (CVE fixes)
             await validate_mime_type(
-                file_path, file.content_type or "application/octet-stream"
+                file_path,
+                file.content_type or "application/octet-stream",
             )
-
-            # 2. File security scan (CVE-CLINIC-2025-003 + PDF JavaScript)
             await scan_file_security(file_path)
-
-            # 3. Virus scan with ClamAV (if enabled)
             if scan_virus_flag:
                 await scan_virus(file_path)
-
-            # ===== END SECURITY SCANNING =====
-
         except HTTPException:
-            # Security check failed - delete file and re-raise
             if file_path.exists():
                 file_path.unlink()
             raise
 
-        # Create upload ID
-        upload_id = uuid.uuid4()
-
-        # Build file metadata
         file_metadata = FileMetadata(
             id=upload_id,
             filename=file.filename or "upload",
@@ -210,12 +359,8 @@ async def upload_file_handler(
             checksum=checksum,
         )
 
-        # Get image metadata if applicable
-        image_metadata = None
-        if category == FileCategory.IMAGE:
-            image_metadata = get_image_metadata(file_path)
+        image_metadata = get_image_metadata(file_path) if category == FileCategory.IMAGE else None
 
-        # Process image if requested
         processing_info = ProcessingInfo(
             status=ProcessingStatus.PENDING,
             virus_scan_clean=None,
@@ -238,26 +383,20 @@ async def upload_file_handler(
         else:
             processing_info.status = ProcessingStatus.COMPLETED
 
-        # Virus scan if requested
         if scan_virus_flag:
             is_clean = await scan_virus(file_path)
             processing_info.virus_scan_clean = is_clean
             if not is_clean:
-                # Delete infected file
                 file_path.unlink()
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="File failed virus scan",
+                    detail="File failed security scan",
                 )
-
-        # Build response
-        storage_path = str(file_path.relative_to(UPLOAD_DIR))
-        public_url = f"/uploads/{storage_path}"
 
         response_data = UploadResponse(
             id=upload_id,
-            url=public_url,
-            download_url=f"/api/v2/upload/{upload_id}/download",
+            url=response_url_for_upload(upload_id, storage_path, public=public),
+            download_url=gated_download_url(upload_id),
             file=file_metadata,
             image_metadata=image_metadata,
             processing=processing_info,
@@ -270,38 +409,37 @@ async def upload_file_handler(
             custom_metadata=None,
         )
 
-        # Persist upload to database
-        try:
-            upload_record = Upload(
-                id=upload_id,
-                user_id=current_user.id,
-                file_name=file.filename or "upload",
-                file_size=file_size,
-                file_type=file.content_type,
-                storage_path=storage_path,
-                storage_provider="local",
-                content_hash=checksum,
-                file_metadata={
-                    "category": category.value
-                    if hasattr(category, "value")
-                    else str(category),
-                    "original_filename": file.filename,
-                    "image_metadata": image_metadata.model_dump()
-                    if image_metadata
-                    else None,
-                },
-                is_public=public,
-                virus_scanned=scan_virus_flag,
-                virus_clean=processing_info.virus_scan_clean,
-            )
-            db.add(upload_record)
-            await db.commit()
-            logger.info(f"Upload {upload_id} persisted to database")
-        except Exception as e:
-            logger.warning(f"Failed to persist upload to database: {e}")
-            await db.rollback()
+        upload_record = Upload(
+            id=upload_id,
+            user_id=current_user.id,
+            file_name=file.filename or "upload",
+            file_size=file_size,
+            file_type=file.content_type,
+            storage_path=storage_path,
+            storage_provider="local",
+            content_hash=checksum,
+            file_metadata={
+                "category": category.value if hasattr(category, "value") else str(category),
+                "safe_filename": safe_filename,
+                "visibility": "public" if public else "private",
+                "image_metadata": image_metadata.model_dump() if image_metadata else None,
+                "processing": processing_info.model_dump(),
+            },
+            is_public=public,
+            virus_scanned=scan_virus_flag,
+            virus_clean=processing_info.virus_scan_clean,
+        )
+        db.add(upload_record)
+        await db.commit()
+        logger.info(
+            "upload_record_persisted",
+            extra={
+                "upload_id": str(upload_id),
+                "user_id": str(current_user.id),
+                "status": "persisted",
+            },
+        )
 
-        # Cache metadata
         if redis_client:
             try:
                 cache_key = generate_cache_key("metadata", upload_id=str(upload_id))
@@ -311,221 +449,273 @@ async def upload_file_handler(
                     response_data.model_dump_json(),
                 )
             except Exception as e:
-                logger.warning(f"Failed to cache upload metadata: {e}")
+                logger.warning(
+                    "upload_metadata_cache_failed",
+                    extra={
+                        "upload_id": str(upload_id),
+                        "reason": e.__class__.__name__,
+                        "status": "skipped",
+                    },
+                )
 
         logger.info(
-            f"Upload completed: {file_path} ({file_size} bytes) in "
-            f"{(now_sao_paulo() - start_time).total_seconds():.2f}s"
+            "upload_completed",
+            extra={
+                "upload_id": str(upload_id),
+                "user_id": str(current_user.id),
+                "status": "completed",
+                "bytes": file_size,
+                "duration_ms": int((now_sao_paulo() - start_time).total_seconds() * 1000),
+            },
         )
 
-        # Apply field selection
-        response_dict = response_data.model_dump()
-        if fields:
-            field_set = FieldSelector.parse_fields(fields)
-            response_dict = FieldSelector.filter_dict(response_dict, field_set)
-
-        return response_dict
+        return _apply_field_selection(response_data, fields)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Upload failed: {e}", exc_info=True)
+        if file_path and file_path.exists():
+            try:
+                file_path.unlink()
+            except OSError:
+                pass
+        logger.error(
+            "upload_failed",
+            extra={
+                "upload_id": str(upload_id),
+                "user_id": str(getattr(current_user, "id", "unknown")),
+                "reason": e.__class__.__name__,
+                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
+            },
+        )
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Upload failed: {str(e)}",
+            detail="Upload failed",
         )
+
+
+async def download_upload_handler(
+    upload_id,
+    current_user: User,
+    db: AsyncSession | None,
+) -> FileResponse:
+    """Stream an uploaded file after authentication and owner/admin authorization."""
+
+    upload_record = await _get_authorized_upload_record(upload_id, current_user, db)
+
+    try:
+        resolved = resolve_local_upload_path(
+            upload_record.storage_path,
+            public=bool(upload_record.is_public),
+            require_exists=True,
+        )
+    except UnsafeUploadPath:
+        logger.warning(
+            "upload_download_denied",
+            extra={
+                "upload_id": str(upload_id),
+                "user_id": str(current_user.id),
+                "reason": "unsafe_storage_path",
+                "status": status.HTTP_404_NOT_FOUND,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload not found",
+        )
+    except FileNotFoundError:
+        logger.info(
+            "upload_download_missing_file",
+            extra={
+                "upload_id": str(upload_id),
+                "user_id": str(current_user.id),
+                "reason": "missing_file",
+                "status": status.HTTP_404_NOT_FOUND,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload not found",
+        )
+
+    if not resolved.path.is_file():
+        logger.info(
+            "upload_download_missing_file",
+            extra={
+                "upload_id": str(upload_id),
+                "user_id": str(current_user.id),
+                "reason": "not_file",
+                "status": status.HTTP_404_NOT_FOUND,
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Upload not found",
+        )
+
+    logger.info(
+        "upload_download_authorized",
+        extra={
+            "upload_id": str(upload_id),
+            "user_id": str(current_user.id),
+            "status": status.HTTP_200_OK,
+        },
+    )
+    return FileResponse(
+        path=resolved.path,
+        media_type=upload_record.file_type or "application/octet-stream",
+        filename=_generic_download_filename(upload_record),
+    )
 
 
 async def get_upload_info_handler(
     upload_id,
     fields: Optional[str] = None,
     current_user: User = None,
-    db=None,
+    db: AsyncSession | None = None,
 ) -> Dict[str, Any]:
-    """
-    Get upload information.
+    """Get authorization-checked upload metadata."""
 
-    Args:
-        upload_id: Upload ID
-        fields: Fields to return
-        current_user: Authenticated user
-
-    Returns:
-        Upload information
-
-    Raises:
-        HTTPException: If upload not found
-    """
     redis_client = await get_redis_client()
 
     try:
-        # Try cache first
+        upload_record = await _get_authorized_upload_record(upload_id, current_user, db)
+        response_data = _build_upload_response(upload_record)
+
         if redis_client:
-            cache_key = generate_cache_key("metadata", upload_id=str(upload_id))
-            cached = await redis_client.get(cache_key)
-            if cached:
-                logger.debug(f"Cache hit for upload {upload_id}")
-                response_data = UploadResponse.model_validate_json(cached)
+            try:
+                cache_key = generate_cache_key("metadata", upload_id=str(upload_id))
+                await redis_client.setex(
+                    cache_key,
+                    CACHE_TTL_METADATA,
+                    response_data.model_dump_json(),
+                )
+            except Exception as e:
+                logger.warning(
+                    "upload_metadata_cache_failed",
+                    extra={
+                        "upload_id": str(upload_id),
+                        "reason": e.__class__.__name__,
+                        "status": "skipped",
+                    },
+                )
 
-                # Apply field selection
-                response_dict = response_data.model_dump()
-                if fields:
-                    field_set = FieldSelector.parse_fields(fields)
-                    response_dict = FieldSelector.filter_dict(response_dict, field_set)
-
-                return response_dict
-
-        # Query from database if not in cache
-        if db:
-            upload_result = await db.execute(
-                select(Upload).where(Upload.id == upload_id, Upload.deleted_at.is_(None))
-            )
-            upload_record = upload_result.scalar_one_or_none()
-
-            if upload_record:
-                response_data = _build_upload_response(upload_record)
-
-                # Cache for future requests
-                if redis_client:
-                    try:
-                        cache_key = generate_cache_key(
-                            "metadata", upload_id=str(upload_id)
-                        )
-                        await redis_client.setex(
-                            cache_key,
-                            CACHE_TTL_METADATA,
-                            response_data.model_dump_json(),
-                        )
-                    except Exception as e:
-                        logger.warning(f"Failed to cache upload metadata: {e}")
-
-                response_dict = response_data.model_dump()
-                if fields:
-                    field_set = FieldSelector.parse_fields(fields)
-                    response_dict = FieldSelector.filter_dict(response_dict, field_set)
-
-                return response_dict
-
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Upload {upload_id} not found",
-        )
+        return _apply_field_selection(response_data, fields)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Get upload info failed: {e}", exc_info=True)
+        logger.error(
+            "upload_info_failed",
+            extra={
+                "upload_id": str(upload_id),
+                "user_id": str(getattr(current_user, "id", "unknown")),
+                "reason": e.__class__.__name__,
+                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get upload info: {str(e)}",
+            detail="Failed to get upload info",
         )
 
 
 async def delete_upload_handler(
     upload_id,
     current_user: User,
-    db=None,
+    db: AsyncSession | None = None,
 ) -> None:
-    """
-    Delete an uploaded file.
+    """Delete an uploaded file after owner/admin authorization."""
 
-    Args:
-        upload_id: Upload ID
-        current_user: Authenticated user
-
-    Raises:
-        HTTPException: If deletion fails
-    """
     redis_client = await get_redis_client()
 
     try:
         logger.info(
-            f"Delete request from user {current_user.id} for upload {upload_id}"
+            "upload_delete_requested",
+            extra={
+                "upload_id": str(upload_id),
+                "user_id": str(current_user.id),
+                "status": "requested",
+            },
         )
 
-        # Get upload info from cache
-        upload_info = None
-        if redis_client:
-            cache_key = generate_cache_key("metadata", upload_id=str(upload_id))
-            cached = await redis_client.get(cache_key)
-            if cached:
-                upload_info = UploadResponse.model_validate_json(cached)
+        upload_record = await _get_authorized_upload_record(upload_id, current_user, db)
 
-        # Query from database if not in cache
-        upload_record = None
-        if not upload_info and db:
-            delete_lookup_result = await db.execute(
-                select(Upload).where(Upload.id == upload_id, Upload.deleted_at.is_(None))
+        try:
+            resolved = resolve_local_upload_path(
+                upload_record.storage_path,
+                public=bool(upload_record.is_public),
+                require_exists=False,
             )
-            upload_record = delete_lookup_result.scalar_one_or_none()
-
-            if upload_record:
-                # Build minimal info for deletion
-                upload_info = _build_upload_response(upload_record)
-
-        if not upload_info:
+        except UnsafeUploadPath:
+            logger.warning(
+                "upload_delete_denied",
+                extra={
+                    "upload_id": str(upload_id),
+                    "user_id": str(current_user.id),
+                    "reason": "unsafe_storage_path",
+                    "status": status.HTTP_404_NOT_FOUND,
+                },
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Upload {upload_id} not found",
+                detail="Upload not found",
             )
 
-        # Verify ownership (or admin)
-        if upload_info.uploaded_by != current_user.id:
-            # Check if admin (simplified check)
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to delete this file",
+        if resolved.path.exists() and resolved.path.is_file():
+            resolved.path.unlink()
+            logger.info(
+                "upload_file_deleted",
+                extra={"upload_id": str(upload_id), "status": "deleted"},
+            )
+            _delete_known_derivatives(resolved.path, upload_id)
+
+        upload_record.deleted_at = now_sao_paulo()
+        if db is not None:
+            await db.commit()
+            logger.info(
+                "upload_record_soft_deleted",
+                extra={"upload_id": str(upload_id), "status": "deleted"},
             )
 
-        # Delete main file
-        file_path = UPLOAD_DIR / upload_info.storage_path
-        if file_path.exists():
-            file_path.unlink()
-            logger.info(f"Deleted file: {file_path}")
-
-        # Delete thumbnails and previews
-        if upload_info.processing:
-            for url_field in ["thumbnail_url", "preview_url", "resized_url"]:
-                url = getattr(upload_info.processing, url_field, None)
-                if url:
-                    # Extract path from URL
-                    path_parts = url.split("/uploads/", 1)
-                    if len(path_parts) == 2:
-                        derived_path = UPLOAD_DIR / path_parts[1]
-                        if derived_path.exists():
-                            derived_path.unlink()
-                            logger.info(f"Deleted derived file: {derived_path}")
-
-        # Soft delete in database
-        if db:
-            try:
-                soft_delete_result = await db.execute(
-                    select(Upload).where(Upload.id == upload_id)
-                )
-                upload_to_delete = soft_delete_result.scalar_one_or_none()
-                if upload_to_delete:
-                    upload_to_delete.deleted_at = now_sao_paulo()
-                    await db.commit()
-                    logger.info(f"Soft deleted upload {upload_id} in database")
-            except Exception as e:
-                logger.warning(f"Failed to soft delete in database: {e}")
-                await db.rollback()
-
-        # Clear cache
         if redis_client:
             try:
                 cache_key = generate_cache_key("metadata", upload_id=str(upload_id))
                 await redis_client.delete(cache_key)
             except Exception as e:
-                logger.warning(f"Failed to clear cache: {e}")
+                logger.warning(
+                    "upload_metadata_cache_clear_failed",
+                    extra={
+                        "upload_id": str(upload_id),
+                        "reason": e.__class__.__name__,
+                        "status": "skipped",
+                    },
+                )
 
-        logger.info(f"Upload {upload_id} deleted successfully")
+        logger.info(
+            "upload_deleted",
+            extra={"upload_id": str(upload_id), "user_id": str(current_user.id), "status": "deleted"},
+        )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Delete failed: {e}", exc_info=True)
+        logger.error(
+            "upload_delete_failed",
+            extra={
+                "upload_id": str(upload_id),
+                "user_id": str(getattr(current_user, "id", "unknown")),
+                "reason": e.__class__.__name__,
+                "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
+            },
+        )
+        if db is not None:
+            await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Delete failed: {str(e)}",
+            detail="Delete failed",
         )

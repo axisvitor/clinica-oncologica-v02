@@ -11,7 +11,6 @@ Creates and configures the FastAPI application using modular components:
 """
 
 from typing import Literal
-from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -210,17 +209,22 @@ def _setup_static_files(app: FastAPI) -> None:
         app: FastAPI application instance
     """
     try:
-        # Create upload directory if it doesn't exist
-        upload_dir = Path(settings.UPLOAD_DIRECTORY)
-        upload_dir.mkdir(parents=True, exist_ok=True)
+        from app.api.v2.routers.upload.config import get_public_upload_root
 
-        # Mount static files directory
-        app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
-        logger.info(f"✓ Static files mounted at /uploads -> {upload_dir}")
+        # Mount only the intentionally-public upload root.  Private local files
+        # are served exclusively through the authenticated download route.
+        public_upload_dir = get_public_upload_root(create=True)
+
+        app.mount(
+            "/uploads",
+            StaticFiles(directory=str(public_upload_dir)),
+            name="uploads",
+        )
+        logger.info("✓ Static files mounted at /uploads -> %s", public_upload_dir)
     except Exception as e:
-        logger.warning(f"Failed to setup static file serving: {e}")
-        # Don't fail application startup if static files can't be mounted
-        # Files can still be uploaded, just won't be served
+        logger.warning("Failed to setup public static upload serving: %s", e.__class__.__name__)
+        # Don't fail application startup if static files can't be mounted.
+        # Files can still be uploaded and private downloads remain API-gated.
 
 
 def _setup_global_exception_handler(app: FastAPI) -> None:

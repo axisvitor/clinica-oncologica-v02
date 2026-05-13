@@ -142,6 +142,7 @@ def upload_table_schema_guard(db_session):
         "ALTER TABLE uploads ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT false",
         "ALTER TABLE uploads ADD COLUMN IF NOT EXISTS virus_scanned BOOLEAN DEFAULT false",
         "ALTER TABLE uploads ADD COLUMN IF NOT EXISTS virus_clean BOOLEAN",
+        "ALTER TABLE uploads ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ",
         "UPDATE uploads SET storage_provider = 'local' WHERE storage_provider IS NULL",
         "UPDATE uploads SET is_public = false WHERE is_public IS NULL",
         "UPDATE uploads SET virus_scanned = false WHERE virus_scanned IS NULL",
