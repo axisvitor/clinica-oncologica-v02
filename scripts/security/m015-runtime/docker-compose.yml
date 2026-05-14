@@ -122,7 +122,7 @@ services:
 
   dragonfly:
     image: ${M015_DRAGONFLY_IMAGE:-docker.dragonflydb.io/dragonflydb/dragonfly:latest}
-    command: ["dragonfly", "--logtostderr", "--num_dbs=16", "--dir=/data"]
+    command: ["dragonfly", "--logtostderr", "--dbnum=16", "--dir=/data"]
     ulimits:
       memlock: -1
     healthcheck:
@@ -168,17 +168,32 @@ services:
       - m015-runtime
 
   db-probe:
-    image: ${M015_POSTGRES_IMAGE:-postgres:16-alpine}
+    build: *backend_build
+    init: true
     profiles: ["tools"]
+    working_dir: /app
+    command: ["python", "/m015-runtime/db_seam.py"]
     environment:
+      <<: *backend_environment
       M015_DATABASE_URL: ${M015_DATABASE_URL:-postgresql+psycopg://hormonia_app:m015-config-only@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&sslminversion=TLSv1.2}
       M015_DATABASE_PSQL_CONN: ${M015_DATABASE_PSQL_CONN:-host=postgres port=5432 dbname=m015_hormonia user=hormonia_app password=m015-config-only sslmode=verify-full sslrootcert=/m015-certs/ca.crt}
       M015_RLS_DENIED_PSQL_CONN: ${M015_RLS_DENIED_PSQL_CONN:-host=postgres port=5432 dbname=m015_hormonia user=m015_rls_denied password=m015-config-only sslmode=verify-full sslrootcert=/m015-certs/ca.crt}
+      M015_EVIDENCE_OUTPUT_DIR: ${M015_EVIDENCE_OUTPUT_DIR:-/m015-evidence-output}
+      M015_CORRELATION_ID: ${M015_CORRELATION_ID:-m015-unset}
+      M015_POSTGRES_IMAGE: ${M015_POSTGRES_IMAGE:-postgres:16-alpine}
+      M015_DRAGONFLY_IMAGE: ${M015_DRAGONFLY_IMAGE:-docker.dragonflydb.io/dragonflydb/dragonfly:latest}
     depends_on:
       postgres:
         condition: service_healthy
+      dragonfly:
+        condition: service_healthy
+      api:
+        condition: service_started
     volumes:
       - m015-postgres-certs:/m015-certs:ro
+      - ./db_seam.py:/m015-runtime/db_seam.py:ro
+      - ./redaction.py:/m015-runtime/redaction.py:ro
+      - ../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output
     networks:
       - m015-runtime
 

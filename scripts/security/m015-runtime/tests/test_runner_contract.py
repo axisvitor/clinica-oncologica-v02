@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -17,6 +18,9 @@ ROOT = Path(__file__).resolve().parents[4]
 RUNNER = ROOT / "scripts" / "security" / "verify-m015-runtime-security.sh"
 COMPOSE_FILE = ROOT / "scripts" / "security" / "m015-runtime" / "docker-compose.yml"
 GITIGNORE = ROOT / ".gitignore"
+
+sys.path.insert(0, str(ROOT / "scripts" / "security" / "m015-runtime"))
+from redaction import RedactionError, validate_no_sensitive_evidence  # noqa: E402
 
 
 class M015RunnerContractTests(unittest.TestCase):
@@ -73,6 +77,11 @@ class M015RunnerContractTests(unittest.TestCase):
         self.assertNotIn("wuzapi:", text)
         self.assertNotIn("beat:", text)
         self.assertIn("../../../backend-hormonia", text)
+        self.assertIn("build: *backend_build", text)
+        self.assertIn("command: [\"python\", \"/m015-runtime/db_seam.py\"]", text)
+        self.assertIn("./db_seam.py:/m015-runtime/db_seam.py:ro", text)
+        self.assertIn("./redaction.py:/m015-runtime/redaction.py:ro", text)
+        self.assertIn("../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output", text)
         self.assertIn("ssl=on", text)
         self.assertIn("sslmode=verify-full", text)
 
@@ -80,6 +89,35 @@ class M015RunnerContractTests(unittest.TestCase):
         gitignore = GITIGNORE.read_text(encoding="utf-8")
         self.assertIn(".m015-runtime/", gitignore)
         self.assertNotIn("scripts/security/m015-runtime/", gitignore)
+
+    def test_redaction_rejects_sensitive_evidence_shapes(self) -> None:
+        sensitive_examples = [
+            "postgresql://user:password@postgres:5432/app",
+            "-----BEGIN PRIVATE KEY-----\nnot-real\n-----END PRIVATE KEY-----",
+            "Authorization: Bearer token-value",
+            "Cookie: session=abc",
+            "firebase_admin service_account private_key_id",
+            "patient_name=Jane Doe",
+            "123.456.789-10",
+            "person@example.com",
+            "/mnt/c/Users/example/private/file.txt",
+            "/m015-certs/ca.crt",
+        ]
+        for value in sensitive_examples:
+            with self.subTest(value=value):
+                with self.assertRaises(RedactionError):
+                    validate_no_sensitive_evidence({"value": value})
+
+    def test_redaction_allows_sanitized_synthetic_evidence_shape(self) -> None:
+        validate_no_sensitive_evidence(
+            {
+                "command": "./scripts/security/verify-m015-runtime-security.sh --seam db",
+                "tls": {"protocol": "TLSv1.3", "cipher": "TLS_AES_256_GCM_SHA384"},
+                "synthetic_patient_id_hash": "a" * 64,
+                "contact": "synthetic@example.invalid",
+                "path_policy": "generated CA mount; raw path omitted",
+            }
+        )
 
 
 if __name__ == "__main__":
