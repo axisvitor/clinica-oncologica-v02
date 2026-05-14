@@ -43,7 +43,8 @@ _LIBPQ_SSL_QUERY_KEYS = {
     "sslpassword",
     "ssl_min_protocol_version",
     "ssl_max_protocol_version",
-    # M015 synthetic harness uses these shorter names in generated URLs.
+    # Historical M015 synthetic harness URLs used these shorter async-only aliases;
+    # keep accepting them for runtime config while migration URLs canonicalize them.
     "sslminversion",
     "sslmaxversion",
 }

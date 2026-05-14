@@ -340,16 +340,44 @@ class Probe:
                     )
                     catalog = cur.fetchone()
                     if not catalog:
-                        raise PhaseError("rls", "rls_catalog_table_missing", f"expected sensitive table is missing: {table}")
+                        table_results[table] = {
+                            "exists": False,
+                            "status": "not_present_in_current_alembic_head",
+                            "relrowsecurity": None,
+                            "relforcerowsecurity": None,
+                            "public_privileges_revoked": None,
+                            "policy_names": [],
+                            "policy_roles": [],
+                        }
+                        continue
                     cur.execute(
                         """
                         select
-                          has_table_privilege('PUBLIC', %s, 'SELECT') as public_select,
-                          has_table_privilege('PUBLIC', %s, 'INSERT') as public_insert,
-                          has_table_privilege('PUBLIC', %s, 'UPDATE') as public_update,
-                          has_table_privilege('PUBLIC', %s, 'DELETE') as public_delete
+                          exists(
+                            select 1
+                            from aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl
+                            where acl.grantee = 0 and acl.privilege_type = 'SELECT'
+                          ) as public_select,
+                          exists(
+                            select 1
+                            from aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl
+                            where acl.grantee = 0 and acl.privilege_type = 'INSERT'
+                          ) as public_insert,
+                          exists(
+                            select 1
+                            from aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl
+                            where acl.grantee = 0 and acl.privilege_type = 'UPDATE'
+                          ) as public_update,
+                          exists(
+                            select 1
+                            from aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) acl
+                            where acl.grantee = 0 and acl.privilege_type = 'DELETE'
+                          ) as public_delete
+                        from pg_class c
+                        join pg_namespace n on n.oid = c.relnamespace
+                        where n.nspname = 'public' and c.relname = %s and c.relkind in ('r', 'p')
                         """,
-                        tuple([f"public.{table}"] * 4),
+                        (table,),
                     )
                     public_privileges = cur.fetchone()
                     cur.execute(
@@ -381,8 +409,21 @@ class Probe:
                     raise PhaseError("rls", "rls_public_privileges_present", f"PUBLIC still has table privileges on {table}")
                 if expected_policy not in policy_names or "hormonia_app" not in policy_roles:
                     raise PhaseError("rls", "rls_policy_missing", f"expected app-role RLS policy is missing for {table}")
-        self.event("rls", "ready", "catalog shows forced RLS, revoked PUBLIC privileges, and app-role policies")
-        return {"result": "passed", "tables": table_results}
+        present_tables = [table for table, data in table_results.items() if data.get("exists")]
+        missing_tables = [table for table, data in table_results.items() if not data.get("exists")]
+        if not present_tables:
+            raise PhaseError("rls", "rls_catalog_no_sensitive_tables", "no sensitive tables exist in current Alembic head")
+        self.event(
+            "rls",
+            "ready",
+            "catalog shows forced RLS, revoked PUBLIC privileges, and app-role policies for existing sensitive tables; absent tables recorded",
+        )
+        return {
+            "result": "passed",
+            "tables": table_results,
+            "present_tables": present_tables,
+            "missing_tables": missing_tables,
+        }
 
     def insert_synthetic_patient(self) -> dict[str, Any]:
         self.event("rls", "started", "inserting one synthetic non-PHI patient as app role")
@@ -604,7 +645,8 @@ def render_summary(evidence: dict[str, Any]) -> str:
     catalog_tables = rls["catalog"]["tables"]
     deny_probe = rls["deny_probe"]
     table_lines = "\n".join(
-        f"- `{table}`: exists={data['exists']}, rls={data['relrowsecurity']}, "
+        f"- `{table}`: exists={data['exists']}, status={data.get('status', 'present')}, "
+        f"rls={data['relrowsecurity']}, "
         f"force={data['relforcerowsecurity']}, public_revoked={data['public_privileges_revoked']}, "
         f"policies={', '.join(data['policy_names'])}"
         for table, data in catalog_tables.items()

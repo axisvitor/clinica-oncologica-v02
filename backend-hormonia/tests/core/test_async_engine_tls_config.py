@@ -68,6 +68,29 @@ def test_verify_full_loads_ca_keeps_hostname_verification_and_strips_libpq_query
     assert "sslminversion" not in config.async_url
 
 
+def test_canonical_libpq_tls_min_version_is_preserved_for_async_runtime_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _stub_default_context(monkeypatch)
+
+    config = _prepare_asyncpg_connection_config(
+        "postgresql+psycopg://user:secret@postgres:5432/app"
+        "?sslmode=verify-full&sslrootcert=/runtime/ca.crt"
+        "&ssl_min_protocol_version=TLSv1.2"
+    )
+
+    assert config.async_url == "postgresql+asyncpg://user:secret@postgres:5432/app"
+    assert calls[0]["cafile"] == "/runtime/ca.crt"
+    context = config.connect_args["ssl"]
+    assert isinstance(context, _FakeSSLContext)
+    assert context.minimum_version == ssl.TLSVersion.TLSv1_2
+    assert context.check_hostname is True
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert config.tls_certificate_verified is True
+    assert config.tls_hostname_verified is True
+    assert "ssl_min_protocol_version" not in config.async_url
+
+
 def test_verify_ca_loads_ca_but_disables_hostname_verification(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

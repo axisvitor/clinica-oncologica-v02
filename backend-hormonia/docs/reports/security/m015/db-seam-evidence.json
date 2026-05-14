@@ -1,0 +1,326 @@
+{
+  "api_runtime": {
+    "database_tls_runtime_check": "FastAPI readiness used the application DATABASE_URL configured for verify-full TLS; DSN not persisted.",
+    "health_endpoint": {
+      "path": "/health",
+      "status": "healthy",
+      "version": "1.0.0"
+    },
+    "readiness_endpoint": {
+      "database_dependency_status": "healthy",
+      "path": "/health/ready",
+      "session_auth_status": "healthy",
+      "status": "ready"
+    }
+  },
+  "command": "./scripts/security/verify-m015-runtime-security.sh --seam db",
+  "completed_at": "2026-05-14T05:49:27Z",
+  "correlation_id": "m015-20260514T054818Z-1191750",
+  "migrations": {
+    "command": "python -m alembic -c alembic.ini upgrade head",
+    "current_revisions": [
+      "m013_s04_upload_deleted_at"
+    ],
+    "duration_ms": 4567,
+    "exit_code": 0,
+    "expected_heads": [
+      "m013_s04_upload_deleted_at"
+    ],
+    "offending_revision": "d4b6c1a7e9f2",
+    "output_tail": "audit_history_head, Align audit/history head with canonical enums and archival residue.\nINFO  [alembic.runtime.migration] Running upgrade m005_s03_t02_align_audit_history_head -> m006_s02_t03_drop_users_firebase_residue, Drop Firebase-prefixed `users` residue from the canonical head.\nINFO  [alembic.runtime.migration] Running upgrade m006_s02_t03_drop_users_firebase_residue -> m007_s04_t02_patient_flow_responses, Create patient_flow_responses table for structured response storage.\nINFO  [alembic.runtime.migration] Running upgrade m007_s04_t02_patient_flow_responses -> m008_s01_t03_sessions_align, Align sessions table with Session model — add missing columns.\nINFO  [alembic.runtime.migration] Running upgrade m008_s01_t03_sessions_align -> m011_s01_patient_flow_states_index, Add composite index on patient_flow_states(patient_id, started_at DESC).\nINFO  [alembic.runtime.migration] Running upgrade m011_s01_patient_flow_states_index -> m012_s01_patient_flow_overrides, Create patient_flow_overrides table for per-patient flow day overrides.\nINFO  [alembic.runtime.migration] Running upgrade m012_s01_patient_flow_overrides -> m013_s04_upload_deleted_at, Add soft-delete timestamp to uploads.\n",
+    "ran_as_role": "hormonia_app",
+    "superuser_bypass": false
+  },
+  "non_goals": [
+    "S02 cache/Redis runtime abuse seam is not proven by this DB seam.",
+    "S03 provider/webhook runtime seam is not proven by this DB seam.",
+    "S04 file/artifact runtime seam is not proven by this DB seam.",
+    "S05 cross-seam evidence aggregation is not proven by this DB seam."
+  ],
+  "phase_events": [
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "DB seam probe bootstrapped inside backend image",
+      "phase": "setup",
+      "seam": "db",
+      "status": "ready",
+      "timestamp": "2026-05-14T05:49:22Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "waiting for PostgreSQL verify-full TLS as synthetic app role",
+      "phase": "tls",
+      "seam": "db",
+      "status": "started",
+      "timestamp": "2026-05-14T05:49:22Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "PostgreSQL accepted verify-full TLS connection",
+      "phase": "tls",
+      "seam": "db",
+      "status": "ready",
+      "timestamp": "2026-05-14T05:49:22Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "running Alembic upgrade head as synthetic non-superuser app role",
+      "phase": "migrations",
+      "seam": "db",
+      "status": "started",
+      "timestamp": "2026-05-14T05:49:22Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "Alembic head is applied as synthetic app role",
+      "phase": "migrations",
+      "seam": "db",
+      "status": "ready",
+      "timestamp": "2026-05-14T05:49:27Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "checking FastAPI health and DB-backed readiness through app runtime",
+      "phase": "readiness",
+      "seam": "db",
+      "status": "started",
+      "timestamp": "2026-05-14T05:49:27Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "FastAPI health and DB-backed readiness endpoints passed",
+      "phase": "readiness",
+      "seam": "db",
+      "status": "ready",
+      "timestamp": "2026-05-14T05:49:27Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "collecting pg_stat_ssl evidence for current probe connection",
+      "phase": "tls",
+      "seam": "db",
+      "status": "started",
+      "timestamp": "2026-05-14T05:49:27Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "pg_stat_ssl confirmed TLS protocol and cipher",
+      "phase": "tls",
+      "seam": "db",
+      "status": "ready",
+      "timestamp": "2026-05-14T05:49:27Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "checking sensitive-table catalog RLS posture",
+      "phase": "rls",
+      "seam": "db",
+      "status": "started",
+      "timestamp": "2026-05-14T05:49:27Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "catalog shows forced RLS, revoked PUBLIC privileges, and app-role policies for existing sensitive tables; absent tables recorded",
+      "phase": "rls",
+      "seam": "db",
+      "status": "ready",
+      "timestamp": "2026-05-14T05:49:27Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "inserting one synthetic non-PHI patient as app role",
+      "phase": "rls",
+      "seam": "db",
+      "status": "started",
+      "timestamp": "2026-05-14T05:49:27Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "app role inserted synthetic patient; evidence stores only hash/correlation",
+      "phase": "rls",
+      "seam": "db",
+      "status": "ready",
+      "timestamp": "2026-05-14T05:49:27Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "granting table privileges to denied role and proving RLS default deny",
+      "phase": "rls",
+      "seam": "db",
+      "status": "started",
+      "timestamp": "2026-05-14T05:49:27Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "denied role had table grants but RLS blocked select visibility and insert",
+      "phase": "rls",
+      "seam": "db",
+      "status": "ready",
+      "timestamp": "2026-05-14T05:49:27Z"
+    },
+    {
+      "correlation_id": "m015-20260514T054818Z-1191750",
+      "message": "validating and writing DB seam evidence artifacts",
+      "phase": "evidence",
+      "seam": "db",
+      "status": "started",
+      "timestamp": "2026-05-14T05:49:27Z"
+    }
+  ],
+  "probe_command": "python /m015-runtime/db_seam.py",
+  "redaction": {
+    "guardrail": "evidence and summary validated before atomic write",
+    "result": "passed"
+  },
+  "rls": {
+    "allow_probe": {
+      "insert_result": "allowed",
+      "insert_role": "hormonia_app",
+      "synthetic_patient_id_hash": "ba97303410e87c2f19f4034509fa761218cca53a2d9237bf8c4c7fb2c45ce576",
+      "synthetic_payload_policy": "generated UUID plus non-PHI sentinel; raw row value not persisted"
+    },
+    "catalog": {
+      "missing_tables": [
+        "consents"
+      ],
+      "present_tables": [
+        "patients",
+        "messages",
+        "quiz_sessions",
+        "quiz_responses",
+        "lgpd_audit_logs",
+        "lgpd_data_access_requests"
+      ],
+      "result": "passed",
+      "tables": {
+        "consents": {
+          "exists": false,
+          "policy_names": [],
+          "policy_roles": [],
+          "public_privileges_revoked": null,
+          "relforcerowsecurity": null,
+          "relrowsecurity": null,
+          "status": "not_present_in_current_alembic_head"
+        },
+        "lgpd_audit_logs": {
+          "exists": true,
+          "policy_names": [
+            "rls_lgpd_audit_logs_current_user_all"
+          ],
+          "policy_roles": [
+            "hormonia_app"
+          ],
+          "public_privileges_revoked": true,
+          "relforcerowsecurity": true,
+          "relrowsecurity": true
+        },
+        "lgpd_data_access_requests": {
+          "exists": true,
+          "policy_names": [
+            "rls_lgpd_data_access_requests_current_user_all"
+          ],
+          "policy_roles": [
+            "hormonia_app"
+          ],
+          "public_privileges_revoked": true,
+          "relforcerowsecurity": true,
+          "relrowsecurity": true
+        },
+        "messages": {
+          "exists": true,
+          "policy_names": [
+            "rls_messages_current_user_all"
+          ],
+          "policy_roles": [
+            "hormonia_app"
+          ],
+          "public_privileges_revoked": true,
+          "relforcerowsecurity": true,
+          "relrowsecurity": true
+        },
+        "patients": {
+          "exists": true,
+          "policy_names": [
+            "rls_patients_current_user_all"
+          ],
+          "policy_roles": [
+            "hormonia_app"
+          ],
+          "public_privileges_revoked": true,
+          "relforcerowsecurity": true,
+          "relrowsecurity": true
+        },
+        "quiz_responses": {
+          "exists": true,
+          "policy_names": [
+            "rls_quiz_responses_current_user_all"
+          ],
+          "policy_roles": [
+            "hormonia_app"
+          ],
+          "public_privileges_revoked": true,
+          "relforcerowsecurity": true,
+          "relrowsecurity": true
+        },
+        "quiz_sessions": {
+          "exists": true,
+          "policy_names": [
+            "rls_quiz_sessions_current_user_all"
+          ],
+          "policy_roles": [
+            "hormonia_app"
+          ],
+          "public_privileges_revoked": true,
+          "relforcerowsecurity": true,
+          "relrowsecurity": true
+        }
+      }
+    },
+    "deny_probe": {
+      "denied_role": "m015_rls_denied",
+      "insert_probe": {
+        "message_class": "row-level security policy",
+        "result": "blocked_by_rls",
+        "sqlstate": "42501"
+      },
+      "privilege_probe": {
+        "can_insert": true,
+        "can_select": true,
+        "can_use_schema": true,
+        "current_user": "m015_rls_denied"
+      },
+      "result": "passed",
+      "select_probe": {
+        "result": "blocked_by_rls",
+        "visible_rows": 0
+      }
+    }
+  },
+  "schema_version": 1,
+  "seam": "db",
+  "service_versions": {
+    "backend_image_context": "backend-hormonia/Dockerfile",
+    "dragonfly_image": "docker.dragonflydb.io/dragonflydb/dragonfly:latest",
+    "fastapi_version": "1.0.0",
+    "postgres_image": "postgres:16-alpine",
+    "postgres_server_version": "16.13",
+    "postgres_version_class": "PostgreSQL 16.13",
+    "python_runtime": "3.13.12"
+  },
+  "started_at": "2026-05-14T05:49:22Z",
+  "teardown": {
+    "notes": "compose down completed idempotently",
+    "result": "complete",
+    "timestamp": "2026-05-14T05:49:30Z"
+  },
+  "tls": {
+    "cipher": "TLS_AES_256_GCM_SHA384",
+    "connection_scope": "current_probe_backend_pid",
+    "current_user": "hormonia_app",
+    "postgres_server_version": "16.13",
+    "postgres_version_class": "PostgreSQL 16.13",
+    "protocol": "TLSv1.3",
+    "result": "passed",
+    "show_ssl": "on"
+  }
+}

@@ -18,7 +18,7 @@ x-backend-environment: &backend_environment
   PHI_ENCRYPTION_KEY: ${PHI_ENCRYPTION_KEY:-m015-config-only-phi-secret-never-used-at-runtime-64-characters}
   HASH_SALT: ${HASH_SALT:-m015configonlyhashsaltneverusedatruntime0123456789abcdef0123456789abcdef}
   SECURITY_ALLOW_WEAK_KEYS: ${SECURITY_ALLOW_WEAK_KEYS:-false}
-  DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://hormonia_app:m015-config-only@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&sslminversion=TLSv1.2}
+  DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://hormonia_app:m015-config-only@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&ssl_min_protocol_version=TLSv1.2}
   REDIS_URL: ${REDIS_URL:-redis://dragonfly:6379/0}
   REDIS_HOST: ${REDIS_HOST:-dragonfly}
   REDIS_PORT: ${REDIS_PORT:-6379}
@@ -175,9 +175,9 @@ services:
     command: ["python", "/m015-runtime/db_seam.py"]
     environment:
       <<: *backend_environment
-      M015_DATABASE_URL: ${M015_DATABASE_URL:-postgresql+psycopg://hormonia_app:m015-config-only@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&sslminversion=TLSv1.2}
-      M015_DATABASE_PSQL_CONN: ${M015_DATABASE_PSQL_CONN:-host=postgres port=5432 dbname=m015_hormonia user=hormonia_app password=m015-config-only sslmode=verify-full sslrootcert=/m015-certs/ca.crt}
-      M015_RLS_DENIED_PSQL_CONN: ${M015_RLS_DENIED_PSQL_CONN:-host=postgres port=5432 dbname=m015_hormonia user=m015_rls_denied password=m015-config-only sslmode=verify-full sslrootcert=/m015-certs/ca.crt}
+      M015_DATABASE_URL: ${M015_DATABASE_URL:-postgresql+psycopg://hormonia_app:m015-config-only@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&ssl_min_protocol_version=TLSv1.2}
+      M015_DATABASE_PSQL_CONN: ${M015_DATABASE_PSQL_CONN:-host=postgres port=5432 dbname=m015_hormonia user=hormonia_app password=m015-config-only sslmode=verify-full sslrootcert=/m015-certs/ca.crt ssl_min_protocol_version=TLSv1.2}
+      M015_RLS_DENIED_PSQL_CONN: ${M015_RLS_DENIED_PSQL_CONN:-host=postgres port=5432 dbname=m015_hormonia user=m015_rls_denied password=m015-config-only sslmode=verify-full sslrootcert=/m015-certs/ca.crt ssl_min_protocol_version=TLSv1.2}
       M015_EVIDENCE_OUTPUT_DIR: ${M015_EVIDENCE_OUTPUT_DIR:-/m015-evidence-output}
       M015_CORRELATION_ID: ${M015_CORRELATION_ID:-m015-unset}
       M015_POSTGRES_IMAGE: ${M015_POSTGRES_IMAGE:-postgres:16-alpine}

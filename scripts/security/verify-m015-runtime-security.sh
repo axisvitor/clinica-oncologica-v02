@@ -300,10 +300,10 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=${postgres_password}
 M015_APP_DB_PASSWORD=${app_db_password}
 M015_RLS_DENIED_PASSWORD=${denied_password}
-DATABASE_URL=postgresql+psycopg://hormonia_app:${app_db_password}@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&sslminversion=TLSv1.2
-M015_DATABASE_URL=postgresql+psycopg://hormonia_app:${app_db_password}@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&sslminversion=TLSv1.2
-M015_DATABASE_PSQL_CONN=host=postgres port=5432 dbname=m015_hormonia user=hormonia_app password=${app_db_password} sslmode=verify-full sslrootcert=/m015-certs/ca.crt
-M015_RLS_DENIED_PSQL_CONN=host=postgres port=5432 dbname=m015_hormonia user=m015_rls_denied password=${denied_password} sslmode=verify-full sslrootcert=/m015-certs/ca.crt
+DATABASE_URL=postgresql+psycopg://hormonia_app:${app_db_password}@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&ssl_min_protocol_version=TLSv1.2
+M015_DATABASE_URL=postgresql+psycopg://hormonia_app:${app_db_password}@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&ssl_min_protocol_version=TLSv1.2
+M015_DATABASE_PSQL_CONN=host=postgres port=5432 dbname=m015_hormonia user=hormonia_app password=${app_db_password} sslmode=verify-full sslrootcert=/m015-certs/ca.crt ssl_min_protocol_version=TLSv1.2
+M015_RLS_DENIED_PSQL_CONN=host=postgres port=5432 dbname=m015_hormonia user=m015_rls_denied password=${denied_password} sslmode=verify-full sslrootcert=/m015-certs/ca.crt ssl_min_protocol_version=TLSv1.2
 REDIS_URL=redis://dragonfly:6379/0
 REDIS_HOST=dragonfly
 REDIS_PORT=6379
