@@ -59,7 +59,7 @@ def test_runner_help_and_list_seams_are_static_and_fail_closed() -> None:
 
     list_result = _run_runner("--list-seams")
     assert list_result.returncode == 0, list_result.stderr
-    assert list_result.stdout.strip() == "db"
+    assert list_result.stdout.strip().splitlines() == ["db", "session"]
 
 
 def test_runner_rejects_missing_or_unknown_seams_before_setup() -> None:
@@ -80,7 +80,7 @@ def test_runner_rejects_missing_or_unknown_seams_before_setup() -> None:
 def test_m015_compose_is_isolated_from_live_providers_and_project_env_files() -> None:
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
 
-    for service in ("postgres:", "dragonfly:", "api:", "worker:", "db-probe:"):
+    for service in ("postgres:", "dragonfly:", "api:", "worker:", "db-probe:", "session-probe:"):
         assert service in compose_text
     assert "env_file" not in compose_text
     assert "backend-hormonia/.env" not in compose_text
@@ -93,7 +93,11 @@ def test_m015_compose_is_isolated_from_live_providers_and_project_env_files() ->
     assert "AI_LANGCHAIN_ENABLE_TRACING_V2: ${AI_LANGCHAIN_ENABLE_TRACING_V2:-false}" in compose_text
     assert "build: *backend_build" in compose_text
     assert "command: [\"python\", \"/m015-runtime/db_seam.py\"]" in compose_text
+    assert "command: [\"python\", \"/m015-runtime/m015_session_security_taskiq.py\"]" in compose_text
+    assert "command: [\"taskiq\", \"worker\", \"app.taskiq_broker:broker\", \"app.tasks.m015_session_security_taskiq\"]" in compose_text
     assert "./db_seam.py:/m015-runtime/db_seam.py:ro" in compose_text
+    assert "./m015_session_security_taskiq.py:/app/app/tasks/m015_session_security_taskiq.py:ro" in compose_text
+    assert "./m015_session_security_taskiq.py:/m015-runtime/m015_session_security_taskiq.py:ro" in compose_text
     assert "./redaction.py:/m015-runtime/redaction.py:ro" in compose_text
 
 
@@ -103,6 +107,8 @@ def test_evidence_paths_are_repo_relative_and_container_mounted() -> None:
     db_seam_text = DB_SEAM_HELPER.read_text(encoding="utf-8")
 
     assert 'RUNTIME_DIR=".m015-runtime"' in runner_text
+    assert "[Cc]ookie" in runner_text
+    assert "[Ss]et-[Cc]ookie" in runner_text
     assert 'DB_EVIDENCE_OUTPUT_DIR="backend-hormonia/docs/reports/security/m015"' in runner_text
     assert 'DB_EVIDENCE_JSON="${DB_EVIDENCE_OUTPUT_DIR}/db-seam-evidence.json"' in runner_text
     assert 'DB_SUMMARY_MD="${DB_EVIDENCE_OUTPUT_DIR}/db-seam-summary.md"' in runner_text

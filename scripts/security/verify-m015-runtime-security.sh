@@ -3,8 +3,8 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 # M015 synthetic runtime security harness.
-# Public entrypoint for milestone M015 runtime seams. Only the DB seam is
-# implemented in S01; every other seam must fail closed until its slice lands.
+# Public entrypoint for milestone M015 runtime seams. The DB and session seams
+# are implemented; every other seam must fail closed before setup starts.
 
 SCRIPT_REL="scripts/security/verify-m015-runtime-security.sh"
 HARNESS_DIR="scripts/security/m015-runtime"
@@ -17,6 +17,9 @@ EVIDENCE_ROOT="${HARNESS_DIR}/evidence"
 DB_EVIDENCE_OUTPUT_DIR="backend-hormonia/docs/reports/security/m015"
 DB_EVIDENCE_JSON="${DB_EVIDENCE_OUTPUT_DIR}/db-seam-evidence.json"
 DB_SUMMARY_MD="${DB_EVIDENCE_OUTPUT_DIR}/db-seam-summary.md"
+SESSION_EVIDENCE_OUTPUT_DIR="backend-hormonia/docs/reports/security/m015"
+SESSION_EVIDENCE_JSON="${SESSION_EVIDENCE_OUTPUT_DIR}/session-seam-evidence.json"
+SESSION_SUMMARY_MD="${SESSION_EVIDENCE_OUTPUT_DIR}/session-seam-summary.md"
 
 SEAM=""
 KEEP_STACK="false"
@@ -34,13 +37,14 @@ EVIDENCE_FILE=""
 usage() {
   cat <<'USAGE'
 Usage:
-  ./scripts/security/verify-m015-runtime-security.sh --seam db [options]
+  ./scripts/security/verify-m015-runtime-security.sh --seam {db|session} [options]
 
 Implemented seams:
   db                         Start the isolated M015 DB runtime substrate, prove readiness, and tear down.
+  session                    Prove cookie-backed staff sessions, Redis fallback/revocation, and Taskiq DB re-checks.
 
 Options:
-  --seam db                  Required. Unknown or omitted seams fail closed and do not start services.
+  --seam {db|session}        Required. Unknown or omitted seams fail closed and do not start services.
   --list-seams               Print implemented seams and exit.
   --help, -h                 Show this help and exit.
   --keep-stack               Leave the Docker Compose stack running for manual inspection.
@@ -52,13 +56,14 @@ Options:
 Examples:
   ./scripts/security/verify-m015-runtime-security.sh --list-seams
   ./scripts/security/verify-m015-runtime-security.sh --seam db
+  ./scripts/security/verify-m015-runtime-security.sh --seam session
   M015_API_PORT=18180 ./scripts/security/verify-m015-runtime-security.sh --seam db --keep-stack
-  ./scripts/security/verify-m015-runtime-security.sh --seam db --project-name m015-debug --teardown-only
+  ./scripts/security/verify-m015-runtime-security.sh --seam session --project-name m015-debug --teardown-only
 USAGE
 }
 
 list_seams() {
-  printf 'db\n'
+  printf 'db\nsession\n'
 }
 
 cli_error() {
@@ -128,8 +133,11 @@ parse_args() {
     esac
   done
 
-  [[ -n "$SEAM" ]] || cli_error "fail-closed: no seam selected; pass --seam db"
-  [[ "$SEAM" == "db" ]] || cli_error "unknown seam '${SEAM}'. Implemented seams: db"
+  [[ -n "$SEAM" ]] || cli_error "fail-closed: no seam selected; pass --seam db or --seam session"
+  case "$SEAM" in
+    db|session) ;;
+    *) cli_error "unknown seam '${SEAM}'. Implemented seams: db, session" ;;
+  esac
   [[ "$API_PORT" =~ ^[0-9]+$ ]] || cli_error "--api-port must be numeric"
   [[ "$POSTGRES_PORT" =~ ^[0-9]+$ ]] || cli_error "--postgres-port must be numeric"
 }
@@ -154,6 +162,8 @@ sanitize_stream() {
     -e 's#rediss://[^[:space:]]+#rediss://<redacted>#g' \
     -e 's#([A-Za-z0-9_]*(PASSWORD|TOKEN|SECRET|KEY)[A-Za-z0-9_]*=)[^[:space:]]+#\1<redacted>#g' \
     -e 's#(Authorization: Bearer )[A-Za-z0-9._~+/-]+#\1<redacted>#g' \
+    -e 's#([Ss]et-[Cc]ookie:[[:space:]]*)[^[:cntrl:]]+#\1<redacted>#g' \
+    -e 's#(^|[[:space:]])([Cc]ookie:[[:space:]]*)[^[:cntrl:]]+#\1\2<redacted>#g' \
     -e 's#/mnt/c/[^[:space:]]+#<redacted-host-path>#g' \
     -e 's#/m015-certs/[^[:space:]]+#<redacted-cert-path>#g'
 }
@@ -211,7 +221,7 @@ fail_phase() {
 }
 
 setup_workspace() {
-  mkdir -p "$CERT_DIR" "$LOG_DIR" "$EVIDENCE_ROOT" "$DB_EVIDENCE_OUTPUT_DIR"
+  mkdir -p "$CERT_DIR" "$LOG_DIR" "$EVIDENCE_ROOT" "$DB_EVIDENCE_OUTPUT_DIR" "$SESSION_EVIDENCE_OUTPUT_DIR"
   chmod 700 "$RUNTIME_DIR" "$CERT_DIR" "$LOG_DIR" 2>/dev/null || true
   EVIDENCE_DIR="${EVIDENCE_ROOT}/${CORRELATION_ID}"
   mkdir -p "$EVIDENCE_DIR"
@@ -317,6 +327,7 @@ ALLOW_AI_SIMULATION=false
 SESSION_ENABLE_COOKIE_SECURE=true
 SESSION_ENABLE_COOKIE_HTTPONLY=true
 SESSION_COOKIE_SAMESITE=lax
+SESSION_COOKIE_NAME=session_id
 SECURITY_ENABLE_SSL_REDIRECT=true
 SECURITY_SECRET_KEY=${security_secret}
 SECURITY_CSRF_SECRET_KEY=${csrf_secret}
@@ -466,11 +477,25 @@ capture_failure_diagnostics() {
   fi
 }
 
-update_db_teardown_result() {
+update_teardown_result() {
   local result="$1"
   local note="$2"
-  [[ -f "$DB_EVIDENCE_JSON" ]] || return 0
-  python3 - "$DB_EVIDENCE_JSON" "$DB_SUMMARY_MD" "$result" "$note" <<'PY'
+  local evidence_json summary_md
+  case "$SEAM" in
+    db)
+      evidence_json="$DB_EVIDENCE_JSON"
+      summary_md="$DB_SUMMARY_MD"
+      ;;
+    session)
+      evidence_json="$SESSION_EVIDENCE_JSON"
+      summary_md="$SESSION_SUMMARY_MD"
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+  [[ -f "$evidence_json" ]] || return 0
+  python3 - "$evidence_json" "$summary_md" "$result" "$note" <<'PY'
 from __future__ import annotations
 
 import json
@@ -508,13 +533,13 @@ teardown_stack() {
   if compose_cmd down --volumes --remove-orphans >"${LOG_DIR}/compose-down.log" 2>&1; then
     STARTED="false"
     log_phase "teardown" "complete" "compose down completed idempotently"
-    update_db_teardown_result "complete" "compose down completed idempotently" || \
+    update_teardown_result "complete" "compose down completed idempotently" || \
       log_phase "evidence" "failed" "teardown evidence update failed redaction validation"
     return 0
   fi
   compose_cmd down --remove-orphans >>"${LOG_DIR}/compose-down.log" 2>&1 || true
   log_phase "teardown" "failed" "compose down returned non-zero; sanitized details available in runtime logs"
-  update_db_teardown_result "failed" "compose down returned non-zero" || true
+  update_teardown_result "failed" "compose down returned non-zero" || true
   return 1
 }
 
@@ -529,8 +554,8 @@ on_exit() {
       code=1
     fi
   elif [[ "$STARTED" == "true" && "$KEEP_STACK" == "true" ]]; then
-    log_phase "teardown" "skipped" "--keep-stack set; run --seam db --project-name ${PROJECT_NAME} --teardown-only when done"
-    update_db_teardown_result "skipped_keep_stack" "debug keep-stack was explicitly requested" || true
+    log_phase "teardown" "skipped" "--keep-stack set; run --seam ${SEAM} --project-name ${PROJECT_NAME} --teardown-only when done"
+    update_teardown_result "skipped_keep_stack" "debug keep-stack was explicitly requested" || true
   fi
   exit "$code"
 }
@@ -629,7 +654,30 @@ run_db_probe() {
   fail_phase "$failed_phase" "$failed_class" "DB seam probe failed; sanitized log saved under ${EVIDENCE_ROOT}/${CORRELATION_ID}/db-probe.log" 1
 }
 
-run_db_seam() {
+run_session_probe() {
+  log_phase "session-probe" "started" "running session seam probe for cookie auth, cache fallback, revocation, and Taskiq worker DB re-check"
+  local probe_log failed_line failed_phase failed_class
+  probe_log="${LOG_DIR}/session-probe.log"
+  if compose_cmd run --rm -T session-probe >"$probe_log" 2>&1; then
+    sanitize_stream <"$probe_log" >"${EVIDENCE_DIR}/session-probe.log"
+    log_phase "session-probe" "ready" "current cookie-backed synthetic session succeeded through FastAPI"
+    log_phase "cache-fallback" "ready" "cache miss fell back to PostgreSQL and rehydrated Dragonfly"
+    log_phase "revocation" "ready" "revoked and expired sessions failed closed and explicit revocation invalidated Dragonfly"
+    log_phase "worker" "ready" "Taskiq worker denied queued work after PostgreSQL session re-check"
+    log_phase "evidence" "ready" "session seam evidence JSON and summary written with redaction validation"
+    return 0
+  fi
+
+  sanitize_stream <"$probe_log" >"${EVIDENCE_DIR}/session-probe.log" || true
+  failed_line="$(awk '/status=failed/ {line=$0} END {print line}' "${EVIDENCE_DIR}/session-probe.log" 2>/dev/null || true)"
+  failed_phase="$(printf '%s' "$failed_line" | sed -E 's/.*phase=([^ ]+).*/\1/' 2>/dev/null || true)"
+  failed_class="$(printf '%s' "$failed_line" | sed -E 's/.*failure_class=([^ ]+).*/\1/' 2>/dev/null || true)"
+  [[ -n "$failed_phase" && "$failed_phase" != "$failed_line" ]] || failed_phase="session-probe"
+  [[ -n "$failed_class" && "$failed_class" != "$failed_line" ]] || failed_class="session-probe-failed"
+  fail_phase "$failed_phase" "$failed_class" "Session seam probe failed; sanitized log saved under ${EVIDENCE_ROOT}/${CORRELATION_ID}/session-probe.log" 1
+}
+
+run_selected_seam() {
   if [[ -z "$PROJECT_NAME" ]]; then
     PROJECT_NAME="$(normalize_project_name "m015-runtime-${CORRELATION_ID}")"
   else
@@ -652,12 +700,16 @@ run_db_seam() {
   record_versions
   compose_up
   wait_for_readiness
-  run_db_probe
+  case "$SEAM" in
+    db) run_db_probe ;;
+    session) run_session_probe ;;
+    *) fail_phase "setup" "unknown-seam" "unknown seam ${SEAM}" 64 ;;
+  esac
 }
 
 main() {
   parse_args "$@"
-  run_db_seam
+  run_selected_seam
 }
 
 main "$@"

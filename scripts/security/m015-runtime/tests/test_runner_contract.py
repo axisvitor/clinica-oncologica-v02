@@ -53,7 +53,7 @@ class M015RunnerContractTests(unittest.TestCase):
     def test_list_seams_only_lists_implemented_db_seam(self) -> None:
         result = self.run_runner("--list-seams")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), "db")
+        self.assertEqual(result.stdout.strip().splitlines(), ["db", "session"])
 
     def test_unknown_seam_fails_before_setup_phase(self) -> None:
         result = self.run_runner("--seam", "provider")
@@ -71,7 +71,7 @@ class M015RunnerContractTests(unittest.TestCase):
 
     def test_compose_static_contract(self) -> None:
         text = COMPOSE_FILE.read_text(encoding="utf-8")
-        for service in ("postgres:", "dragonfly:", "api:", "worker:", "db-probe:"):
+        for service in ("postgres:", "dragonfly:", "api:", "worker:", "db-probe:", "session-probe:"):
             self.assertIn(service, text)
         self.assertNotIn("env_file", text)
         self.assertNotIn("backend-hormonia/.env", text)
@@ -84,11 +84,18 @@ class M015RunnerContractTests(unittest.TestCase):
         self.assertIn("../../../backend-hormonia", text)
         self.assertIn("build: *backend_build", text)
         self.assertIn("command: [\"python\", \"/m015-runtime/db_seam.py\"]", text)
+        self.assertIn("command: [\"python\", \"/m015-runtime/m015_session_security_taskiq.py\"]", text)
+        self.assertIn("command: [\"taskiq\", \"worker\", \"app.taskiq_broker:broker\", \"app.tasks.m015_session_security_taskiq\"]", text)
         self.assertIn("./db_seam.py:/m015-runtime/db_seam.py:ro", text)
+        self.assertIn("./m015_session_security_taskiq.py:/app/app/tasks/m015_session_security_taskiq.py:ro", text)
+        self.assertIn("./m015_session_security_taskiq.py:/m015-runtime/m015_session_security_taskiq.py:ro", text)
         self.assertIn("./redaction.py:/m015-runtime/redaction.py:ro", text)
         self.assertIn("../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output", text)
         self.assertIn("ssl=on", text)
         self.assertIn("sslmode=verify-full", text)
+        runner_text = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("[Cc]ookie", runner_text)
+        self.assertIn("[Ss]et-[Cc]ookie", runner_text)
 
     def test_runtime_scratch_is_ignored_but_harness_is_not(self) -> None:
         gitignore = GITIGNORE.read_text(encoding="utf-8")

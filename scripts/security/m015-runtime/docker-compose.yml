@@ -11,6 +11,7 @@ x-backend-environment: &backend_environment
   SESSION_ENABLE_COOKIE_SECURE: ${SESSION_ENABLE_COOKIE_SECURE:-true}
   SESSION_ENABLE_COOKIE_HTTPONLY: ${SESSION_ENABLE_COOKIE_HTTPONLY:-true}
   SESSION_COOKIE_SAMESITE: ${SESSION_COOKIE_SAMESITE:-lax}
+  SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-session_id}
   SECURITY_ENABLE_SSL_REDIRECT: ${SECURITY_ENABLE_SSL_REDIRECT:-true}
   SECURITY_SECRET_KEY: ${SECURITY_SECRET_KEY:-m015-config-only-security-secret-never-used-at-runtime-64-characters}
   SECURITY_CSRF_SECRET_KEY: ${SECURITY_CSRF_SECRET_KEY:-m015-config-only-csrf-secret-never-used-at-runtime-64-characters}
@@ -155,7 +156,7 @@ services:
   worker:
     build: *backend_build
     init: true
-    command: ["taskiq", "worker", "app.taskiq_broker:broker"]
+    command: ["taskiq", "worker", "app.taskiq_broker:broker", "app.tasks.m015_session_security_taskiq"]
     environment: *backend_environment
     depends_on:
       postgres:
@@ -164,6 +165,7 @@ services:
         condition: service_healthy
     volumes:
       - m015-postgres-certs:/m015-certs:ro
+      - ./m015_session_security_taskiq.py:/app/app/tasks/m015_session_security_taskiq.py:ro
     networks:
       - m015-runtime
 
@@ -192,6 +194,38 @@ services:
     volumes:
       - m015-postgres-certs:/m015-certs:ro
       - ./db_seam.py:/m015-runtime/db_seam.py:ro
+      - ./redaction.py:/m015-runtime/redaction.py:ro
+      - ../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output
+    networks:
+      - m015-runtime
+
+  session-probe:
+    build: *backend_build
+    init: true
+    profiles: ["tools"]
+    working_dir: /app
+    command: ["python", "/m015-runtime/m015_session_security_taskiq.py"]
+    environment:
+      <<: *backend_environment
+      M015_DATABASE_URL: ${M015_DATABASE_URL:-postgresql+psycopg://hormonia_app:m015-config-only@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&ssl_min_protocol_version=TLSv1.2}
+      M015_DATABASE_PSQL_CONN: ${M015_DATABASE_PSQL_CONN:-host=postgres port=5432 dbname=m015_hormonia user=hormonia_app password=m015-config-only sslmode=verify-full sslrootcert=/m015-certs/ca.crt ssl_min_protocol_version=TLSv1.2}
+      M015_EVIDENCE_OUTPUT_DIR: ${M015_EVIDENCE_OUTPUT_DIR:-/m015-evidence-output}
+      M015_CORRELATION_ID: ${M015_CORRELATION_ID:-m015-unset}
+      M015_POSTGRES_IMAGE: ${M015_POSTGRES_IMAGE:-postgres:16-alpine}
+      M015_DRAGONFLY_IMAGE: ${M015_DRAGONFLY_IMAGE:-docker.dragonflydb.io/dragonflydb/dragonfly:latest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dragonfly:
+        condition: service_healthy
+      api:
+        condition: service_started
+      worker:
+        condition: service_started
+    volumes:
+      - m015-postgres-certs:/m015-certs:ro
+      - ./m015_session_security_taskiq.py:/m015-runtime/m015_session_security_taskiq.py:ro
+      - ./m015_session_security_taskiq.py:/app/app/tasks/m015_session_security_taskiq.py:ro
       - ./redaction.py:/m015-runtime/redaction.py:ro
       - ../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output
     networks:
