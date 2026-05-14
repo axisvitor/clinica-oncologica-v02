@@ -1,4 +1,0 @@
-{"timestamp":"2026-05-14T05:20:11Z","correlation_id":"m015-20260514T052011Z-1146084","seam":"db","phase":"setup","status":"started","failure_class":"none","message":"workspace=runtime-scratch evidence=repo-local-sanitized project=m015-runtime-m015-20260514t051643z-1139768 api_port=18080 postgres_port=15432"}
-{"timestamp":"2026-05-14T05:20:12Z","correlation_id":"m015-20260514T052011Z-1146084","seam":"db","phase":"setup","status":"ready","failure_class":"none","message":"required tools detected: docker compose openssl"}
-{"timestamp":"2026-05-14T05:20:12Z","correlation_id":"m015-20260514T052011Z-1146084","seam":"db","phase":"teardown","status":"started","failure_class":"none","message":"compose down requested project=m015-runtime-m015-20260514t051643z-1139768"}
-{"timestamp":"2026-05-14T05:20:13Z","correlation_id":"m015-20260514T052011Z-1146084","seam":"db","phase":"teardown","status":"complete","failure_class":"none","message":"compose down completed idempotently"}

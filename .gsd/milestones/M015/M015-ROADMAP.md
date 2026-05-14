@@ -18,13 +18,13 @@
 - [x] **S02: S02** `risk:High risk: the proof can accidentally collapse into an in-process shortcut unless it forces separate API/cache/DB/worker boundaries and cache-fallback behavior.` `depends:[]`
   > After this: Run the M015 session seam through the harness to show a current synthetic session succeeds, revoked/expired sessions fail closed across cache and DB fallback, and a queued worker scenario participates without accepting stale authorization.
 
-- [ ] **S03: S03** `risk:High risk: provider checks must prove real network/env wiring and fail-closed behavior while staying synthetic-only and avoiding live side effects or payload leakage.` `depends:[]`
+- [x] **S03: S03** `risk:High risk: provider checks must prove real network/env wiring and fail-closed behavior while staying synthetic-only and avoiding live side effects or payload leakage.` `depends:[]`
   > After this: Run the provider seam to show the backend and workers use configured local WuzAPI/Gemini stub URLs, handle controlled failure modes safely, and record only redacted synthetic request evidence.
 
-- [ ] **S04: Private Artifact App-Route Runtime Proof** `risk:Medium-high risk: deployed-style artifact access may expose route/header/ownership gaps or accidental static/private path leakage under the running app.` `depends:[S01,S02]`
+- [x] **S04: S04** `risk:Medium-high risk: deployed-style artifact access may expose route/header/ownership gaps or accidental static/private path leakage under the running app.` `depends:[]`
   > After this: Run the artifact seam against the harness to show owner/admin access succeeds, anonymous and cross-owner access fail closed, response headers are safe, and no redirect or static path exposes private artifacts.
 
-- [ ] **S05: Unified Runner, Evidence Matrix, and Strict Closure Gate** `risk:Medium risk: final closure can become report-only unless the runner, matrix validator, redaction checks, teardown, and red-signal policy mechanically block false green results.` `depends:[S01,S02,S03,S04]`
+- [x] **S05: S05** `risk:Medium risk: final closure can become report-only unless the runner, matrix validator, redaction checks, teardown, and red-signal policy mechanically block false green results.` `depends:[]`
   > After this: Run `./scripts/security/verify-m015-runtime-security.sh` with no seam filter and receive a pass/fail result plus an M015 evidence matrix that maps every M014-deferred runtime item to fresh evidence, an explicit non-goal, or a fixed outcome.
 
 ## Boundary Map

@@ -1,55 +1,55 @@
 {
   "command": "./scripts/security/verify-m015-runtime-security.sh --seam provider",
-  "completed_at": "2026-05-14T15:25:18Z",
-  "correlation_id": "m015-20260514T152308Z-1930153",
+  "completed_at": "2026-05-14T18:17:04Z",
+  "correlation_id": "m015-20260514T181125Z-2167622-provider",
   "events": [
     {
-      "correlation_id": "m015-20260514T152308Z-1930153",
+      "correlation_id": "m015-20260514T181125Z-2167622-provider",
       "message": "checking WuzAPI scenarios through local provider stub",
       "phase": "wuzapi",
       "seam": "provider",
       "status": "started",
-      "timestamp": "2026-05-14T15:25:16Z"
+      "timestamp": "2026-05-14T18:17:03Z"
     },
     {
-      "correlation_id": "m015-20260514T152308Z-1930153",
+      "correlation_id": "m015-20260514T181125Z-2167622-provider",
       "message": "WuzAPI local stub scenarios produced sanitized status classes",
       "phase": "wuzapi",
       "seam": "provider",
       "status": "ready",
-      "timestamp": "2026-05-14T15:25:17Z"
+      "timestamp": "2026-05-14T18:17:04Z"
     },
     {
-      "correlation_id": "m015-20260514T152308Z-1930153",
+      "correlation_id": "m015-20260514T181125Z-2167622-provider",
       "message": "checking Gemini scenarios through local provider stub",
       "phase": "gemini",
       "seam": "provider",
       "status": "started",
-      "timestamp": "2026-05-14T15:25:17Z"
+      "timestamp": "2026-05-14T18:17:04Z"
     },
     {
-      "correlation_id": "m015-20260514T152308Z-1930153",
+      "correlation_id": "m015-20260514T181125Z-2167622-provider",
       "message": "Gemini local stub scenarios produced sanitized status classes",
       "phase": "gemini",
       "seam": "provider",
       "status": "ready",
-      "timestamp": "2026-05-14T15:25:17Z"
+      "timestamp": "2026-05-14T18:17:04Z"
     },
     {
-      "correlation_id": "m015-20260514T152308Z-1930153",
+      "correlation_id": "m015-20260514T181125Z-2167622-provider",
       "message": "queueing Taskiq provider boundary check",
       "phase": "worker",
       "seam": "provider",
       "status": "started",
-      "timestamp": "2026-05-14T15:25:17Z"
+      "timestamp": "2026-05-14T18:17:04Z"
     },
     {
-      "correlation_id": "m015-20260514T152308Z-1930153",
+      "correlation_id": "m015-20260514T181125Z-2167622-provider",
       "message": "Taskiq provider worker used configured local stub URLs",
       "phase": "worker",
       "seam": "provider",
       "status": "ready",
-      "timestamp": "2026-05-14T15:25:18Z"
+      "timestamp": "2026-05-14T18:17:04Z"
     }
   ],
   "failure_classes": [
@@ -75,7 +75,7 @@
       "raw_provider_bodies_persisted": false,
       "scenarios": [
         {
-          "duration_ms": 3,
+          "duration_ms": 4,
           "endpoint": "generate_content",
           "error_class": null,
           "provider": "gemini",
@@ -87,7 +87,7 @@
           "token_values_persisted": false
         },
         {
-          "duration_ms": 3,
+          "duration_ms": 4,
           "endpoint": "generate_content",
           "error_class": null,
           "provider": "gemini",
@@ -106,8 +106,8 @@
       "token_values_persisted": false
     },
     "worker": {
-      "checked_at": "2026-05-14T15:25:17Z",
-      "correlation_id_hash": "272343b0de36e3c3ed439e3fc42e521951e7fe9d00c56c4e453a756996b076a3",
+      "checked_at": "2026-05-14T18:17:04Z",
+      "correlation_id_hash": "429ed8d7b7347f6623bd4e4b4f9b8da083e2263e4f783fb7e0c60ccc4461cc09",
       "gemini": {
         "client_initialized": true,
         "configured_base_url": true,
@@ -125,7 +125,7 @@
       },
       "worker_boundary": "taskiq",
       "wuzapi": {
-        "duration_ms": 6,
+        "duration_ms": 9,
         "endpoint": "send_text",
         "error_class": null,
         "provider": "wuzapi",
@@ -142,7 +142,7 @@
       "raw_provider_bodies_persisted": false,
       "scenarios": [
         {
-          "duration_ms": 19,
+          "duration_ms": 21,
           "endpoint": "send_text",
           "error_class": null,
           "provider": "wuzapi",
@@ -190,7 +190,7 @@
           "token_values_persisted": false
         },
         {
-          "duration_ms": 4,
+          "duration_ms": 5,
           "endpoint": "send_text",
           "error_class": null,
           "provider": "wuzapi",
@@ -235,11 +235,11 @@
   },
   "result": "passed",
   "seam": "provider",
-  "started_at": "2026-05-14T15:25:16Z",
+  "started_at": "2026-05-14T18:17:03Z",
   "teardown": {
     "notes": "compose down completed idempotently, including tools-profile services",
     "result": "complete",
-    "timestamp": "2026-05-14T15:25:21Z"
+    "timestamp": "2026-05-14T18:17:08Z"
   },
   "versions": {
     "dragonfly_image": "docker.dragonflydb.io/dragonflydb/dragonfly:latest",

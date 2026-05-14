@@ -1,0 +1,529 @@
+{
+  "artifact_probe": {
+    "report": {
+      "base_report": {
+        "admin_download": {
+          "body_class": "success_body",
+          "body_matches_expected": null,
+          "body_sha256": "356878e79be596cfc93222b6f39ddf193cf486d0c348ecc32ff86111b2a76940",
+          "body_size": 59,
+          "duration_ms": 10,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": true,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "base_report_admin_download",
+          "status_class": "2xx",
+          "status_code": 200
+        },
+        "anonymous_download": {
+          "body_class": "not_authenticated",
+          "body_matches_expected": null,
+          "body_sha256": null,
+          "body_size": 111,
+          "duration_ms": 3,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": false,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "base_report_anonymous_download",
+          "status_class": "4xx",
+          "status_code": 401
+        },
+        "foreign_download": {
+          "body_class": "http_403",
+          "body_matches_expected": null,
+          "body_sha256": null,
+          "body_size": 91,
+          "duration_ms": 9,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": false,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "base_report_foreign_download",
+          "status_class": "4xx",
+          "status_code": 403
+        },
+        "owner_download": {
+          "body_class": "success_body",
+          "body_matches_expected": null,
+          "body_sha256": "356878e79be596cfc93222b6f39ddf193cf486d0c348ecc32ff86111b2a76940",
+          "body_size": 59,
+          "duration_ms": 10,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": true,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "base_report_owner_download",
+          "status_class": "2xx",
+          "status_code": 200
+        },
+        "report_id_hash": "f8e04aa2b7393820cb4ec2b81eff073b4a9d148ac5d0a7c0b61964532e596dc8"
+      },
+      "enhanced_builder": {
+        "admin_download": {
+          "body_class": "success_body",
+          "body_matches_expected": null,
+          "body_sha256": "057adfc28263f71b7a2c083722d7a1ca0e690e8d30c8606ca6e79a30603fd6ac",
+          "body_size": 46,
+          "duration_ms": 8,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": true,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "enhanced_builder_admin_download",
+          "status_class": "2xx",
+          "status_code": 200
+        },
+        "builder_id_hash": "e6ced20a8c27ac0dd7e9bb1599ee7bbacd67d234b0da04359d2eb2bf5da52c8a",
+        "foreign_download": {
+          "body_class": "http_403",
+          "body_matches_expected": null,
+          "body_sha256": null,
+          "body_size": 91,
+          "duration_ms": 9,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": false,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "enhanced_builder_foreign_download",
+          "status_class": "4xx",
+          "status_code": 403
+        },
+        "owner_download": {
+          "body_class": "success_body",
+          "body_matches_expected": null,
+          "body_sha256": "057adfc28263f71b7a2c083722d7a1ca0e690e8d30c8606ca6e79a30603fd6ac",
+          "body_size": 46,
+          "duration_ms": 9,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": true,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "enhanced_builder_owner_download",
+          "status_class": "2xx",
+          "status_code": 200
+        }
+      },
+      "enhanced_export": {
+        "fallback_export_id_hash": "d9232e94ec6874875fc7a588c6107693c2881bbbd4cc42e64118fef6c61868dd",
+        "fallback_html": {
+          "body_class": "success_body",
+          "body_matches_expected": null,
+          "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "body_size": 0,
+          "duration_ms": 9,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": true,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "enhanced_export_fallback_html",
+          "status_class": "2xx",
+          "status_code": 200
+        },
+        "fallback_pdf": {
+          "body_class": "success_body",
+          "body_matches_expected": null,
+          "body_sha256": "f246a0043abad99c6fe9964c6dbd54b20a506bdd2720b0bf7b14a21f9bc4aa61",
+          "body_size": 14,
+          "duration_ms": 8,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": true,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "enhanced_export_fallback_pdf",
+          "status_class": "2xx",
+          "status_code": 200
+        },
+        "raw_download_urls_persisted": false,
+        "unsafe_download": {
+          "body_class": "http_404",
+          "body_matches_expected": null,
+          "body_sha256": null,
+          "body_size": 127,
+          "duration_ms": 9,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": false,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "enhanced_export_unsafe_download",
+          "status_class": "4xx",
+          "status_code": 404
+        },
+        "unsafe_download_redirected": false,
+        "unsafe_download_urls_withheld": true,
+        "unsafe_export_id_hash": "24b2d4af53231f5bae9eaa862292bfa05239fd0bb694bcc9f6dea1701c79c0ed",
+        "unsafe_status": {
+          "body_class": "success_body",
+          "body_matches_expected": null,
+          "body_sha256": "a875395842e935f9b62563e9810f13b32d20daa560ffe9270301d5054379694f",
+          "body_size": 282,
+          "duration_ms": 9,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": false,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "enhanced_export_unsafe_status",
+          "status_class": "2xx",
+          "status_code": 200
+        },
+        "unsafe_url_hash": "4bd0397094381756005d2e608c8de61ec95aaa184f4e26eadef9e22daa1c1b76"
+      },
+      "sessions": {
+        "admin_user_hash": "80fc49d3b17ca91808705fece591550f97c715f31cc20af4716f9f4fd1316f2f",
+        "foreign_user_hash": "4a754e2a83ad8b3b68dcfa44335d5390f0dcc0cdd6c649aca18a948937e6320f",
+        "owner_user_hash": "c72f7542fb4edb52ff9b530391a2c1622854e851f8276647e0f5c6a824da8e88",
+        "raw_cookie_headers_persisted": false,
+        "raw_session_ids_persisted": false
+      }
+    },
+    "upload": {
+      "private_upload": {
+        "admin_download": {
+          "body_class": "success_body",
+          "body_matches_expected": true,
+          "body_sha256": "350692eb491ca9c9293ffa5c19031c1bd96fb9be97196e2be206e86149c79367",
+          "body_size": 35,
+          "duration_ms": 13,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": true,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "private_upload_admin_download",
+          "status_class": "2xx",
+          "status_code": 200
+        },
+        "anonymous_download": {
+          "body_class": "not_authenticated",
+          "body_matches_expected": false,
+          "body_sha256": null,
+          "body_size": 111,
+          "duration_ms": 4,
+          "headers": {
+            "cache_control_no_store": false,
+            "content_disposition_attachment": false,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "private_upload_anonymous_download",
+          "status_class": "4xx",
+          "status_code": 401
+        },
+        "direct_static": {
+          "body_class": "not_found",
+          "body_matches_expected": false,
+          "body_sha256": null,
+          "body_size": 83,
+          "duration_ms": 5,
+          "headers": {
+            "cache_control_no_store": false,
+            "content_disposition_attachment": false,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "private_upload_direct_static",
+          "status_class": "4xx",
+          "status_code": 404
+        },
+        "download_url_gated": true,
+        "foreign_download": {
+          "body_class": "forbidden",
+          "body_matches_expected": false,
+          "body_sha256": null,
+          "body_size": 83,
+          "duration_ms": 12,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": false,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "private_upload_foreign_download",
+          "status_class": "4xx",
+          "status_code": 403
+        },
+        "owner_download": {
+          "body_class": "success_body",
+          "body_matches_expected": true,
+          "body_sha256": "350692eb491ca9c9293ffa5c19031c1bd96fb9be97196e2be206e86149c79367",
+          "body_size": 35,
+          "duration_ms": 15,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": true,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "private_upload_owner_download",
+          "status_class": "2xx",
+          "status_code": 200
+        },
+        "owner_info": {
+          "body_class": "success_body",
+          "body_matches_expected": null,
+          "body_sha256": "3655158f57ab9f68685511105418934c70a255ea3d418b0eae98b29e98c348d2",
+          "body_size": 1134,
+          "duration_ms": 14,
+          "headers": {
+            "cache_control_no_store": true,
+            "content_disposition_attachment": false,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "private_upload_owner_info",
+          "status_class": "2xx",
+          "status_code": 200
+        },
+        "response_url_gated": true,
+        "response_url_static": false,
+        "storage_path_hash": "acaf1bce54a34516ab614b80f9f8e137a8baa4efef7607b3132108a8feaa60aa",
+        "upload_id_hash": "9a061ea0edc8052a4343366b2d93906580aac78bb0639b2a2dbcce66e4821593"
+      },
+      "public_upload": {
+        "direct_static": {
+          "body_class": "success_body",
+          "body_matches_expected": true,
+          "body_sha256": "0416d0932f6f80014efd4c51a89156debe5549a93324124d010cb6e81be5a24f",
+          "body_size": 34,
+          "duration_ms": 6,
+          "headers": {
+            "cache_control_no_store": false,
+            "content_disposition_attachment": false,
+            "location_present": false,
+            "raw_header_values_persisted": false,
+            "set_cookie_present": false,
+            "x_content_type_options_nosniff": true
+          },
+          "raw_body_persisted": false,
+          "raw_headers_persisted": false,
+          "raw_private_paths_persisted": false,
+          "route": "public_upload_direct_static",
+          "status_class": "2xx",
+          "status_code": 200
+        },
+        "public_url_hash": "a56a35d3a7227dd40ba52dd9cd9524c994b346cdd55402d4ba18d76b7fe47c57",
+        "static_url_present": true,
+        "upload_id_hash": "8862ea5e67634ce7fe69d0d71a86cf3fcefe04276460f89bde5c168a7d4e9550"
+      },
+      "sessions": {
+        "admin_user_hash": "0a781f0b3f9575bd1aaf66871532a2640142cdff38e80321b9c75b4e6fdf99ca",
+        "foreign_user_hash": "8359ebccb3867eb59b6d04ce7b1c1d0d6070315fb4ebd2cd044d0c803d69ed15",
+        "owner_user_hash": "2b33a23e2ed7d3b579258df50bfea6a8ec4fccf37015e12a4b7fa10e791fb172",
+        "raw_cookie_headers_persisted": false,
+        "raw_session_ids_persisted": false
+      }
+    }
+  },
+  "command": "./scripts/security/verify-m015-runtime-security.sh --seam artifact",
+  "completed_at": "2026-05-14T18:19:03Z",
+  "correlation_id": "m015-20260514T181125Z-2167622-artifact",
+  "events": [
+    {
+      "correlation_id": "m015-20260514T181125Z-2167622-artifact",
+      "message": "applying Alembic head for artifact seam synthetic data",
+      "phase": "setup",
+      "seam": "artifact",
+      "status": "started",
+      "timestamp": "2026-05-14T18:18:57Z"
+    },
+    {
+      "correlation_id": "m015-20260514T181125Z-2167622-artifact",
+      "message": "Alembic head available for artifact seam synthetic data",
+      "phase": "setup",
+      "seam": "artifact",
+      "status": "ready",
+      "timestamp": "2026-05-14T18:19:02Z"
+    },
+    {
+      "correlation_id": "m015-20260514T181125Z-2167622-artifact",
+      "message": "checking private/public upload app-route behavior through FastAPI",
+      "phase": "upload",
+      "seam": "artifact",
+      "status": "started",
+      "timestamp": "2026-05-14T18:19:02Z"
+    },
+    {
+      "correlation_id": "m015-20260514T181125Z-2167622-artifact",
+      "message": "upload app-route probe recorded gated private and public-static outcomes",
+      "phase": "upload",
+      "seam": "artifact",
+      "status": "ready",
+      "timestamp": "2026-05-14T18:19:03Z"
+    },
+    {
+      "correlation_id": "m015-20260514T181125Z-2167622-artifact",
+      "message": "checking report/export app-route behavior through FastAPI",
+      "phase": "report",
+      "seam": "artifact",
+      "status": "started",
+      "timestamp": "2026-05-14T18:19:03Z"
+    },
+    {
+      "correlation_id": "m015-20260514T181125Z-2167622-artifact",
+      "message": "report/export app-route probe recorded ownership, unsafe-url, and fallback outcomes",
+      "phase": "report",
+      "seam": "artifact",
+      "status": "ready",
+      "timestamp": "2026-05-14T18:19:03Z"
+    }
+  ],
+  "failure_classes": [
+    "migration_failure",
+    "upload_create_failed",
+    "private_upload_url_leak",
+    "upload_route_unexpected_status",
+    "upload_route_body_leak",
+    "upload_static_private_exposed",
+    "report_cache_seed_failure",
+    "report_route_unexpected_status",
+    "export_status_unsafe_url_leak",
+    "export_status_malformed_json",
+    "redaction_denylist_hit"
+  ],
+  "non_goals": [
+    "final_all_seam_matrix_closure_deferred_to_s05",
+    "live_provider_credentials_not_used",
+    "no_real_patient_data_or_phi",
+    "browser_frontend_flows_not_exercised",
+    "cdn_object_storage_not_exercised"
+  ],
+  "redaction": {
+    "raw_cookie_headers_persisted": false,
+    "raw_download_urls_persisted": false,
+    "raw_private_paths_persisted": false,
+    "raw_report_bytes_persisted": false,
+    "raw_session_ids_persisted": false,
+    "raw_uploaded_bytes_persisted": false,
+    "validated": true
+  },
+  "result": "passed",
+  "seam": "artifact",
+  "setup": {
+    "migrations": {
+      "duration_ms": 5363,
+      "exit_code": 0,
+      "output_tail": "-> m007_s04_t02_patient_flow_responses, Create patient_flow_responses table for structured response storage.\nINFO  [alembic.runtime.migration] Running upgrade m007_s04_t02_patient_flow_responses -> m008_s01_t03_sessions_align, Align sessions table with Session model — add missing columns.\nINFO  [alembic.runtime.migration] Running upgrade m008_s01_t03_sessions_align -> m011_s01_patient_flow_states_index, Add composite index on patient_flow_states(patient_id, started_at DESC).\nINFO  [alembic.runtime.migration] Running upgrade m011_s01_patient_flow_states_index -> m012_s01_patient_flow_overrides, Create patient_flow_overrides table for per-patient flow day overrides.\nINFO  [alembic.runtime.migration] Running upgrade m012_s01_patient_flow_overrides -> m013_s04_upload_deleted_at, Add soft-delete timestamp to uploads.\nINFO  [alembic.runtime.migration] Running upgrade m013_s04_upload_deleted_at -> m015_s02_notifications_profile_contract, Align notifications table with profile endpoint model contract.\nINFO  [alembic.runtime.migration] Running upgrade m015_s02_notifications_profile_contract -> m015_s04_upload_runtime_contract, Align uploads table with runtime artifact route model contract.\n"
+    }
+  },
+  "started_at": "2026-05-14T18:18:57Z",
+  "teardown": {
+    "notes": "compose down completed idempotently, including tools-profile services",
+    "result": "complete",
+    "timestamp": "2026-05-14T18:19:07Z"
+  },
+  "versions": {
+    "api_base": "http://api:8080",
+    "artifact_scope": "upload_report_export_app_routes",
+    "dragonfly_image": "docker.dragonflydb.io/dragonflydb/dragonfly:latest",
+    "postgres_image": "postgres:16-alpine"
+  }
+}

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 import logging
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import inspect
@@ -111,6 +112,12 @@ def session_user_data_to_user(user_data: Dict[str, Any]) -> User:
         if "id" not in user_dict and user_dict.get("user_id"):
             user_dict["id"] = user_dict.get("user_id")
         user_dict.pop("user_id", None)
+
+        if user_dict.get("id") and isinstance(user_dict["id"], str):
+            try:
+                user_dict["id"] = UUID(user_dict["id"])
+            except ValueError as exc:
+                raise ValueError("Invalid session user id") from exc
 
         if "last_login" in user_dict:
             last_login = user_dict.pop("last_login")

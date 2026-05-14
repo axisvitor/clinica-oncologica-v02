@@ -1,5 +1,0 @@
-correlation_id=m015-20260514T135124Z-1771542
-seam=provider
-last_phase=worker
-failure_class=taskiq_dispatch_or_result_failure
-timestamp=2026-05-14T13:54:39Z

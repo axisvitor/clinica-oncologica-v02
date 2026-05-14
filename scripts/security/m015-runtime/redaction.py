@@ -77,6 +77,20 @@ DENYLIST_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
     (
+        "raw_private_artifact_path",
+        re.compile(
+            r"(?i)(?:^|[\s\"'=])(?:/)?uploads/private/|/tmp/hormonia-[^\s,;)\]}]+|/\.[^\s,;)\]}]*uploads[^\s,;)\]}]*_private[^\s,;)\]}]*"
+        ),
+    ),
+    (
+        "raw_download_urls_mapping",
+        re.compile(r"(?i)[\"']download_urls[\"']\s*:"),
+    ),
+    (
+        "raw_uploaded_or_report_bytes",
+        re.compile(r"(?i)\b(?:upload|uploaded|report)[_-]?bytes\s*[:=]\s*(?!false\b)[^\s,}]+"),
+    ),
+    (
         "raw_patient_or_provider_payload",
         re.compile(
             r"(?i)[\"']?\b(patient[_ -]?name|patient[_ -]?value|provider[_ -]?payload|raw[_ -]?payload|cpf|phone|email)\b[\"']?\s*[:=]"
@@ -122,6 +136,20 @@ _SANITIZERS: tuple[tuple[re.Pattern[str], str], ...] = (
             r".*?(?=(?:\n|\r|$|\]))"
         ),
         r"\1<redacted-sql-statement>",
+    ),
+    (
+        re.compile(r"(?i)([\"']download_urls[\"']\s*:\s*)\{[^}\n\r]*\}"),
+        r"\1<redacted-download-urls>",
+    ),
+    (
+        re.compile(
+            r"(?i)(?:^|[\s\"'=])(?:/)?uploads/private/[^\s,;)\]}]+|/tmp/hormonia-[^\s,;)\]}]+|/\.[^\s,;)\]}]*uploads[^\s,;)\]}]*_private[^\s,;)\]}]*"
+        ),
+        "<redacted-private-artifact-path>",
+    ),
+    (
+        re.compile(r"(?i)(\b(?:upload|uploaded|report)[_-]?bytes\s*[:=]\s*)[^\s,}]+"),
+        r"\1<redacted-bytes>",
     ),
     (
         re.compile(

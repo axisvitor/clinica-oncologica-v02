@@ -9,8 +9,8 @@
       "sourceFile": "STATE.md"
     },
     {
-      "id": "concept:phase:planning",
-      "label": "Phase: planning",
+      "id": "concept:phase:validating-milestone",
+      "label": "Phase: validating-milestone",
       "type": "concept",
       "confidence": "EXTRACTED",
       "sourceFile": "STATE.md"
@@ -1743,6 +1743,154 @@
     {
       "id": "task:M015:S01:T05",
       "label": "T05: Harden harness contract tests and run the S01 closure gate",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "slice:M015:S02",
+      "label": "S02: Cross-Process Session Revocation + Queue Worker Proof",
+      "type": "slice",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M015/slices/S02/S02-PLAN.md"
+    },
+    {
+      "id": "task:M015:S02:T01",
+      "label": "T01: Make DB session state authoritative for cache hits and cache misses",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S02:T02",
+      "label": "T02: Invalidate Redis on explicit session revocation",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S02:T03",
+      "label": "T03: Wire the session seam runner, Compose service, and explicit Taskiq task module",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S02:T04",
+      "label": "T04: Build the session runtime probe and redaction-validated evidence",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S02:T05",
+      "label": "T05: Run the session seam and commit fresh sanitized evidence artifacts",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "slice:M015:S03",
+      "label": "S03: Network-Real WuzAPI/Gemini Stub Boundary",
+      "type": "slice",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M015/slices/S03/S03-PLAN.md"
+    },
+    {
+      "id": "task:M015:S03:T01",
+      "label": "T01: Add controlled WuzAPI/Gemini provider stubs and redaction contracts",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S03:T02",
+      "label": "T02: Add a test-covered Gemini base-URL configuration seam",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S03:T03",
+      "label": "T03: Wire the provider seam into the runner, Compose stack, and static contracts",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S03:T04",
+      "label": "T04: Build the provider runtime probe and worker participation proof",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S03:T05",
+      "label": "T05: Run the provider seam and persist fresh sanitized evidence",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "slice:M015:S04",
+      "label": "S04: Private Artifact App-Route Runtime Proof",
+      "type": "slice",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M015/slices/S04/S04-PLAN.md"
+    },
+    {
+      "id": "task:M015:S04:T01",
+      "label": "T01: Register artifact seam and static runtime contract",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S04:T02",
+      "label": "T02: Build private upload app-route runtime probe",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S04:T03",
+      "label": "T03: Build report and export app-route runtime probe",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S04:T04",
+      "label": "T04: Write redaction-safe artifact evidence and summary",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S04:T05",
+      "label": "T05: Run artifact seam end to end and persist fresh evidence",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "slice:M015:S05",
+      "label": "S05: Unified Runner, Evidence Matrix, and Strict Closure Gate",
+      "type": "slice",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M015/slices/S05/S05-PLAN.md"
+    },
+    {
+      "id": "task:M015:S05:T01",
+      "label": "T01: Lock final matrix and no-filter runner contracts",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S05:T02",
+      "label": "T02: Implement unified all-seam runner mode",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S05:T03",
+      "label": "T03: Generate redaction-safe M015 evidence matrix",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S05:T04",
+      "label": "T04: Enforce strict matrix validator and red-signal policy",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S05:T05",
+      "label": "T05: Run final all-seam proof and persist closure matrix",
       "type": "task",
       "confidence": "EXTRACTED"
     },
@@ -3707,6 +3855,150 @@
       "confidence": "EXTRACTED"
     },
     {
+      "from": "milestone:M015",
+      "to": "slice:M015:S02",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S02",
+      "to": "task:M015:S02:T01",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S02",
+      "to": "task:M015:S02:T02",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S02",
+      "to": "task:M015:S02:T03",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S02",
+      "to": "task:M015:S02:T04",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S02",
+      "to": "task:M015:S02:T05",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M015",
+      "to": "slice:M015:S03",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S03",
+      "to": "task:M015:S03:T01",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S03",
+      "to": "task:M015:S03:T02",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S03",
+      "to": "task:M015:S03:T03",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S03",
+      "to": "task:M015:S03:T04",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S03",
+      "to": "task:M015:S03:T05",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M015",
+      "to": "slice:M015:S04",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S04",
+      "to": "task:M015:S04:T01",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S04",
+      "to": "task:M015:S04:T02",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S04",
+      "to": "task:M015:S04:T03",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S04",
+      "to": "task:M015:S04:T04",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S04",
+      "to": "task:M015:S04:T05",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "milestone:M015",
+      "to": "slice:M015:S05",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S05",
+      "to": "task:M015:S05:T01",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S05",
+      "to": "task:M015:S05:T02",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S05",
+      "to": "task:M015:S05:T03",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S05",
+      "to": "task:M015:S05:T04",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S05",
+      "to": "task:M015:S05:T05",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
       "from": "milestone:M013",
       "to": "decision:M013:1",
       "type": "relates_to",
@@ -4001,5 +4293,5 @@
       "confidence": "EXTRACTED"
     }
   ],
-  "builtAt": "2026-05-14T06:48:29.172Z"
+  "builtAt": "2026-05-14T18:21:54.136Z"
 }

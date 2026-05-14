@@ -1,4 +1,0 @@
-NAME                                                     IMAGE                                                COMMAND                  SERVICE     CREATED         STATUS                   PORTS
-m015-runtime-m015-20260514t052019z-1146397-dragonfly-1   docker.dragonflydb.io/dragonflydb/dragonfly:latest   "/usr/bin/tini -- en…"   dragonfly   2 minutes ago   Up 2 minutes (healthy)   6379/tcp
-m015-runtime-m015-20260514t052019z-1146397-postgres-1    postgres:16-alpine                                   "docker-entrypoint.s…"   postgres    2 minutes ago   Up 2 minutes (healthy)   127.0.0.1:15432->5432/tcp
-m015-runtime-m015-20260514t052019z-1146397-worker-1      m015-runtime-m015-20260514t052019z-1146397-worker    "taskiq worker app.t…"   worker      2 minutes ago   Up 2 minutes             8080/tcp

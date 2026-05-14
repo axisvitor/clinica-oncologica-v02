@@ -1,7 +1,0 @@
-NAME                                                           IMAGE                                                        COMMAND                  SERVICE           CREATED         STATUS                   PORTS
-m015-runtime-m015-20260514t142652z-1828747-api-1               m015-runtime-m015-20260514t142652z-1828747-api               "sh -c 'uvicorn app.…"   api               4 minutes ago   Up 4 minutes             127.0.0.1:18080->8080/tcp
-m015-runtime-m015-20260514t142652z-1828747-dragonfly-1         docker.dragonflydb.io/dragonflydb/dragonfly:latest           "/usr/bin/tini -- en…"   dragonfly         4 minutes ago   Up 4 minutes (healthy)   6379/tcp
-m015-runtime-m015-20260514t142652z-1828747-postgres-1          postgres:16-alpine                                           "docker-entrypoint.s…"   postgres          4 minutes ago   Up 4 minutes (healthy)   127.0.0.1:15432->5432/tcp
-m015-runtime-m015-20260514t142652z-1828747-provider-stub-1     m015-runtime-m015-20260514t142652z-1828747-provider-stub     "python /m015-runtim…"   provider-stub     4 minutes ago   Up 4 minutes             8080/tcp
-m015-runtime-m015-20260514t142652z-1828747-provider-worker-1   m015-runtime-m015-20260514t142652z-1828747-provider-worker   "taskiq worker app.t…"   provider-worker   4 minutes ago   Up 4 minutes             8080/tcp
-m015-runtime-m015-20260514t142652z-1828747-worker-1            m015-runtime-m015-20260514t142652z-1828747-worker            "taskiq worker app.t…"   worker            4 minutes ago   Up 4 minutes             8080/tcp

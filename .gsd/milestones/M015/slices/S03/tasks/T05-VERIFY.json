@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T05",
+  "unitId": "M015/S03/T05",
+  "timestamp": 1778772542262,
+  "passed": false,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "bash -n scripts/security/verify-m015-runtime-security.sh",
+      "exitCode": 0,
+      "durationMs": 14,
+      "verdict": "pass"
+    },
+    {
+      "command": "docker compose -f scripts/security/m015-runtime/docker-compose.yml config --quiet",
+      "exitCode": 0,
+      "durationMs": 768,
+      "verdict": "pass"
+    },
+    {
+      "command": "cd backend-hormonia",
+      "exitCode": 0,
+      "durationMs": 6,
+      "verdict": "pass"
+    },
+    {
+      "command": "PYTHONPATH=. pytest tests/security/test_m015_s03_provider_runtime_contract.py tests/security/test_m015_runtime_harness.py tests/unit/test_gemini_client_stub_config.py -q",
+      "exitCode": 4,
+      "durationMs": 872,
+      "verdict": "fail"
+    },
+    {
+      "command": "cd ..",
+      "exitCode": 0,
+      "durationMs": 5,
+      "verdict": "pass"
+    },
+    {
+      "command": "./scripts/security/verify-m015-runtime-security.sh --seam provider",
+      "exitCode": 127,
+      "durationMs": 120002,
+      "verdict": "fail"
+    }
+  ],
+  "retryAttempt": 1,
+  "maxRetries": 2
+}

@@ -852,7 +852,10 @@ def main() -> int:
             print(f"phase=setup status=failed failure_class={exc.failure_class} remediation={exc.message}", flush=True)
         return 1
     except Exception as exc:  # pragma: no cover - runtime harness defensive path.
-        message = f"unexpected session seam failure class {type(exc).__name__}"
+        finding_suffix = ""
+        if isinstance(exc, RedactionError):
+            finding_suffix = f" findings={','.join(exc.findings)}"
+        message = f"unexpected session seam failure class {type(exc).__name__}{finding_suffix}"
         if probe is not None:
             probe.event("evidence", "failed", f"failure_class=session_probe_unhandled remediation={message}")
         else:

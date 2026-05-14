@@ -48,27 +48,29 @@ class M015RunnerContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--seam db", result.stdout)
         self.assertIn("provider", result.stdout)
+        self.assertIn("artifact", result.stdout)
         self.assertIn("--list-seams", result.stdout)
         self.assertIn("--teardown-only", result.stdout)
 
-    def test_list_seams_only_lists_implemented_db_session_and_provider_seams(self) -> None:
+    def test_list_seams_only_lists_registered_runtime_seams(self) -> None:
         result = self.run_runner("--list-seams")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip().splitlines(), ["db", "session", "provider"])
+        self.assertEqual(result.stdout.strip().splitlines(), ["db", "session", "provider", "artifact"])
 
     def test_unknown_seam_fails_before_setup_phase(self) -> None:
-        result = self.run_runner("--seam", "artifact")
+        result = self.run_runner("--seam", "not-a-seam")
         self.assertNotEqual(result.returncode, 0)
         combined = result.stdout + result.stderr
         self.assertIn("unknown seam", combined.lower())
         self.assertNotIn("phase=setup", combined)
 
-    def test_missing_seam_fails_closed(self) -> None:
-        result = self.run_runner()
-        self.assertNotEqual(result.returncode, 0)
-        combined = result.stdout + result.stderr
-        self.assertIn("--seam db", combined)
-        self.assertNotIn("green", combined.lower())
+    def test_no_filter_runs_all_seams_static_contract(self) -> None:
+        runner_text = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("ALL_SEAMS=(db session provider artifact)", runner_text)
+        self.assertIn("run_all_seams()", runner_text)
+        self.assertIn("M015 evidence matrix", runner_text)
+        self.assertIn("evidence_matrix.py", runner_text)
+        self.assertNotIn("no seam selected", runner_text)
 
     def test_compose_static_contract(self) -> None:
         text = COMPOSE_FILE.read_text(encoding="utf-8")
@@ -82,6 +84,7 @@ class M015RunnerContractTests(unittest.TestCase):
             "provider-stub:",
             "provider-worker:",
             "provider-probe:",
+            "artifact-probe:",
         ):
             self.assertIn(service, text)
         self.assertNotIn("env_file", text)
@@ -98,12 +101,17 @@ class M015RunnerContractTests(unittest.TestCase):
         self.assertIn("command: [\"python\", \"/m015-runtime/session_seam.py\"]", text)
         self.assertIn("command: [\"python\", \"/m015-runtime/provider_stub.py\", \"--host\", \"0.0.0.0\", \"--port\", \"18089\"]", text)
         self.assertIn("command: [\"python\", \"/m015-runtime/provider_seam.py\"]", text)
+        self.assertIn("command: [\"python\", \"/m015-runtime/artifact_seam.py\"]", text)
         self.assertIn("command: [\"taskiq\", \"worker\", \"app.taskiq_broker:broker\", \"app.tasks.m015_session_security_taskiq\"]", text)
         self.assertIn("command: [\"taskiq\", \"worker\", \"app.taskiq_broker:broker\", \"app.tasks.m015_provider_security_taskiq\"]", text)
         self.assertIn("./db_seam.py:/m015-runtime/db_seam.py:ro", text)
         self.assertIn("./session_seam.py:/m015-runtime/session_seam.py:ro", text)
         self.assertIn("./m015_session_security_taskiq.py:/app/app/tasks/m015_session_security_taskiq.py:ro", text)
         self.assertIn("./m015_session_security_taskiq.py:/m015-runtime/m015_session_security_taskiq.py:ro", text)
+        self.assertIn("./provider_seam.py:/m015-runtime/provider_seam.py:ro", text)
+        self.assertIn("./m015_provider_security_taskiq.py:/app/app/tasks/m015_provider_security_taskiq.py:ro", text)
+        self.assertIn("./m015_provider_security_taskiq.py:/m015-runtime/m015_provider_security_taskiq.py:ro", text)
+        self.assertIn("./artifact_seam.py:/m015-runtime/artifact_seam.py:ro", text)
         self.assertIn("./redaction.py:/m015-runtime/redaction.py:ro", text)
         self.assertIn("../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output", text)
         self.assertIn("ssl=on", text)
@@ -112,11 +120,18 @@ class M015RunnerContractTests(unittest.TestCase):
         self.assertIn("[Cc]ookie", runner_text)
         self.assertIn("[Tt]oken", runner_text)
         self.assertIn("[Ss]et-[Cc]ookie", runner_text)
+        self.assertIn("artifact-seam-evidence.json", runner_text)
+        self.assertIn("artifact-seam-summary.md", runner_text)
+        self.assertIn("compose_cmd run --rm -T artifact-probe", runner_text)
+        self.assertIn("artifact seam durable artifacts passed denylist validation", runner_text)
 
     def test_runtime_scratch_is_ignored_but_harness_is_not(self) -> None:
         gitignore = GITIGNORE.read_text(encoding="utf-8")
-        self.assertIn(".m015-runtime/", gitignore)
-        self.assertNotIn("scripts/security/m015-runtime/", gitignore)
+        gitignore_lines = set(gitignore.splitlines())
+        self.assertIn(".m015-runtime/", gitignore_lines)
+        self.assertIn("scripts/security/m015-runtime/evidence/", gitignore_lines)
+        self.assertNotIn("scripts/security/m015-runtime/", gitignore_lines)
+        self.assertNotIn("scripts/security/m015-runtime/*", gitignore_lines)
 
     def test_redaction_rejects_sensitive_evidence_shapes(self) -> None:
         sensitive_examples = [

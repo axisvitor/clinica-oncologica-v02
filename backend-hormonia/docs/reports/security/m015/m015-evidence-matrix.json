@@ -1,0 +1,291 @@
+{
+  "command": "./scripts/security/verify-m015-runtime-security.sh",
+  "generated_at": "2026-05-14T18:19:07Z",
+  "milestone": "M015",
+  "non_goals": [
+    "no_live_provider_credentials",
+    "no_production_systems_or_phi",
+    "no_browser_frontend_flows",
+    "no_cdn_object_storage_claim",
+    "no_broad_dast_or_exploitation"
+  ],
+  "required_runtime_items": [
+    "db_tls_rls_runtime",
+    "session_revocation_multi_process",
+    "taskiq_worker_db_recheck",
+    "provider_wuzapi_stub_boundary",
+    "provider_gemini_stub_boundary",
+    "private_upload_app_routes",
+    "report_export_app_routes",
+    "synthetic_only_no_live_providers",
+    "redaction_safe_evidence",
+    "strict_red_signal_closure"
+  ],
+  "requirements": [
+    "R012",
+    "R013",
+    "R014",
+    "R015",
+    "R017",
+    "R018"
+  ],
+  "result": "passed",
+  "rows": [
+    {
+      "correlation_ids": [
+        "m015-20260514T181125Z-2167622-db"
+      ],
+      "evidence_paths": [
+        "backend-hormonia/docs/reports/security/m015/db-seam-evidence.json"
+      ],
+      "id": "db_tls_rls_runtime",
+      "notes": "Fresh DB seam evidence is synthetic-only and redaction-validated.",
+      "proof": "PostgreSQL verify-full TLS, app-role migrations/readiness, and RLS allow/deny behavior were exercised by the DB seam.",
+      "raw_sensitive_values_persisted": false,
+      "redaction_validated": true,
+      "requirement_ids": [
+        "R012",
+        "R014"
+      ],
+      "source_seams": [
+        "db"
+      ],
+      "status": "fresh_evidence"
+    },
+    {
+      "correlation_ids": [
+        "m015-20260514T181125Z-2167622-session"
+      ],
+      "evidence_paths": [
+        "backend-hormonia/docs/reports/security/m015/session-seam-evidence.json"
+      ],
+      "id": "session_revocation_multi_process",
+      "notes": "No Bearer shortcut or dependency override is used for the runtime claim.",
+      "proof": "Cookie-backed staff sessions, cache miss DB fallback, explicit revocation, stale-cache denial, and expired-session denial were exercised by the session seam.",
+      "raw_sensitive_values_persisted": false,
+      "redaction_validated": true,
+      "requirement_ids": [
+        "R013",
+        "R014"
+      ],
+      "source_seams": [
+        "session"
+      ],
+      "status": "fresh_evidence"
+    },
+    {
+      "correlation_ids": [
+        "m015-20260514T181125Z-2167622-session"
+      ],
+      "evidence_paths": [
+        "backend-hormonia/docs/reports/security/m015/session-seam-evidence.json"
+      ],
+      "id": "taskiq_worker_db_recheck",
+      "notes": "Worker proof is scoped to synthetic session revocation, not broad queue load testing.",
+      "proof": "Taskiq worker participation re-checks PostgreSQL session state before accepting queued work.",
+      "raw_sensitive_values_persisted": false,
+      "redaction_validated": true,
+      "requirement_ids": [
+        "R013",
+        "R014"
+      ],
+      "source_seams": [
+        "session"
+      ],
+      "status": "fresh_evidence"
+    },
+    {
+      "correlation_ids": [
+        "m015-20260514T181125Z-2167622-provider"
+      ],
+      "evidence_paths": [
+        "backend-hormonia/docs/reports/security/m015/provider-seam-evidence.json"
+      ],
+      "id": "provider_wuzapi_stub_boundary",
+      "notes": "Live WuzAPI credentials and production systems are explicit non-goals.",
+      "proof": "WuzAPI-compatible calls traverse the Compose network to a controlled local stub with success, client/server error, timeout, and replay scenarios.",
+      "raw_sensitive_values_persisted": false,
+      "redaction_validated": true,
+      "requirement_ids": [
+        "R014",
+        "R015"
+      ],
+      "source_seams": [
+        "provider"
+      ],
+      "status": "fresh_evidence"
+    },
+    {
+      "correlation_ids": [
+        "m015-20260514T181125Z-2167622-provider"
+      ],
+      "evidence_paths": [
+        "backend-hormonia/docs/reports/security/m015/provider-seam-evidence.json"
+      ],
+      "id": "provider_gemini_stub_boundary",
+      "notes": "Live Gemini credentials and prompts are not used or persisted.",
+      "proof": "Gemini-compatible calls traverse the Compose network to the controlled local stub and exercise success/error handling.",
+      "raw_sensitive_values_persisted": false,
+      "redaction_validated": true,
+      "requirement_ids": [
+        "R014",
+        "R015"
+      ],
+      "source_seams": [
+        "provider"
+      ],
+      "status": "fresh_evidence"
+    },
+    {
+      "correlation_ids": [
+        "m015-20260514T181125Z-2167622-artifact"
+      ],
+      "evidence_paths": [
+        "backend-hormonia/docs/reports/security/m015/artifact-seam-evidence.json"
+      ],
+      "id": "private_upload_app_routes",
+      "notes": "S04 fixed upload schema alignment and cached-session UUID owner comparison before accepting green evidence.",
+      "proof": "Private upload owner/admin gated downloads succeed; anonymous, cross-owner, and direct private static access fail closed.",
+      "raw_sensitive_values_persisted": false,
+      "redaction_validated": true,
+      "requirement_ids": [
+        "R014",
+        "R017"
+      ],
+      "source_seams": [
+        "artifact"
+      ],
+      "status": "fresh_evidence"
+    },
+    {
+      "correlation_ids": [
+        "m015-20260514T181125Z-2167622-artifact"
+      ],
+      "evidence_paths": [
+        "backend-hormonia/docs/reports/security/m015/artifact-seam-evidence.json"
+      ],
+      "id": "report_export_app_routes",
+      "notes": "CDN/object storage and browser rendering are explicit non-goals.",
+      "proof": "Base report, enhanced builder, and enhanced export app routes enforce ownership, safe attachment headers, fallback downloads, and unsafe URL withholding.",
+      "raw_sensitive_values_persisted": false,
+      "redaction_validated": true,
+      "requirement_ids": [
+        "R014",
+        "R017"
+      ],
+      "source_seams": [
+        "artifact"
+      ],
+      "status": "fresh_evidence"
+    },
+    {
+      "correlation_ids": [
+        "m015-20260514T181125Z-2167622-db",
+        "m015-20260514T181125Z-2167622-session",
+        "m015-20260514T181125Z-2167622-provider",
+        "m015-20260514T181125Z-2167622-artifact"
+      ],
+      "evidence_paths": [
+        "backend-hormonia/docs/reports/security/m015/db-seam-evidence.json",
+        "backend-hormonia/docs/reports/security/m015/session-seam-evidence.json",
+        "backend-hormonia/docs/reports/security/m015/provider-seam-evidence.json",
+        "backend-hormonia/docs/reports/security/m015/artifact-seam-evidence.json"
+      ],
+      "id": "synthetic_only_no_live_providers",
+      "notes": "This row closes the anti-feature boundary against production exploitation claims.",
+      "proof": "All seams run in a synthetic Compose project with generated credentials, local stubs, and no real PHI/provider data.",
+      "raw_sensitive_values_persisted": false,
+      "redaction_validated": true,
+      "requirement_ids": [
+        "R015"
+      ],
+      "source_seams": [
+        "db",
+        "session",
+        "provider",
+        "artifact"
+      ],
+      "status": "fresh_evidence"
+    },
+    {
+      "correlation_ids": [
+        "m015-20260514T181125Z-2167622-db",
+        "m015-20260514T181125Z-2167622-session",
+        "m015-20260514T181125Z-2167622-provider",
+        "m015-20260514T181125Z-2167622-artifact"
+      ],
+      "evidence_paths": [
+        "backend-hormonia/docs/reports/security/m015/db-seam-evidence.json",
+        "backend-hormonia/docs/reports/security/m015/session-seam-evidence.json",
+        "backend-hormonia/docs/reports/security/m015/provider-seam-evidence.json",
+        "backend-hormonia/docs/reports/security/m015/artifact-seam-evidence.json"
+      ],
+      "id": "redaction_safe_evidence",
+      "notes": "Durable evidence stores hashes, booleans, status classes, correlation IDs, and non-goals only.",
+      "proof": "All seam artifacts and this matrix pass denylist validation for secrets, PHI, raw cookies/session IDs, private paths, bytes, DSNs, and raw download URL maps.",
+      "raw_sensitive_values_persisted": false,
+      "redaction_validated": true,
+      "requirement_ids": [
+        "R017"
+      ],
+      "source_seams": [
+        "db",
+        "session",
+        "provider",
+        "artifact"
+      ],
+      "status": "fresh_evidence"
+    },
+    {
+      "correlation_ids": [
+        "m015-20260514T181125Z-2167622-db",
+        "m015-20260514T181125Z-2167622-session",
+        "m015-20260514T181125Z-2167622-provider",
+        "m015-20260514T181125Z-2167622-artifact"
+      ],
+      "evidence_paths": [
+        "backend-hormonia/docs/reports/security/m015/db-seam-evidence.json",
+        "backend-hormonia/docs/reports/security/m015/session-seam-evidence.json",
+        "backend-hormonia/docs/reports/security/m015/provider-seam-evidence.json",
+        "backend-hormonia/docs/reports/security/m015/artifact-seam-evidence.json"
+      ],
+      "id": "strict_red_signal_closure",
+      "notes": "The validator treats unclassified warnings and unresolved red signals as closure blockers.",
+      "proof": "Runtime red signals found during M015 were fixed or classified: DB/session/provider/artifact seams pass; S04 upload schema and UUID owner mismatches were fixed; upload quota warning is classified for final review.",
+      "raw_sensitive_values_persisted": false,
+      "redaction_validated": true,
+      "requirement_ids": [
+        "R018"
+      ],
+      "source_seams": [
+        "db",
+        "session",
+        "provider",
+        "artifact"
+      ],
+      "status": "fixed_outcome"
+    }
+  ],
+  "validator": {
+    "failure_classes": [
+      "missing_required_row",
+      "missing_evidence_artifact",
+      "failed_seam_result",
+      "stale_evidence_correlation",
+      "placeholder_text",
+      "unsafe_sensitive_content",
+      "raw_download_url_leak",
+      "unclassified_warning",
+      "unresolved_red_signal"
+    ],
+    "result": "passed"
+  },
+  "warnings": [
+    {
+      "classification": "known_non_blocking_runtime_warning",
+      "closure_policy": "classified_not_silent; milestone validation may choose remediation but matrix is not silently green",
+      "id": "upload_quota_async_session_query_warning",
+      "notes": "Non-fatal runtime log warning from upload quota lookup; route catches it and S04 artifact proof passes. S05 keeps it classified so milestone validation can decide whether to remediate beyond security proof scope."
+    }
+  ]
+}

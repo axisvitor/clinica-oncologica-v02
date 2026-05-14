@@ -64,12 +64,13 @@ def test_runner_help_and_list_seams_are_static_and_fail_closed() -> None:
     assert help_result.returncode == 0, help_result.stderr
     assert "--seam db" in help_result.stdout
     assert "provider" in help_result.stdout
+    assert "artifact" in help_result.stdout
     assert "--list-seams" in help_result.stdout
     assert "--teardown-only" in help_result.stdout
 
     list_result = _run_runner("--list-seams")
     assert list_result.returncode == 0, list_result.stderr
-    assert list_result.stdout.strip().splitlines() == ["db", "session", "provider"]
+    assert list_result.stdout.strip().splitlines() == ["db", "session", "provider", "artifact"]
 
 
 def test_runner_has_single_terminal_entrypoint_without_trailing_fragments() -> None:
@@ -80,15 +81,13 @@ def test_runner_has_single_terminal_entrypoint_without_trailing_fragments() -> N
     assert not any(line.startswith("nknown seam") for line in lines)
 
 
-def test_runner_rejects_missing_or_unknown_seams_before_setup() -> None:
-    missing_result = _run_runner()
-    missing_output = missing_result.stdout + missing_result.stderr
-    assert missing_result.returncode != 0
-    assert "--seam db" in missing_output
-    assert "phase=setup" not in missing_output
-    assert "green" not in missing_output.lower()
+def test_runner_unknown_seams_fail_closed_and_no_filter_is_all_seam_contract() -> None:
+    runner_text = RUNNER.read_text(encoding="utf-8")
+    assert "ALL_SEAMS=(db session provider artifact)" in runner_text
+    assert "run_all_seams()" in runner_text
+    assert "no seam selected" not in runner_text
 
-    unknown_result = _run_runner("--seam", "artifact")
+    unknown_result = _run_runner("--seam", "not-a-seam")
     unknown_output = unknown_result.stdout + unknown_result.stderr
     assert unknown_result.returncode != 0
     assert "unknown seam" in unknown_output.lower()
@@ -108,6 +107,7 @@ def test_m015_compose_is_isolated_from_live_providers_and_project_env_files() ->
         "provider-stub:",
         "provider-worker:",
         "provider-probe:",
+        "artifact-probe:",
     ):
         assert service in compose_text
     assert "env_file" not in compose_text
@@ -126,16 +126,23 @@ def test_m015_compose_is_isolated_from_live_providers_and_project_env_files() ->
     assert "command: [\"python\", \"/m015-runtime/session_seam.py\"]" in compose_text
     assert "command: [\"python\", \"/m015-runtime/provider_stub.py\", \"--host\", \"0.0.0.0\", \"--port\", \"18089\"]" in compose_text
     assert "command: [\"python\", \"/m015-runtime/provider_seam.py\"]" in compose_text
+    assert "command: [\"python\", \"/m015-runtime/artifact_seam.py\"]" in compose_text
     assert "command: [\"taskiq\", \"worker\", \"app.taskiq_broker:broker\", \"app.tasks.m015_session_security_taskiq\"]" in compose_text
     assert "command: [\"taskiq\", \"worker\", \"app.taskiq_broker:broker\", \"app.tasks.m015_provider_security_taskiq\"]" in compose_text
     worker_section = compose_text.split("  worker:", 1)[1].split("  db-probe:", 1)[0]
     provider_worker_section = compose_text.split("  provider-worker:", 1)[1].split("  provider-probe:", 1)[0]
-    provider_probe_section = compose_text.split("  provider-probe:", 1)[1].split("\nvolumes:", 1)[0]
+    provider_probe_section = compose_text.split("  provider-probe:", 1)[1].split("  artifact-probe:", 1)[0]
+    artifact_probe_section = compose_text.split("  artifact-probe:", 1)[1].split("\nvolumes:", 1)[0]
     provider_broker = "TASKIQ_BROKER_URL: ${M015_PROVIDER_TASKIQ_BROKER_URL:-redis://dragonfly:6379/4}"
     assert "M015_DATABASE_PSQL_CONN" in worker_section
     assert provider_broker in provider_worker_section
     assert provider_broker in provider_probe_section
     assert provider_broker not in worker_section
+    assert "M015_DATABASE_PSQL_CONN" in artifact_probe_section
+    assert "M015_EVIDENCE_OUTPUT_DIR" in artifact_probe_section
+    assert "provider-stub" not in artifact_probe_section
+    assert "M015_PROVIDER_STUB_URL" not in artifact_probe_section
+    assert "TASKIQ_BROKER_URL" not in artifact_probe_section
     assert "./db_seam.py:/m015-runtime/db_seam.py:ro" in compose_text
     assert "./session_seam.py:/m015-runtime/session_seam.py:ro" in compose_text
     assert "./m015_session_security_taskiq.py:/app/app/tasks/m015_session_security_taskiq.py:ro" in compose_text
@@ -144,6 +151,7 @@ def test_m015_compose_is_isolated_from_live_providers_and_project_env_files() ->
     assert "./provider_seam.py:/m015-runtime/provider_seam.py:ro" in compose_text
     assert "./m015_provider_security_taskiq.py:/app/app/tasks/m015_provider_security_taskiq.py:ro" in compose_text
     assert "./m015_provider_security_taskiq.py:/m015-runtime/m015_provider_security_taskiq.py:ro" in compose_text
+    assert "./artifact_seam.py:/m015-runtime/artifact_seam.py:ro" in compose_text
     assert "./redaction.py:/m015-runtime/redaction.py:ro" in compose_text
 
 
@@ -156,6 +164,20 @@ def test_provider_worker_readiness_waits_for_taskiq_listener() -> None:
     assert "provider-worker-not-ready" in runner_text
     assert "provider worker Taskiq listener is ready" in runner_text
     assert 'log_phase "redaction" "ready" "provider seam durable artifacts passed denylist validation without raw provider data"' in runner_text
+
+
+def test_artifact_seam_dispatches_runtime_probe_and_records_redaction_phases() -> None:
+    runner_text = RUNNER.read_text(encoding="utf-8")
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+
+    assert "run_artifact_probe()" in runner_text
+    assert "compose_cmd run --rm -T artifact-probe" in runner_text
+    assert 'artifact) run_artifact_probe ;;' in runner_text
+    assert "artifact-seam-evidence.json" in runner_text
+    assert "artifact-seam-summary.md" in runner_text
+    assert 'log_phase "redaction" "ready" "artifact seam durable artifacts passed denylist validation without raw private artifact data"' in runner_text
+    assert "artifact-probe:" in compose_text
+    assert "command: [\"python\", \"/m015-runtime/artifact_seam.py\"]" in compose_text
 
 
 def test_runner_teardown_includes_tools_profile_services() -> None:
@@ -184,6 +206,8 @@ def test_evidence_paths_are_repo_relative_and_container_mounted() -> None:
     assert 'PROVIDER_EVIDENCE_JSON="${PROVIDER_EVIDENCE_OUTPUT_DIR}/provider-seam-evidence.json"' in runner_text
     assert 'PROVIDER_SUMMARY_MD="${PROVIDER_EVIDENCE_OUTPUT_DIR}/provider-seam-summary.md"' in runner_text
     assert 'PROVIDER_STUB_OBSERVATIONS_JSONL="${PROVIDER_EVIDENCE_OUTPUT_DIR}/provider-stub-observations.jsonl"' in runner_text
+    assert 'ARTIFACT_EVIDENCE_JSON="${ARTIFACT_EVIDENCE_OUTPUT_DIR}/artifact-seam-evidence.json"' in runner_text
+    assert 'ARTIFACT_SUMMARY_MD="${ARTIFACT_EVIDENCE_OUTPUT_DIR}/artifact-seam-summary.md"' in runner_text
     assert "provider stub observation log reset for fresh sanitized run" in runner_text
     assert "M015_EVIDENCE_OUTPUT_DIR=/m015-evidence-output" in runner_text
     assert "../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output" in compose_text

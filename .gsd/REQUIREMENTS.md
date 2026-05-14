@@ -149,18 +149,18 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: M015/S02 fresh runtime closeout validates the deferred cross-process session/JWT revocation proof boundary through gsd_exec evidence: a1a0c466-dbbe-4c8a-8422-ee9ebe587cfe passed runner syntax, Compose config, seam listing, and unknown/omitted seam fail-closed checks; 16c8d3a4-5224-458b-a882-6afa0c6091b9 passed the backend session runtime/canonical identity pytest suite; 41eb6f1b-39f7-4de2-a56c-2b4996f68050 passed task-level auth revocation and runner-contract regressions; 4b0a9e6d-0e98-4439-b24f-2bacd530f513 ran the real M015 session seam across FastAPI, Dragonfly, PostgreSQL, and Taskiq with exit 0; 826e2e68-b5b1-4385-b57f-e2832a07c241 confirmed durable session evidence is redaction-valid and contains the expected current, legacy-denied, cache-fallback, stale revoked/expired denial, explicit revocation invalidation, and worker DB re-check outcomes.
 - Notes: S02 closes the runtime session/cache/DB/worker proof gap for R013 using synthetic-only evidence. S05 still needs to fold this proof into the final M015 matrix alongside provider and artifact seams; this update does not claim live provider, production data, browser/frontend, CDN/object-storage, or all-seam closure guarantees.
 
-## Deferred
-
 ### R014 — Construir harness runtime completo com DB, queue, WuzAPI/Gemini e fixtures production-like se a validação dinâmica ampla exigir esse ambiente.
 - Class: quality-attribute
-- Status: deferred
+- Status: validated
 - Description: Construir harness runtime completo com DB, queue, WuzAPI/Gemini e fixtures production-like se a validação dinâmica ampla exigir esse ambiente.
 - Why it matters: A análise original não executou runtime exploitation por falta de dependências; um harness futuro pode transformar isso em regressão dinâmica ampla.
 - Source: inferred
 - Primary owning slice: M015/S01
 - Supporting slices: M015/S02, M015/S03, M015/S04, M015/S05
-- Validation: Not validated by M014 unless the milestone is explicitly re-scoped; evidence matrix must avoid claiming live-provider/production-like guarantees.
-- Notes: M015 roadmap maps this deferred runtime harness requirement across the full milestone: S01 establishes the synthetic runtime stack and DB TLS/RLS proof; S02-S04 close session/queue/provider/artifact seams; S05 validates evidence completeness and strict red-signal closure.
+- Validation: M015/S05 final no-filter all-seam run passed with parent correlation `m015-20260514T181125Z-2167622`. Evidence matrix `backend-hormonia/docs/reports/security/m015/m015-evidence-matrix.json` records `result: passed` and maps DB TLS/RLS, session revocation/cache/worker DB re-check, WuzAPI/Gemini local stubs, private upload/report/export app routes, synthetic-only boundaries, redaction-safe evidence, and strict red-signal closure.
+- Notes: M015 final matrix keeps live-provider/production/browser/CDN/object-storage/broad DAST claims out of scope while validating the synthetic runtime harness across DB/session/provider/artifact seams.
+
+## Deferred
 
 ## Out of Scope
 
@@ -225,7 +225,7 @@ This file is the explicit capability and coverage contract for the project.
 | R011 | failure-visibility | validated | M013/S06 | M013/S01, M013/S02, M013/S03, M013/S04, M013/S05 | M013/S06 fresh focused and integrated proof passed: `gsd_exec 0214b6c3-6df3-41f8-a0c9-e81f101ee3de` validated report-task PHI-safe artifact/log behavior; `gsd_exec 4f988569-f9c7-401d-b418-60f3415d9008` validated fail-closed auth, SSRF, ownership, quiz, private-file, and report boundaries; document validation `gsd_exec 4808c7f0-2d25-498d-b6b6-5bb59fe37ad0` and `gsd_exec ae46a726-c6a3-412b-8305-58a1a316e379` confirmed the matrix has no TODO/TBD or unsafe sentinel values and retains Fresh S06 exit-0 evidence. |
 | R012 | compliance/security | validated | M015/S01 | M015/S05 | Validated by M014/S05 controlled proof and `backend-hormonia/docs/reports/security/m014-hardening-proof-evidence-matrix.md`: backend integrated command passed with 149 tests, frontend persistence command passed with 5 tests, quiz storage command passed with 8 tests. Matrix rows close CSRF, reset replay, webhook replay, duplicate oracle, XFF/rate-limit, ADK, PHI cache, upload/report artifact, JWT/config posture, and explicitly defer live DB TLS/RLS/runtime proof to R014/M015. |
 | R013 | failure-visibility | validated | M015/S02 | M015/S05 | M015/S02 fresh runtime closeout validates the deferred cross-process session/JWT revocation proof boundary through gsd_exec evidence: a1a0c466-dbbe-4c8a-8422-ee9ebe587cfe passed runner syntax, Compose config, seam listing, and unknown/omitted seam fail-closed checks; 16c8d3a4-5224-458b-a882-6afa0c6091b9 passed the backend session runtime/canonical identity pytest suite; 41eb6f1b-39f7-4de2-a56c-2b4996f68050 passed task-level auth revocation and runner-contract regressions; 4b0a9e6d-0e98-4439-b24f-2bacd530f513 ran the real M015 session seam across FastAPI, Dragonfly, PostgreSQL, and Taskiq with exit 0; 826e2e68-b5b1-4385-b57f-e2832a07c241 confirmed durable session evidence is redaction-valid and contains the expected current, legacy-denied, cache-fallback, stale revoked/expired denial, explicit revocation invalidation, and worker DB re-check outcomes. |
-| R014 | quality-attribute | deferred | M015/S01 | M015/S02, M015/S03, M015/S04, M015/S05 | Not validated by M014 unless the milestone is explicitly re-scoped; evidence matrix must avoid claiming live-provider/production-like guarantees. |
+| R014 | quality-attribute | validated | M015/S01 | M015/S02, M015/S03, M015/S04, M015/S05 | M015/S05 final no-filter all-seam run passed with parent correlation `m015-20260514T181125Z-2167622`. Evidence matrix `backend-hormonia/docs/reports/security/m015/m015-evidence-matrix.json` records `result: passed` and maps DB TLS/RLS, session revocation/cache/worker DB re-check, WuzAPI/Gemini local stubs, private upload/report/export app routes, synthetic-only boundaries, redaction-safe evidence, and strict red-signal closure. |
 | R015 | anti-feature | out-of-scope | M015/S01 | M015/S02, M015/S03, M015/S04, M015/S05 | M014/S05 evidence matrix and operational verification must document commands as controlled and PHI/secret-safe. |
 | R016 | anti-feature | out-of-scope | none | none | n/a |
 | R017 | anti-feature | out-of-scope | M015/S05 | M015/S01, M015/S02, M015/S03, M015/S04 | Each M014 slice includes PHI-safe diagnostics criteria; S05 performs final artifact review through the evidence matrix. |
@@ -235,5 +235,5 @@ This file is the explicit capability and coverage contract for the project.
 
 - Active requirements: 0
 - Mapped to slices: 0
-- Validated: 13 (R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R013)
+- Validated: 14 (R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R013, R014)
 - Unmapped active requirements: 0

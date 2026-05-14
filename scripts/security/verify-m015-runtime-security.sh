@@ -3,8 +3,8 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 # M015 synthetic runtime security harness.
-# Public entrypoint for milestone M015 runtime seams. The DB and session seams
-# are implemented; every other seam must fail closed before setup starts.
+# Public entrypoint for milestone M015 runtime seams. Scoped seams can be run
+# with --seam; no seam filter runs the final all-seam closeout.
 
 SCRIPT_REL="scripts/security/verify-m015-runtime-security.sh"
 HARNESS_DIR="scripts/security/m015-runtime"
@@ -24,6 +24,14 @@ PROVIDER_EVIDENCE_OUTPUT_DIR="backend-hormonia/docs/reports/security/m015"
 PROVIDER_EVIDENCE_JSON="${PROVIDER_EVIDENCE_OUTPUT_DIR}/provider-seam-evidence.json"
 PROVIDER_SUMMARY_MD="${PROVIDER_EVIDENCE_OUTPUT_DIR}/provider-seam-summary.md"
 PROVIDER_STUB_OBSERVATIONS_JSONL="${PROVIDER_EVIDENCE_OUTPUT_DIR}/provider-stub-observations.jsonl"
+ARTIFACT_EVIDENCE_OUTPUT_DIR="backend-hormonia/docs/reports/security/m015"
+ARTIFACT_EVIDENCE_JSON="${ARTIFACT_EVIDENCE_OUTPUT_DIR}/artifact-seam-evidence.json"
+ARTIFACT_SUMMARY_MD="${ARTIFACT_EVIDENCE_OUTPUT_DIR}/artifact-seam-summary.md"
+MATRIX_EVIDENCE_OUTPUT_DIR="backend-hormonia/docs/reports/security/m015"
+MATRIX_JSON="${MATRIX_EVIDENCE_OUTPUT_DIR}/m015-evidence-matrix.json"
+MATRIX_SUMMARY_MD="${MATRIX_EVIDENCE_OUTPUT_DIR}/m015-evidence-matrix.md"
+MATRIX_HELPER="${HARNESS_DIR}/evidence_matrix.py"
+ALL_SEAMS=(db session provider artifact)
 
 SEAM=""
 KEEP_STACK="false"
@@ -41,16 +49,18 @@ EVIDENCE_FILE=""
 usage() {
   cat <<'USAGE'
 Usage:
-  ./scripts/security/verify-m015-runtime-security.sh --seam {db|session|provider} [options]
+  ./scripts/security/verify-m015-runtime-security.sh [--seam {db|session|provider|artifact}] [options]
 
 Implemented seams:
   db                         Start the isolated M015 DB runtime substrate, prove readiness, and tear down.
   session                    Prove cookie-backed staff sessions, Redis fallback/revocation, and Taskiq DB re-checks.
   provider                   Prove local WuzAPI/Gemini stub wiring, provider failure modes, and Taskiq worker participation.
+  artifact                   Prove private upload/report app-route serving, ownership denial, safe headers, and no unsafe private/static redirects.
 
 Options:
-  --seam {db|session|provider}
-                             Required. Unknown or omitted seams fail closed and do not start services.
+  --seam {db|session|provider|artifact}
+                             Optional. When omitted, runs all implemented seams and validates the final evidence matrix.
+                             Unknown seams fail closed and do not start services.
   --list-seams               Print implemented seams and exit.
   --help, -h                 Show this help and exit.
   --keep-stack               Leave the Docker Compose stack running for manual inspection.
@@ -60,17 +70,19 @@ Options:
   --project-name NAME        Compose project name (default: $M015_PROJECT_NAME or unique per run).
 
 Examples:
+  ./scripts/security/verify-m015-runtime-security.sh
   ./scripts/security/verify-m015-runtime-security.sh --list-seams
   ./scripts/security/verify-m015-runtime-security.sh --seam db
   ./scripts/security/verify-m015-runtime-security.sh --seam session
   ./scripts/security/verify-m015-runtime-security.sh --seam provider
+  ./scripts/security/verify-m015-runtime-security.sh --seam artifact
   M015_API_PORT=18180 ./scripts/security/verify-m015-runtime-security.sh --seam db --keep-stack
-  ./scripts/security/verify-m015-runtime-security.sh --seam provider --project-name m015-debug --teardown-only
+  ./scripts/security/verify-m015-runtime-security.sh --seam artifact --project-name m015-debug --teardown-only
 USAGE
 }
 
 list_seams() {
-  printf 'db\nsession\nprovider\n'
+  printf '%s\n' "${ALL_SEAMS[@]}"
 }
 
 cli_error() {
@@ -140,10 +152,12 @@ parse_args() {
     esac
   done
 
-  [[ -n "$SEAM" ]] || cli_error "fail-closed: no seam selected; pass --seam db, session, or provider"
+  if [[ -z "$SEAM" ]]; then
+    SEAM="all"
+  fi
   case "$SEAM" in
-    db|session|provider) ;;
-    *) cli_error "unknown seam '${SEAM}'. Implemented seams: db, session, provider" ;;
+    all|db|session|provider|artifact) ;;
+    *) cli_error "unknown seam '${SEAM}'. Implemented seams: db, session, provider, artifact" ;;
   esac
   [[ "$API_PORT" =~ ^[0-9]+$ ]] || cli_error "--api-port must be numeric"
   [[ "$POSTGRES_PORT" =~ ^[0-9]+$ ]] || cli_error "--postgres-port must be numeric"
@@ -229,7 +243,7 @@ fail_phase() {
 }
 
 setup_workspace() {
-  mkdir -p "$CERT_DIR" "$LOG_DIR" "$EVIDENCE_ROOT" "$DB_EVIDENCE_OUTPUT_DIR" "$SESSION_EVIDENCE_OUTPUT_DIR" "$PROVIDER_EVIDENCE_OUTPUT_DIR"
+  mkdir -p "$CERT_DIR" "$LOG_DIR" "$EVIDENCE_ROOT" "$DB_EVIDENCE_OUTPUT_DIR" "$SESSION_EVIDENCE_OUTPUT_DIR" "$PROVIDER_EVIDENCE_OUTPUT_DIR" "$ARTIFACT_EVIDENCE_OUTPUT_DIR"
   chmod 700 "$RUNTIME_DIR" "$CERT_DIR" "$LOG_DIR" 2>/dev/null || true
   EVIDENCE_DIR="${EVIDENCE_ROOT}/${CORRELATION_ID}"
   mkdir -p "$EVIDENCE_DIR"
@@ -469,6 +483,7 @@ backend_context=backend-hormonia
 database_url_policy=sslmode=verify-full,generated-ca-mount,tlsmin=TLSv1.2
 redis_policy=dragonfly-local-no-auth-synthetic-network-only
 provider_policy=local-provider-stubs-network-real-synthetic-only
+artifact_policy=app-route-private-artifact-proof-synthetic-only-no-cdn-object-storage-browser
 EOF
   log_phase "evidence" "recorded" "runtime substrate version manifest written without DSNs or secrets"
 }
@@ -485,7 +500,7 @@ capture_failure_diagnostics() {
 
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     compose_cmd ps >"${EVIDENCE_DIR}/compose-ps.txt" 2>&1 || true
-    compose_cmd logs --no-color --tail=120 postgres dragonfly api worker provider-stub provider-worker 2>&1 \
+    compose_cmd logs --no-color --tail=120 postgres dragonfly api worker provider-stub provider-worker artifact-probe 2>&1 \
       | sanitize_stream >"${EVIDENCE_DIR}/compose-tail.log" || true
     log_phase "$LAST_PHASE" "diagnostics" "sanitized compose status/log tail saved under ${EVIDENCE_ROOT}/${CORRELATION_ID}"
   fi
@@ -507,6 +522,10 @@ update_teardown_result() {
     provider)
       evidence_json="$PROVIDER_EVIDENCE_JSON"
       summary_md="$PROVIDER_SUMMARY_MD"
+      ;;
+    artifact)
+      evidence_json="$ARTIFACT_EVIDENCE_JSON"
+      summary_md="$ARTIFACT_SUMMARY_MD"
       ;;
     *)
       return 0
@@ -760,6 +779,28 @@ run_provider_probe() {
   fail_phase "$failed_phase" "$failed_class" "Provider seam probe failed; sanitized log saved under ${EVIDENCE_ROOT}/${CORRELATION_ID}/provider-probe.log" 1
 }
 
+run_artifact_probe() {
+  log_phase "artifact-probe" "started" "running artifact seam probe for upload/report app-route ownership, safe headers, unsafe URL denial, and redacted artifacts"
+  local probe_log failed_line failed_phase failed_class
+  probe_log="${LOG_DIR}/artifact-probe.log"
+  if compose_cmd run --rm -T artifact-probe >"$probe_log" 2>&1; then
+    sanitize_stream <"$probe_log" >"${EVIDENCE_DIR}/artifact-probe.log"
+    log_phase "upload" "ready" "artifact seam probe recorded private upload gated-route and public-static outcomes"
+    log_phase "report" "ready" "artifact seam probe recorded report/export ownership and unsafe URL outcomes"
+    log_phase "evidence" "ready" "artifact seam evidence JSON and summary written with redaction validation"
+    log_phase "redaction" "ready" "artifact seam durable artifacts passed denylist validation without raw private artifact data"
+    return 0
+  fi
+
+  sanitize_stream <"$probe_log" >"${EVIDENCE_DIR}/artifact-probe.log" || true
+  failed_line="$(awk '/status=failed/ {line=$0} END {print line}' "${EVIDENCE_DIR}/artifact-probe.log" 2>/dev/null || true)"
+  failed_phase="$(printf '%s' "$failed_line" | sed -E 's/.*phase=([^ ]+).*/\1/' 2>/dev/null || true)"
+  failed_class="$(printf '%s' "$failed_line" | sed -E 's/.*failure_class=([^ ]+).*/\1/' 2>/dev/null || true)"
+  [[ -n "$failed_phase" && "$failed_phase" != "$failed_line" ]] || failed_phase="artifact-probe"
+  [[ -n "$failed_class" && "$failed_class" != "$failed_line" ]] || failed_class="artifact-probe-failed"
+  fail_phase "$failed_phase" "$failed_class" "Artifact seam probe failed; sanitized log saved under ${EVIDENCE_ROOT}/${CORRELATION_ID}/artifact-probe.log" 1
+}
+
 run_selected_seam() {
   if [[ -z "$PROJECT_NAME" ]]; then
     PROJECT_NAME="$(normalize_project_name "m015-runtime-${CORRELATION_ID}")"
@@ -787,13 +828,57 @@ run_selected_seam() {
     db) run_db_probe ;;
     session) run_session_probe ;;
     provider) run_provider_probe ;;
+    artifact) run_artifact_probe ;;
     *) fail_phase "setup" "unknown-seam" "unknown seam ${SEAM}" 64 ;;
   esac
 }
 
+run_all_seams() {
+  if [[ "$KEEP_STACK" == "true" ]]; then
+    cli_error "--keep-stack is only supported with a scoped --seam run; all-seam closeout must tear down each seam"
+  fi
+  if [[ "$TEARDOWN_ONLY" == "true" ]]; then
+    cli_error "--teardown-only requires a scoped --seam and --project-name"
+  fi
+
+  local parent_correlation_id base_project seam child_correlation_id child_project
+  parent_correlation_id="$CORRELATION_ID"
+  if [[ -z "$PROJECT_NAME" ]]; then
+    base_project="$(normalize_project_name "m015-runtime-${parent_correlation_id}")"
+  else
+    base_project="$(normalize_project_name "$PROJECT_NAME")"
+  fi
+  PROJECT_NAME="$base_project"
+
+  setup_workspace
+  require_command python3
+  log_phase "all" "started" "running all implemented seams in deterministic order: ${ALL_SEAMS[*]}"
+
+  for seam in "${ALL_SEAMS[@]}"; do
+    child_correlation_id="${parent_correlation_id}-${seam}"
+    child_project="$(normalize_project_name "${base_project}-${seam}")"
+    log_phase "all" "started" "running seam=${seam} child_correlation_id=${child_correlation_id} child_project=${child_project}"
+    if ! M015_CORRELATION_ID="$child_correlation_id" M015_PROJECT_NAME="$child_project" \
+      "$0" --seam "$seam" --api-port "$API_PORT" --postgres-port "$POSTGRES_PORT"; then
+      fail_phase "all" "all-seam-child-failed" "seam ${seam} failed during all-seam closeout" 1
+    fi
+    log_phase "all" "ready" "seam=${seam} completed child_correlation_id=${child_correlation_id}"
+  done
+
+  log_phase "matrix" "started" "generating and validating final M015 evidence matrix"
+  if ! python3 "$MATRIX_HELPER" --input-dir "$MATRIX_EVIDENCE_OUTPUT_DIR" --output-dir "$MATRIX_EVIDENCE_OUTPUT_DIR" --validate; then
+    fail_phase "matrix" "matrix-validation-failed" "M015 evidence matrix generation or validation failed" 1
+  fi
+  log_phase "matrix" "ready" "M015 evidence matrix validated: ${MATRIX_JSON} ${MATRIX_SUMMARY_MD}"
+}
+
 main() {
   parse_args "$@"
-  run_selected_seam
+  if [[ "$SEAM" == "all" ]]; then
+    run_all_seams
+  else
+    run_selected_seam
+  fi
 }
 
 main "$@"
