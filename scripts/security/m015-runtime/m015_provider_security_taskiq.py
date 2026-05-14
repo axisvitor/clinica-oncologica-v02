@@ -289,6 +289,7 @@ def build_provider_summary(evidence: dict[str, Any]) -> str:
         f"- Verification result: `{evidence['result']}`",
         f"- WuzAPI scenarios: `{len(provider['wuzapi']['scenarios'])}` checked; status classes `{provider['wuzapi']['status_classes']}`",
         f"- Gemini scenarios: `{len(provider['gemini']['scenarios'])}` checked; status classes `{provider['gemini']['status_classes']}`",
+        "- Provider stubs: WuzAPI and Gemini used configured local HTTP provider stubs; live providers `not_used`",
         f"- Worker: boundary `{worker['worker_boundary']}`, WuzAPI `{worker['wuzapi']['status_class']}`, Gemini `{worker['gemini']['status_class']}`",
         "- Teardown: `pending`",
         "",
@@ -349,6 +350,20 @@ def build_provider_evidence(
             "dragonfly_image": os.getenv("M015_DRAGONFLY_IMAGE", "docker.dragonflydb.io/dragonflydb/dragonfly:latest"),
             "provider_stub": "local-http-stdlib",
             "provider_stub_url_policy": "local docker DNS host only; raw URL omitted",
+        },
+        "provider_stub_usage": {
+            "wuzapi": {
+                "target": "local_http_provider_stub",
+                "transport": "network_http",
+                "configured_by": "WHATSAPP_WUZAPI_BASE_URL",
+                "live_provider_used": False,
+            },
+            "gemini": {
+                "target": "local_http_provider_stub",
+                "transport": "network_http",
+                "configured_by": "AI_GEMINI_BASE_URL",
+                "live_provider_used": False,
+            },
         },
         "provider_probe": {
             "wuzapi": summarize_scenarios(wuzapi_results),

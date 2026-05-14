@@ -109,6 +109,10 @@ def test_provider_evidence_shape_is_redaction_safe(tmp_path, monkeypatch) -> Non
 
     assert evidence["seam"] == "provider"
     assert evidence["result"] == "passed"
+    assert evidence["provider_stub_usage"]["wuzapi"]["target"] == "local_http_provider_stub"
+    assert evidence["provider_stub_usage"]["wuzapi"]["live_provider_used"] is False
+    assert evidence["provider_stub_usage"]["gemini"]["target"] == "local_http_provider_stub"
+    assert evidence["provider_stub_usage"]["gemini"]["live_provider_used"] is False
     assert evidence["provider_probe"]["worker"]["worker_boundary"] == "taskiq"
     assert "private_artifact_app_route_proof_deferred_to_s04" in evidence["non_goals"]
     assert evidence_json.exists()
@@ -116,6 +120,9 @@ def test_provider_evidence_shape_is_redaction_safe(tmp_path, monkeypatch) -> Non
     validate_no_sensitive_evidence(evidence)
     validate_no_sensitive_evidence(evidence_json.read_text(encoding="utf-8"))
     validate_no_sensitive_evidence(summary_md.read_text(encoding="utf-8"))
+    assert "Provider stubs: WuzAPI and Gemini used configured local HTTP provider stubs" in summary_md.read_text(
+        encoding="utf-8"
+    )
 
     serialized = json.dumps(evidence, sort_keys=True)
     assert "Authorization:" not in serialized

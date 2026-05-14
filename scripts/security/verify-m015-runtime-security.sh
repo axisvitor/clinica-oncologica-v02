@@ -548,14 +548,14 @@ PY
 
 teardown_stack() {
   log_phase "teardown" "started" "compose down requested project=${PROJECT_NAME}"
-  if compose_cmd down --volumes --remove-orphans >"${LOG_DIR}/compose-down.log" 2>&1; then
+  if compose_cmd --profile tools down --volumes --remove-orphans >"${LOG_DIR}/compose-down.log" 2>&1; then
     STARTED="false"
-    log_phase "teardown" "complete" "compose down completed idempotently"
-    update_teardown_result "complete" "compose down completed idempotently" || \
+    log_phase "teardown" "complete" "compose down completed idempotently, including tools-profile services"
+    update_teardown_result "complete" "compose down completed idempotently, including tools-profile services" || \
       log_phase "evidence" "failed" "teardown evidence update failed redaction validation"
     return 0
   fi
-  compose_cmd down --remove-orphans >>"${LOG_DIR}/compose-down.log" 2>&1 || true
+  compose_cmd --profile tools down --remove-orphans >>"${LOG_DIR}/compose-down.log" 2>&1 || true
   log_phase "teardown" "failed" "compose down returned non-zero; sanitized details available in runtime logs"
   update_teardown_result "failed" "compose down returned non-zero" || true
   return 1
@@ -747,6 +747,7 @@ run_provider_probe() {
     log_phase "gemini" "ready" "provider seam probe recorded Gemini local stub outcomes"
     log_phase "worker" "ready" "Taskiq provider worker used configured local stub URLs"
     log_phase "evidence" "ready" "provider seam evidence JSON and summary written with redaction validation"
+    log_phase "redaction" "ready" "provider seam durable artifacts passed denylist validation without raw provider data"
     return 0
   fi
 

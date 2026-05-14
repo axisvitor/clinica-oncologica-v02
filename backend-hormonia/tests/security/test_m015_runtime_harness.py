@@ -155,6 +155,15 @@ def test_provider_worker_readiness_waits_for_taskiq_listener() -> None:
     assert "Listening started." in runner_text
     assert "provider-worker-not-ready" in runner_text
     assert "provider worker Taskiq listener is ready" in runner_text
+    assert 'log_phase "redaction" "ready" "provider seam durable artifacts passed denylist validation without raw provider data"' in runner_text
+
+
+def test_runner_teardown_includes_tools_profile_services() -> None:
+    runner_text = RUNNER.read_text(encoding="utf-8")
+
+    assert "compose_cmd --profile tools down --volumes --remove-orphans" in runner_text
+    assert "compose_cmd --profile tools down --remove-orphans" in runner_text
+    assert "including tools-profile services" in runner_text
 
 
 def test_evidence_paths_are_repo_relative_and_container_mounted() -> None:
