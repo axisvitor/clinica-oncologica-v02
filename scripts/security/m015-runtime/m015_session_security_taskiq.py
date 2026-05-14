@@ -35,7 +35,13 @@ import psycopg
 from psycopg.rows import dict_row
 from redis.asyncio import Redis
 
-from app.taskiq_broker import broker
+# ``session_seam.py`` is executed from /m015-runtime, which makes that helper
+# directory sys.path[0] instead of the backend root.  Add the mounted backend
+# package path before importing the real Taskiq broker so the probe and worker
+# exercise the same backend module surface.
+_BACKEND_ROOT = Path(os.getenv("M015_BACKEND_ROOT", "/app"))
+if _BACKEND_ROOT.exists():
+    sys.path.insert(0, str(_BACKEND_ROOT))
 
 # ``redaction.py`` is mounted beside this file for the probe container, but it is
 # not present when the worker imports this module from ``app.tasks``.  Keep the
@@ -44,6 +50,9 @@ from app.taskiq_broker import broker
 _RUNTIME_HELPER_DIR = Path("/m015-runtime")
 if _RUNTIME_HELPER_DIR.exists():
     sys.path.insert(0, str(_RUNTIME_HELPER_DIR))
+
+from app.taskiq_broker import broker
+
 try:  # pragma: no cover - exercised inside the synthetic Compose probe.
     from redaction import RedactionError, sanitize_text, write_validated_json, write_validated_text
 except Exception:  # pragma: no cover - worker import path when helper is absent.
@@ -68,7 +77,7 @@ except Exception:  # pragma: no cover - worker import path when helper is absent
 OUTPUT_DIR = Path(os.getenv("M015_EVIDENCE_OUTPUT_DIR", "/m015-evidence-output"))
 EVIDENCE_JSON = OUTPUT_DIR / "session-seam-evidence.json"
 SUMMARY_MD = OUTPUT_DIR / "session-seam-summary.md"
-BACKEND_ROOT = Path(os.getenv("M015_BACKEND_ROOT", "/app"))
+BACKEND_ROOT = _BACKEND_ROOT
 RUNNER_COMMAND = "./scripts/security/verify-m015-runtime-security.sh --seam session"
 TASK_NAME = "m015_session_security_authorization"
 SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "session_id")
@@ -292,7 +301,7 @@ class SessionProbe:
     ) -> SyntheticSession:
         user_id = str(uuid.uuid4())
         session_id = str(uuid.uuid4())
-        email = f"m015-{label}-{self.correlation_id[-8:]}@example.invalid"
+        email = f"m015-{label}-{self.correlation_id[-8:]}@example.com"
         session_token = f"m015-{label}-{uuid.uuid4().hex}"
         expires_at = datetime.now(UTC) + timedelta(seconds=expires_in_seconds)
         with self.connect_app() as conn:

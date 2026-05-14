@@ -397,6 +397,8 @@ EOF
 
   if ! openssl req -x509 -newkey rsa:4096 -days 7 -nodes \
       -subj "/CN=M015 Synthetic Runtime CA" \
+      -addext "basicConstraints=critical,CA:TRUE" \
+      -addext "keyUsage=critical,keyCertSign,cRLSign" \
       -keyout "${CERT_DIR}/ca.key" \
       -out "${CERT_DIR}/ca.crt" \
       >"${LOG_DIR}/openssl-ca.log" 2>&1; then

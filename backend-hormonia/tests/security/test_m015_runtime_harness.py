@@ -21,6 +21,9 @@ DB_SEAM_HELPER = HARNESS_DIR / "db_seam.py"
 HARNESS_README = HARNESS_DIR / "README.md"
 SESSION_SEAM_HELPER = HARNESS_DIR / "session_seam.py"
 SESSION_TASKIQ_HELPER = HARNESS_DIR / "m015_session_security_taskiq.py"
+NOTIFICATIONS_PROFILE_CONTRACT_MIGRATION = (
+    BACKEND_ROOT / "alembic" / "versions" / "m015_s02_notifications_profile_contract.py"
+)
 DB_EVIDENCE_JSON = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "db-seam-evidence.json"
 DB_SUMMARY_MD = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "db-seam-summary.md"
 SESSION_EVIDENCE_JSON = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "session-seam-evidence.json"
@@ -128,6 +131,46 @@ def test_evidence_paths_are_repo_relative_and_container_mounted() -> None:
     assert "from m015_session_security_taskiq import main" in session_seam_text
 
 
+def test_notifications_profile_contract_migration_covers_users_me_joinedload_columns() -> None:
+    migration_text = NOTIFICATIONS_PROFILE_CONTRACT_MIGRATION.read_text(encoding="utf-8")
+
+    assert 'down_revision = "m013_s04_upload_deleted_at"' in migration_text
+    for required_column in (
+        "notification_type",
+        "priority",
+        "title",
+        "message",
+        "action_url",
+        "action_label",
+        "notification_metadata",
+        "read_at",
+        "is_archived",
+        "archived_at",
+        "expires_at",
+    ):
+        assert f'"{required_column}"' in migration_text
+    assert "notificationtype" in migration_text
+    assert "notificationpriority" in migration_text
+
+
+def test_session_probe_bootstraps_backend_path_before_taskiq_import() -> None:
+    taskiq_text = SESSION_TASKIQ_HELPER.read_text(encoding="utf-8")
+    backend_bootstrap = '_BACKEND_ROOT = Path(os.getenv("M015_BACKEND_ROOT", "/app"))'
+    broker_import = "from app.taskiq_broker import broker"
+
+    assert backend_bootstrap in taskiq_text
+    assert "sys.path.insert(0, str(_BACKEND_ROOT))" in taskiq_text
+    assert taskiq_text.index(backend_bootstrap) < taskiq_text.index(broker_import)
+
+
+def test_session_probe_uses_response_model_accepted_synthetic_staff_email_domain() -> None:
+    taskiq_text = SESSION_TASKIQ_HELPER.read_text(encoding="utf-8")
+
+    assert '@example.com"' in taskiq_text
+    assert '"raw_session_ids_persisted": False' in taskiq_text
+    assert '"raw_cookie_headers_persisted": False' in taskiq_text
+
+
 def test_session_probe_uses_users_cookie_contract_and_redacted_artifact_shape() -> None:
     taskiq_text = SESSION_TASKIQ_HELPER.read_text(encoding="utf-8")
 
@@ -205,6 +248,13 @@ def test_migration_url_rejects_unknown_tls_options_without_leaking_dsn() -> None
     assert "super-secret" not in error_text
     assert "/private/ca.crt" not in error_text
     assert secret_url not in error_text
+
+
+def test_m015_generated_ca_extensions_are_python_ssl_strict_compatible() -> None:
+    runner_text = RUNNER.read_text(encoding="utf-8")
+
+    assert '-addext "basicConstraints=critical,CA:TRUE"' in runner_text
+    assert '-addext "keyUsage=critical,keyCertSign,cRLSign"' in runner_text
 
 
 def test_m015_harness_uses_psycopg_compatible_tls_minimum_key() -> None:
