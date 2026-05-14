@@ -240,6 +240,76 @@ async def _lookup_session_identity_user_data(
     return user_data
 
 
+async def _load_authoritative_session_user_data(
+    *,
+    session_id: str,
+    load_user_from_db_by_session: Callable[[str], Awaitable[Optional[TUser]]],
+    serialize_user: Callable[[TUser], Dict[str, Any]],
+    diagnostic_context: str,
+) -> Dict[str, Any]:
+    """Load and serialize the DB-authoritative user for an active session row."""
+    try:
+        user = await load_user_from_db_by_session(session_id)
+    except asyncio.TimeoutError:
+        logger.error(
+            "Database timeout during %s for session %s...",
+            diagnostic_context,
+            session_id[:8],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database temporarily unavailable. Please try again.",
+        )
+    except asyncio.CancelledError:
+        logger.warning(
+            "Database query cancelled during %s for session %s...",
+            diagnostic_context,
+            session_id[:8],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database temporarily unavailable. Please try again.",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(
+            "Database error during %s for session %s... (class=%s)",
+            diagnostic_context,
+            session_id[:8],
+            type(exc).__name__,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database temporarily unavailable. Please try again.",
+        )
+
+    if not user:
+        logger.warning(
+            "Invalid or expired session during %s: %s...",
+            diagnostic_context,
+            session_id[:8],
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session. Please login again.",
+            headers={"WWW-Authenticate": "Session"},
+        )
+
+    user_data = sanitize_user_data(serialize_user(user))
+    if not user_data.get("is_active", False):
+        logger.warning(
+            "Inactive user attempted access during %s",
+            diagnostic_context,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive",
+        )
+
+    return user_data
+
+
 async def resolve_session_user_data(
     *,
     session_id: str,
@@ -250,9 +320,10 @@ async def resolve_session_user_data(
     load_user_from_db_by_session: Callable[[str], Awaitable[Optional[TUser]]],
     serialize_user: Callable[[TUser], Dict[str, Any]] = serialize_user_data,
 ) -> Tuple[Dict[str, Any], str]:
-    """Resolve authenticated user data from Redis session, cache, or DB fallback."""
+    """Resolve authenticated user data with PostgreSQL session state as authority."""
+    del load_user_from_db_by_user_id
     session_data = None
-    use_fallback = False
+    resolution_mode = "redis"
 
     try:
         session_data = await asyncio.wait_for(
@@ -264,56 +335,33 @@ async def resolve_session_user_data(
             "Redis timeout for session %s..., falling back to PostgreSQL",
             session_id[:8],
         )
-        use_fallback = True
+        resolution_mode = "fallback"
     except Exception as exc:
         logger.error(
-            "Redis error for session %s...: %s. Falling back to PostgreSQL",
+            "Redis error for session %s... (class=%s). Falling back to PostgreSQL",
             session_id[:8],
-            exc,
+            type(exc).__name__,
         )
-        use_fallback = True
+        resolution_mode = "fallback"
 
-    if use_fallback:
-        try:
-            fallback_user = await load_user_from_db_by_session(session_id)
-        except asyncio.TimeoutError:
-            logger.error("Database timeout during fallback for session %s...", session_id[:8])
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Database temporarily unavailable. Please try again.",
-            )
-        except HTTPException:
-            raise
-        except Exception as exc:
-            logger.error(
-                "Database error during fallback for session %s...: %s",
-                session_id[:8],
-                exc,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Database temporarily unavailable. Please try again.",
-            )
-
-        if not fallback_user:
-            logger.warning("Invalid or expired session during fallback: %s...", session_id[:8])
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired session. Please login again.",
-                headers={"WWW-Authenticate": "Session"},
-            )
-
-        user_data = sanitize_user_data(serialize_user(fallback_user))
-        if not user_data.get("is_active", False):
+    if not session_data:
+        if resolution_mode == "redis":
             logger.warning(
-                "Inactive user attempted access (fallback): %s",
-                user_data.get("email"),
+                "Session cache miss for %s..., falling back to PostgreSQL",
+                session_id[:8],
             )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is inactive",
-            )
+        resolution_mode = "fallback"
 
+    user_data = await _load_authoritative_session_user_data(
+        session_id=session_id,
+        load_user_from_db_by_session=load_user_from_db_by_session,
+        serialize_user=serialize_user,
+        diagnostic_context=(
+            "cache_miss_fallback" if resolution_mode == "fallback" else "cache_hit_validation"
+        ),
+    )
+
+    if resolution_mode == "fallback":
         await cache_user_data_by_identity(redis_cache, user_data, ttl=900)
         await rehydrate_session_cache(
             redis_cache,
@@ -322,45 +370,17 @@ async def resolve_session_user_data(
             session_ttl=session_ttl,
         )
 
-        if hasattr(redis_cache, "update_session_activity"):
-            try:
-                await asyncio.wait_for(
-                    redis_cache.update_session_activity(
-                        session_id=session_id,
-                        extend_ttl=True,
-                        custom_ttl=session_ttl,
-                    ),
-                    timeout=redis_operation_timeout,
-                )
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "Redis timeout extending session TTL for fallback session %s...",
-                    session_id[:8],
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Failed to extend session TTL for fallback session %s...: %s",
-                    session_id[:8],
-                    exc,
-                )
-
-        return user_data, "fallback"
-
-    if not session_data:
-        logger.warning("Invalid or expired session: %s...", session_id[:8])
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session. Please login again.",
-            headers={"WWW-Authenticate": "Session"},
-        )
-
     if hasattr(redis_cache, "update_session_activity"):
         try:
+            update_kwargs = {
+                "session_id": session_id,
+                "extend_ttl": True,
+            }
+            if resolution_mode == "fallback":
+                update_kwargs["custom_ttl"] = session_ttl
+
             await asyncio.wait_for(
-                redis_cache.update_session_activity(
-                    session_id=session_id,
-                    extend_ttl=True,
-                ),
+                redis_cache.update_session_activity(**update_kwargs),
                 timeout=redis_operation_timeout,
             )
         except asyncio.TimeoutError:
@@ -370,25 +390,9 @@ async def resolve_session_user_data(
             )
         except Exception as exc:
             logger.warning(
-                "Failed to update session activity for %s...: %s (non-critical, continuing)",
+                "Failed to update session activity for %s... (class=%s, non-critical, continuing)",
                 session_id[:8],
-                exc,
+                type(exc).__name__,
             )
 
-    user_data = await _lookup_session_identity_user_data(
-        session_id=session_id,
-        session_data=session_data,
-        redis_cache=redis_cache,
-        redis_operation_timeout=redis_operation_timeout,
-        load_user_from_db_by_user_id=load_user_from_db_by_user_id,
-        serialize_user=serialize_user,
-    )
-
-    if not user_data.get("is_active", False):
-        logger.warning("Inactive user attempted access: %s", user_data.get("email"))
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive",
-        )
-
-    return user_data, "redis"
+    return user_data, resolution_mode

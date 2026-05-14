@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T01",
+  "unitId": "M015/S01/T01",
+  "timestamp": 1778733398953,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "bash -n scripts/security/verify-m015-runtime-security.sh",
+      "exitCode": 0,
+      "durationMs": 13,
+      "verdict": "pass"
+    },
+    {
+      "command": "docker compose -f scripts/security/m015-runtime/docker-compose.yml config --quiet",
+      "exitCode": 0,
+      "durationMs": 709,
+      "verdict": "pass"
+    }
+  ]
+}

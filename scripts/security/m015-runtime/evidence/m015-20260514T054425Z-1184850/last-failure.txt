@@ -1,0 +1,5 @@
+correlation_id=m015-20260514T054425Z-1184850
+seam=db
+last_phase=rls
+failure_class=rls_catalog_table_missing
+timestamp=2026-05-14T05:45:38Z

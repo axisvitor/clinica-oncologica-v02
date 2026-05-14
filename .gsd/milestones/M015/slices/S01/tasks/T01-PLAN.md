@@ -1,13 +1,10 @@
 ---
 estimated_steps: 15
 estimated_files: 6
-skills_used:
-  - tdd
-  - verify-before-complete
-  - observability
+skills_used: []
 ---
 
-# T01: Create isolated M015 runner and TLS runtime stack
+# T01: Added the fail-closed M015 DB runtime harness with isolated Compose services, generated TLS/env scratch, Postgres synthetic roles, sanitized diagnostics, and static contract tests.
 
 Why: S01 needs a real, reproducible runtime substrate before the DB proof can be truthful; the existing `backend-hormonia/docker-compose.yml` has Dragonfly/API/worker/WuzAPI but no PostgreSQL TLS service and is too live-provider-oriented for this milestone.
 

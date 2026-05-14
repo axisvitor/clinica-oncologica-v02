@@ -1,4 +1,4 @@
-# S01: Synthetic Runtime Harness + DB TLS/RLS Proof
+# S01: S01
 
 **Goal:** Build the M015 synthetic runtime harness substrate and prove the DB seam end to end: a single root runner can start an isolated Docker Compose stack with FastAPI, TLS-enabled PostgreSQL, and Dragonfly, apply Alembic migrations with synthetic-only configuration, verify strict TLS negotiation from the backend runtime, exercise RLS allow/deny behavior on sensitive tables, emit PHI/secret-safe evidence, and tear down idempotently. Owned requirements: R014 directly, R012 DB TLS/RLS portion, R015 no production/real PHI. Supporting requirements: R017/R018 evidence discipline and no silent deferred-item loss; R013 is not proven in this slice beyond shared harness substrate.
 **Demo:** Run `./scripts/security/verify-m015-runtime-security.sh --seam db` to start the isolated backend runtime stack, apply migrations and synthetic fixtures, prove TLS negotiation and RLS allow/deny behavior, capture sanitized DB evidence, and tear down.
@@ -34,25 +34,43 @@ Upstream surfaces consumed: `backend-hormonia/Dockerfile`, `backend-hormonia/app
 
 ## Tasks
 
-- [x] **T01: Create isolated M015 runner and TLS runtime stack** `est:2h`
+- [x] **T01: Added the fail-closed M015 DB runtime harness with isolated Compose services, generated TLS/env scratch, Postgres synthetic roles, sanitized diagnostics, and static contract tests.** `est:2h`
   Why: S01 needs a real, reproducible runtime substrate before the DB proof can be truthful; the existing `backend-hormonia/docker-compose.yml` has Dragonfly/API/worker/WuzAPI but no PostgreSQL TLS service and is too live-provider-oriented for this milestone.
   - Files: `.gitignore`, `scripts/security/verify-m015-runtime-security.sh`, `scripts/security/m015-runtime/docker-compose.yml`, `scripts/security/m015-runtime/postgres-init/001-roles.sh`, `scripts/security/m015-runtime/README.md`, `backend-hormonia/Dockerfile`
   - Verify: bash -n scripts/security/verify-m015-runtime-security.sh && docker compose -f scripts/security/m015-runtime/docker-compose.yml config --quiet
 
-- [ ] **T02: Fix async PostgreSQL TLS handling for strict runtime participation** `est:1h30m`
+- [x] **T02: Fixed async PostgreSQL TLS configuration so FastAPI asyncpg startup participates in strict DB TLS posture with sanitized diagnostics.** `est:1h30m`
   Why: The DB proof must include the actual FastAPI async DB path, not only an external psycopg probe. Current `app/core/database/async_engine.py` strips `sslmode=require/verify*` and builds an asyncpg SSL context with hostname verification disabled and `CERT_NONE`, so S01 must fix this before claiming runtime TLS posture.
   - Files: `backend-hormonia/app/core/database/async_engine.py`, `backend-hormonia/tests/core/test_async_engine_tls_config.py`
   - Verify: cd backend-hormonia && PYTHONPATH=. pytest tests/core/test_async_engine_tls_config.py tests/security/test_m014_s05_jwt_config_posture.py -q
 
-- [ ] **T03: Implement DB seam probe with migrations, fixtures, TLS, RLS, and redacted evidence** `est:3h`
+- [x] **T03: Added the M015 DB seam probe, redaction guard, Compose wiring, and root-path test shims; exact unit gate now passes, while full runtime verification stops at a migration URL option failure that needs continuation.** `est:3h`
   Why: This task closes the S01 demo itself: the runner must not merely start containers; it must apply the real migration graph and prove DB TLS/RLS behavior through network/process boundaries with sanitized evidence.
   - Files: `scripts/security/verify-m015-runtime-security.sh`, `scripts/security/m015-runtime/db_seam.py`, `scripts/security/m015-runtime/redaction.py`, `backend-hormonia/docs/reports/security/m015/db-seam-evidence.json`, `backend-hormonia/docs/reports/security/m015/db-seam-summary.md`
   - Verify: ./scripts/security/verify-m015-runtime-security.sh --seam db
 
-- [ ] **T04: Add harness contract tests and run the S01 closure gate** `est:1h30m`
-  Why: S01 should be regression-safe after the first successful runtime proof. Unit/contract tests catch false-green runner changes, live-provider drift, and redaction regressions without requiring Docker for every small edit, while the final closure command still exercises the real DB seam.
-  - Files: `backend-hormonia/tests/security/test_m015_runtime_harness.py`, `backend-hormonia/tests/core/test_async_engine_tls_config.py`, `scripts/security/verify-m015-runtime-security.sh`, `scripts/security/m015-runtime/docker-compose.yml`, `scripts/security/m015-runtime/redaction.py`
-  - Verify: cd backend-hormonia && PYTHONPATH=. pytest tests/core/test_async_engine_tls_config.py tests/security/test_m015_runtime_harness.py -q && cd .. && ./scripts/security/verify-m015-runtime-security.sh --seam db
+- [x] **T04: Fix migration-time TLS URL options and prove DB seam reaches evidence** `est:2h`
+  Why: T03 showed the runtime stack can progress into the DB seam, but Alembic/psycopg fails closed on the invalid `sslminversion` connection option before migrations complete. This task must isolate the asyncpg-only TLS options from psycopg/Alembic connection URLs, keep strict certificate verification for the FastAPI async engine, and prove the DB seam can complete through migrations, TLS posture checks, RLS allow/deny checks, sanitized evidence writing, and teardown.
+  - Review the runner/probe env handoff and `backend-hormonia/alembic/env.py` URL construction to identify where `sslminversion` is reaching psycopg.
+  - Introduce a safe split between asyncpg runtime SSL context settings and psycopg/Alembic-compatible DSN parameters, without weakening `sslmode=verify-full`/CA behavior for the runtime stack.
+  - Add or update focused tests that assert migration URLs reject unsupported TLS options while async engine configuration still preserves minimum TLS version/cert verification semantics.
+  - Re-run the DB seam and inspect only sanitized phase/evidence signals to confirm evidence artifacts are produced and no teardown residue remains.
+  - Files: `scripts/security/verify-m015-runtime-security.sh`, `scripts/security/m015-runtime/db_seam.py`, `scripts/security/m015-runtime/docker-compose.yml`, `backend-hormonia/alembic/env.py`, `backend-hormonia/app/core/database/async_engine.py`, `backend-hormonia/tests/core/test_async_engine_tls_config.py`, `backend-hormonia/tests/security/test_m015_runtime_harness.py`, `backend-hormonia/docs/reports/security/m015/db-seam-evidence.json`, `backend-hormonia/docs/reports/security/m015/db-seam-summary.md`
+  - Verify: bash -n scripts/security/verify-m015-runtime-security.sh
+cd backend-hormonia && PYTHONPATH=. pytest tests/core/test_async_engine_tls_config.py tests/security/test_m015_runtime_harness.py -q
+cd .. && ./scripts/security/verify-m015-runtime-security.sh --seam db
+
+- [x] **T05: Harden harness contract tests and run the S01 closure gate** `est:1h30m`
+  Why: After the migration TLS blocker is fixed, S01 still needs regression-safe closure. Contract tests should prevent future false-green runner changes, live-provider drift, unsupported TLS option regressions, and redaction failures without requiring Docker for every edit; the final command still exercises the real DB seam.
+  - Finalize `test_m015_runtime_harness.py` coverage for seam CLI validation, Compose isolation/no live provider references, evidence path discipline, redaction denylist behavior, and migration URL TLS option filtering.
+  - Confirm evidence validation rejects credentials, private key/cert material, cookies/tokens, Firebase/service-account content, real-looking CPF/email/phone/patient names, `/mnt/c` absolute paths, and unsafe raw SQL stderr.
+  - Run the exact S01 static, unit/contract, Compose config, and DB seam verification commands from the slice must-haves.
+  - Record completion only with fresh verification output from the current run and without modifying completed T01-T03 summaries.
+  - Files: `backend-hormonia/tests/security/test_m015_runtime_harness.py`, `backend-hormonia/tests/core/test_async_engine_tls_config.py`, `scripts/security/verify-m015-runtime-security.sh`, `scripts/security/m015-runtime/docker-compose.yml`, `scripts/security/m015-runtime/redaction.py`, `scripts/security/m015-runtime/db_seam.py`, `backend-hormonia/docs/reports/security/m015/db-seam-evidence.json`, `backend-hormonia/docs/reports/security/m015/db-seam-summary.md`
+  - Verify: bash -n scripts/security/verify-m015-runtime-security.sh
+docker compose -f scripts/security/m015-runtime/docker-compose.yml config --quiet
+cd backend-hormonia && PYTHONPATH=. pytest tests/core/test_async_engine_tls_config.py tests/security/test_m015_runtime_harness.py -q
+cd .. && ./scripts/security/verify-m015-runtime-security.sh --seam db
 
 ## Files Likely Touched
 
@@ -68,4 +86,5 @@ Upstream surfaces consumed: `backend-hormonia/Dockerfile`, `backend-hormonia/app
 - scripts/security/m015-runtime/redaction.py
 - backend-hormonia/docs/reports/security/m015/db-seam-evidence.json
 - backend-hormonia/docs/reports/security/m015/db-seam-summary.md
+- backend-hormonia/alembic/env.py
 - backend-hormonia/tests/security/test_m015_runtime_harness.py

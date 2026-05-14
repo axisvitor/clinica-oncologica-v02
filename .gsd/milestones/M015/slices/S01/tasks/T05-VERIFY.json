@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T05",
+  "unitId": "M015/S01/T05",
+  "timestamp": 1778741347935,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "bash -n scripts/security/verify-m015-runtime-security.sh\ndocker compose -f scripts/security/m015-runtime/docker-compose.yml config --quiet\ncd backend-hormonia",
+      "exitCode": 0,
+      "durationMs": 745,
+      "verdict": "pass"
+    },
+    {
+      "command": "PYTHONPATH=. pytest tests/core/test_async_engine_tls_config.py tests/security/test_m015_runtime_harness.py -q\ncd ..",
+      "exitCode": 0,
+      "durationMs": 852,
+      "verdict": "pass"
+    },
+    {
+      "command": "./scripts/security/verify-m015-runtime-security.sh --seam db",
+      "exitCode": 0,
+      "durationMs": 79804,
+      "verdict": "pass"
+    }
+  ]
+}

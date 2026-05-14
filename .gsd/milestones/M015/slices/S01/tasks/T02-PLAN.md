@@ -1,13 +1,10 @@
 ---
 estimated_steps: 14
 estimated_files: 2
-skills_used:
-  - tdd
-  - verify-before-complete
-  - security-review
+skills_used: []
 ---
 
-# T02: Fix async PostgreSQL TLS handling for strict runtime participation
+# T02: Fixed async PostgreSQL TLS configuration so FastAPI asyncpg startup participates in strict DB TLS posture with sanitized diagnostics.
 
 Why: The DB proof must include the actual FastAPI async DB path, not only an external psycopg probe. Current `app/core/database/async_engine.py` strips `sslmode=require/verify*` and builds an asyncpg SSL context with hostname verification disabled and `CERT_NONE`, so S01 must fix this before claiming runtime TLS posture.
 

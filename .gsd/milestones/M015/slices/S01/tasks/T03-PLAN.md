@@ -1,14 +1,10 @@
 ---
 estimated_steps: 17
 estimated_files: 5
-skills_used:
-  - tdd
-  - verify-before-complete
-  - observability
-  - security-review
+skills_used: []
 ---
 
-# T03: Implement DB seam probe with migrations, fixtures, TLS, RLS, and redacted evidence
+# T03: Added the M015 DB seam probe, redaction guard, Compose wiring, and root-path test shims; exact unit gate now passes, while full runtime verification stops at a migration URL option failure that needs continuation.
 
 Why: This task closes the S01 demo itself: the runner must not merely start containers; it must apply the real migration graph and prove DB TLS/RLS behavior through network/process boundaries with sanitized evidence.
 

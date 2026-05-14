@@ -1,16 +1,16 @@
 {
   "nodes": [
     {
-      "id": "milestone:M014",
-      "label": "M014: Hardening Médio e Proof Gaps",
+      "id": "milestone:M015",
+      "label": "M015: Runtime Security Validation",
       "type": "milestone",
-      "description": "Active milestone: M014",
+      "description": "Active milestone: M015",
       "confidence": "EXTRACTED",
       "sourceFile": "STATE.md"
     },
     {
-      "id": "concept:phase:validating-milestone",
-      "label": "Phase: validating-milestone",
+      "id": "concept:phase:planning",
+      "label": "Phase: planning",
       "type": "concept",
       "confidence": "EXTRACTED",
       "sourceFile": "STATE.md"
@@ -1560,6 +1560,13 @@
       "confidence": "EXTRACTED"
     },
     {
+      "id": "milestone:M014",
+      "label": "M014: Hardening Médio e Proof Gaps",
+      "type": "milestone",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M014/M014-ROADMAP.md"
+    },
+    {
       "id": "slice:M014:S01",
       "label": "S01: Ingress, Replay e Rate-Limit Fail-Closed",
       "type": "slice",
@@ -1703,11 +1710,41 @@
       "confidence": "EXTRACTED"
     },
     {
-      "id": "milestone:M015",
-      "label": "M015: Runtime Security Validation",
-      "type": "milestone",
+      "id": "slice:M015:S01",
+      "label": "S01: S01",
+      "type": "slice",
       "confidence": "EXTRACTED",
-      "sourceFile": "milestones/M015/M015-ROADMAP.md"
+      "sourceFile": "milestones/M015/slices/S01/S01-PLAN.md"
+    },
+    {
+      "id": "task:M015:S01:T01",
+      "label": "T01: Added the fail-closed M015 DB runtime harness with isolated Compose services, generated TLS/env scratch, Postgres synthetic roles, sanitized diagnostics, and static contract tests.",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S01:T02",
+      "label": "T02: Fixed async PostgreSQL TLS configuration so FastAPI asyncpg startup participates in strict DB TLS posture with sanitized diagnostics.",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S01:T03",
+      "label": "T03: Added the M015 DB seam probe, redaction guard, Compose wiring, and root-path test shims; exact unit gate now passes, while full runtime verification stops at a migration URL option failure that needs continuation.",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S01:T04",
+      "label": "T04: Fix migration-time TLS URL options and prove DB seam reaches evidence",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M015:S01:T05",
+      "label": "T05: Harden harness contract tests and run the S01 closure gate",
+      "type": "task",
+      "confidence": "EXTRACTED"
     },
     {
       "id": "decision:M013:1",
@@ -3634,6 +3671,42 @@
       "confidence": "EXTRACTED"
     },
     {
+      "from": "milestone:M015",
+      "to": "slice:M015:S01",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S01",
+      "to": "task:M015:S01:T01",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S01",
+      "to": "task:M015:S01:T02",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S01",
+      "to": "task:M015:S01:T03",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S01",
+      "to": "task:M015:S01:T04",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M015:S01",
+      "to": "task:M015:S01:T05",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
       "from": "milestone:M013",
       "to": "decision:M013:1",
       "type": "relates_to",
@@ -3928,5 +4001,5 @@
       "confidence": "EXTRACTED"
     }
   ],
-  "builtAt": "2026-05-14T02:38:42.586Z"
+  "builtAt": "2026-05-14T06:48:29.172Z"
 }

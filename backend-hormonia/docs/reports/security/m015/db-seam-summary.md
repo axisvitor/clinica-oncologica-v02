@@ -2,9 +2,9 @@
 
 - Command: `./scripts/security/verify-m015-runtime-security.sh --seam db`
 - Probe command: `python /m015-runtime/db_seam.py`
-- Correlation ID: `m015-20260514T063333Z-1254497`
-- Started: `2026-05-14T06:34:42Z`
-- Completed: `2026-05-14T06:34:46Z`
+- Correlation ID: `m015-20260514T064909Z-1274478`
+- Started: `2026-05-14T06:50:19Z`
+- Completed: `2026-05-14T06:50:25Z`
 - Redaction: `passed`
 - Teardown: `complete`
 
@@ -12,7 +12,7 @@
 
 - Command: `python -m alembic -c alembic.ini upgrade head`
 - Exit code: `0`
-- Duration: `4496 ms`
+- Duration: `6232 ms`
 - Expected heads: `m013_s04_upload_deleted_at`
 - Current revisions: `m013_s04_upload_deleted_at`
 - Ran as role: `hormonia_app`
@@ -46,7 +46,7 @@
 ## RLS Allow/Deny Proof
 
 - App role insert: `allowed`
-- Synthetic patient evidence: `7a0d671ae19d64e2ddb077bdfb332ca8ef3995ccc35f3e257fcad3b0a54777e4`
+- Synthetic patient evidence: `ef0c5e8d6ad04a2eb4bce655ca0496bdf34e6addf0a0ebece550b69c319a5518`
 - Denied role: `m015_rls_denied`
 - Denied select: `blocked_by_rls` with visible rows `0`
 - Denied insert: `blocked_by_rls` with SQLSTATE `42501`

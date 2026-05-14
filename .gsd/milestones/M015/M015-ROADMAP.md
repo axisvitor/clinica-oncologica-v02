@@ -12,10 +12,10 @@
 
 ## Slices
 
-- [ ] **S01: S01** `risk:Highest risk: local TLS PostgreSQL, generated test certs, migrations, readiness, and RLS execution are brittle and establish the runtime substrate for every downstream seam.` `depends:[]`
+- [x] **S01: S01** `risk:Highest risk: local TLS PostgreSQL, generated test certs, migrations, readiness, and RLS execution are brittle and establish the runtime substrate for every downstream seam.` `depends:[]`
   > After this: Run `./scripts/security/verify-m015-runtime-security.sh --seam db` to start the isolated backend runtime stack, apply migrations and synthetic fixtures, prove TLS negotiation and RLS allow/deny behavior, capture sanitized DB evidence, and tear down.
 
-- [ ] **S02: Cross-Process Session Revocation + Queue Worker Proof** `risk:High risk: the proof can accidentally collapse into an in-process shortcut unless it forces separate API/cache/DB/worker boundaries and cache-fallback behavior.` `depends:[S01]`
+- [ ] **S02: S02** `risk:High risk: the proof can accidentally collapse into an in-process shortcut unless it forces separate API/cache/DB/worker boundaries and cache-fallback behavior.` `depends:[]`
   > After this: Run the M015 session seam through the harness to show a current synthetic session succeeds, revoked/expired sessions fail closed across cache and DB fallback, and a queued worker scenario participates without accepting stale authorization.
 
 - [ ] **S03: Network-Real WuzAPI/Gemini Stub Boundary** `risk:High risk: provider checks must prove real network/env wiring and fail-closed behavior while staying synthetic-only and avoiding live side effects or payload leakage.` `depends:[S01,S02]`
