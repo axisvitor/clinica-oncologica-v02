@@ -1,6 +1,6 @@
 # M015 Session Seam Summary
 
-- Correlation ID: `m015-20260514T101032Z-1522750`
+- Correlation ID: `m015-20260514T102523Z-1541993`
 - Seam: `session`
 - Verification result: `passed`
 - Legacy header/Bearer transports: status `401`/`401`, reason `session_cookie_required`

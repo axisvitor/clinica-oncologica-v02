@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T03",
+  "unitId": "M015/S02/T03",
+  "timestamp": 1778748931963,
+  "passed": false,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "bash -n scripts/security/verify-m015-runtime-security.sh",
+      "exitCode": 0,
+      "durationMs": 16,
+      "verdict": "pass"
+    },
+    {
+      "command": "docker compose -f scripts/security/m015-runtime/docker-compose.yml config --quiet",
+      "exitCode": 0,
+      "durationMs": 746,
+      "verdict": "pass"
+    },
+    {
+      "command": "cd backend-hormonia",
+      "exitCode": 0,
+      "durationMs": 8,
+      "verdict": "pass"
+    },
+    {
+      "command": "PYTHONPATH=. pytest tests/security/test_m015_runtime_harness.py -q",
+      "exitCode": 4,
+      "durationMs": 806,
+      "verdict": "fail"
+    },
+    {
+      "command": "cd ..",
+      "exitCode": 0,
+      "durationMs": 8,
+      "verdict": "pass"
+    },
+    {
+      "command": "python scripts/security/m015-runtime/tests/test_runner_contract.py",
+      "exitCode": 0,
+      "durationMs": 293,
+      "verdict": "pass"
+    }
+  ],
+  "retryAttempt": 1,
+  "maxRetries": 2
+}

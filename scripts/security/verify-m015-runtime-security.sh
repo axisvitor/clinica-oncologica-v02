@@ -20,6 +20,10 @@ DB_SUMMARY_MD="${DB_EVIDENCE_OUTPUT_DIR}/db-seam-summary.md"
 SESSION_EVIDENCE_OUTPUT_DIR="backend-hormonia/docs/reports/security/m015"
 SESSION_EVIDENCE_JSON="${SESSION_EVIDENCE_OUTPUT_DIR}/session-seam-evidence.json"
 SESSION_SUMMARY_MD="${SESSION_EVIDENCE_OUTPUT_DIR}/session-seam-summary.md"
+PROVIDER_EVIDENCE_OUTPUT_DIR="backend-hormonia/docs/reports/security/m015"
+PROVIDER_EVIDENCE_JSON="${PROVIDER_EVIDENCE_OUTPUT_DIR}/provider-seam-evidence.json"
+PROVIDER_SUMMARY_MD="${PROVIDER_EVIDENCE_OUTPUT_DIR}/provider-seam-summary.md"
+PROVIDER_STUB_OBSERVATIONS_JSONL="${PROVIDER_EVIDENCE_OUTPUT_DIR}/provider-stub-observations.jsonl"
 
 SEAM=""
 KEEP_STACK="false"
@@ -37,14 +41,16 @@ EVIDENCE_FILE=""
 usage() {
   cat <<'USAGE'
 Usage:
-  ./scripts/security/verify-m015-runtime-security.sh --seam {db|session} [options]
+  ./scripts/security/verify-m015-runtime-security.sh --seam {db|session|provider} [options]
 
 Implemented seams:
   db                         Start the isolated M015 DB runtime substrate, prove readiness, and tear down.
   session                    Prove cookie-backed staff sessions, Redis fallback/revocation, and Taskiq DB re-checks.
+  provider                   Prove local WuzAPI/Gemini stub wiring, provider failure modes, and Taskiq worker participation.
 
 Options:
-  --seam {db|session}        Required. Unknown or omitted seams fail closed and do not start services.
+  --seam {db|session|provider}
+                             Required. Unknown or omitted seams fail closed and do not start services.
   --list-seams               Print implemented seams and exit.
   --help, -h                 Show this help and exit.
   --keep-stack               Leave the Docker Compose stack running for manual inspection.
@@ -57,13 +63,14 @@ Examples:
   ./scripts/security/verify-m015-runtime-security.sh --list-seams
   ./scripts/security/verify-m015-runtime-security.sh --seam db
   ./scripts/security/verify-m015-runtime-security.sh --seam session
+  ./scripts/security/verify-m015-runtime-security.sh --seam provider
   M015_API_PORT=18180 ./scripts/security/verify-m015-runtime-security.sh --seam db --keep-stack
-  ./scripts/security/verify-m015-runtime-security.sh --seam session --project-name m015-debug --teardown-only
+  ./scripts/security/verify-m015-runtime-security.sh --seam provider --project-name m015-debug --teardown-only
 USAGE
 }
 
 list_seams() {
-  printf 'db\nsession\n'
+  printf 'db\nsession\nprovider\n'
 }
 
 cli_error() {
@@ -133,10 +140,10 @@ parse_args() {
     esac
   done
 
-  [[ -n "$SEAM" ]] || cli_error "fail-closed: no seam selected; pass --seam db or --seam session"
+  [[ -n "$SEAM" ]] || cli_error "fail-closed: no seam selected; pass --seam db, session, or provider"
   case "$SEAM" in
-    db|session) ;;
-    *) cli_error "unknown seam '${SEAM}'. Implemented seams: db, session" ;;
+    db|session|provider) ;;
+    *) cli_error "unknown seam '${SEAM}'. Implemented seams: db, session, provider" ;;
   esac
   [[ "$API_PORT" =~ ^[0-9]+$ ]] || cli_error "--api-port must be numeric"
   [[ "$POSTGRES_PORT" =~ ^[0-9]+$ ]] || cli_error "--postgres-port must be numeric"
@@ -162,6 +169,7 @@ sanitize_stream() {
     -e 's#rediss://[^[:space:]]+#rediss://<redacted>#g' \
     -e 's#([A-Za-z0-9_]*(PASSWORD|TOKEN|SECRET|KEY)[A-Za-z0-9_]*=)[^[:space:]]+#\1<redacted>#g' \
     -e 's#(Authorization: Bearer )[A-Za-z0-9._~+/-]+#\1<redacted>#g' \
+    -e 's#([Tt]oken:[[:space:]]*)[^[:cntrl:]]+#\1<redacted>#g' \
     -e 's#([Ss]et-[Cc]ookie:[[:space:]]*)[^[:cntrl:]]+#\1<redacted>#g' \
     -e 's#(^|[[:space:]])([Cc]ookie:[[:space:]]*)[^[:cntrl:]]+#\1\2<redacted>#g' \
     -e 's#/mnt/c/[^[:space:]]+#<redacted-host-path>#g' \
@@ -221,13 +229,17 @@ fail_phase() {
 }
 
 setup_workspace() {
-  mkdir -p "$CERT_DIR" "$LOG_DIR" "$EVIDENCE_ROOT" "$DB_EVIDENCE_OUTPUT_DIR" "$SESSION_EVIDENCE_OUTPUT_DIR"
+  mkdir -p "$CERT_DIR" "$LOG_DIR" "$EVIDENCE_ROOT" "$DB_EVIDENCE_OUTPUT_DIR" "$SESSION_EVIDENCE_OUTPUT_DIR" "$PROVIDER_EVIDENCE_OUTPUT_DIR"
   chmod 700 "$RUNTIME_DIR" "$CERT_DIR" "$LOG_DIR" 2>/dev/null || true
   EVIDENCE_DIR="${EVIDENCE_ROOT}/${CORRELATION_ID}"
   mkdir -p "$EVIDENCE_DIR"
   EVIDENCE_FILE="${EVIDENCE_DIR}/runner-events.jsonl"
   : >"$EVIDENCE_FILE"
   log_phase "setup" "started" "workspace=runtime-scratch evidence=repo-local-sanitized project=${PROJECT_NAME} api_port=${API_PORT} postgres_port=${POSTGRES_PORT}"
+  if [[ "$SEAM" == "provider" ]]; then
+    : >"$PROVIDER_STUB_OBSERVATIONS_JSONL"
+    log_phase "evidence" "ready" "provider stub observation log reset for fresh sanitized run"
+  fi
 }
 
 require_command() {
@@ -456,7 +468,7 @@ dragonfly_image=docker.dragonflydb.io/dragonflydb/dragonfly:latest
 backend_context=backend-hormonia
 database_url_policy=sslmode=verify-full,generated-ca-mount,tlsmin=TLSv1.2
 redis_policy=dragonfly-local-no-auth-synthetic-network-only
-provider_policy=no-live-provider-service-whatsapp-disabled
+provider_policy=local-provider-stubs-network-real-synthetic-only
 EOF
   log_phase "evidence" "recorded" "runtime substrate version manifest written without DSNs or secrets"
 }
@@ -473,7 +485,7 @@ capture_failure_diagnostics() {
 
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     compose_cmd ps >"${EVIDENCE_DIR}/compose-ps.txt" 2>&1 || true
-    compose_cmd logs --no-color --tail=120 postgres dragonfly api worker 2>&1 \
+    compose_cmd logs --no-color --tail=120 postgres dragonfly api worker provider-stub provider-worker 2>&1 \
       | sanitize_stream >"${EVIDENCE_DIR}/compose-tail.log" || true
     log_phase "$LAST_PHASE" "diagnostics" "sanitized compose status/log tail saved under ${EVIDENCE_ROOT}/${CORRELATION_ID}"
   fi
@@ -491,6 +503,10 @@ update_teardown_result() {
     session)
       evidence_json="$SESSION_EVIDENCE_JSON"
       summary_md="$SESSION_SUMMARY_MD"
+      ;;
+    provider)
+      evidence_json="$PROVIDER_EVIDENCE_JSON"
+      summary_md="$PROVIDER_SUMMARY_MD"
       ;;
     *)
       return 0
@@ -563,8 +579,15 @@ on_exit() {
 }
 
 compose_up() {
-  log_phase "compose" "started" "building and starting isolated services postgres dragonfly api worker"
-  if ! compose_cmd up -d --build cert-init postgres dragonfly api worker >"${LOG_DIR}/compose-up.log" 2>&1; then
+  local services=(cert-init postgres dragonfly api worker)
+  local service_label="postgres dragonfly api worker"
+  if [[ "$SEAM" == "provider" ]]; then
+    services+=(provider-stub provider-worker)
+    service_label="${service_label} provider-stub provider-worker"
+  fi
+
+  log_phase "compose" "started" "building and starting isolated services ${service_label}"
+  if ! compose_cmd up -d --build "${services[@]}" >"${LOG_DIR}/compose-up.log" 2>&1; then
     fail_phase "compose" "compose-up" "docker compose up failed; inspect sanitized evidence and local compose logs" 1
   fi
   STARTED="true"
@@ -610,6 +633,29 @@ worker_running() {
   [[ "$running" == "true" ]]
 }
 
+provider_stub_running() {
+  local cid running
+  cid="$(compose_cmd ps -q provider-stub 2>/dev/null || true)"
+  [[ -n "$cid" ]] || return 1
+  running="$(docker inspect -f '{{.State.Running}}' "$cid" 2>/dev/null || true)"
+  [[ "$running" == "true" ]]
+}
+
+provider_worker_running() {
+  local cid running
+  cid="$(compose_cmd ps -q provider-worker 2>/dev/null || true)"
+  [[ -n "$cid" ]] || return 1
+  running="$(docker inspect -f '{{.State.Running}}' "$cid" 2>/dev/null || true)"
+  [[ "$running" == "true" ]]
+}
+
+provider_worker_listener_ready() {
+  provider_worker_running || return 1
+  local logs
+  logs="$(compose_cmd logs --no-color --tail=200 provider-worker 2>/dev/null || true)"
+  [[ "$logs" == *"Listening started."* ]]
+}
+
 wait_for_readiness() {
   log_phase "readiness" "started" "checking postgres TLS, dragonfly ping, api health, worker liveness"
 
@@ -632,6 +678,18 @@ wait_for_readiness() {
     fail_phase "readiness" "worker-not-running" "worker process did not remain running" 1
   fi
   log_phase "readiness" "ready" "worker container is running"
+
+  if [[ "$SEAM" == "provider" ]]; then
+    if ! retry_until 60 2 provider_stub_running; then
+      fail_phase "stub-readiness" "provider-stub-not-running" "provider stub process did not remain running" 1
+    fi
+    log_phase "stub-readiness" "ready" "provider stub container is running"
+
+    if ! retry_until 180 3 provider_worker_listener_ready; then
+      fail_phase "worker" "provider-worker-not-ready" "provider worker did not reach Taskiq listening state" 1
+    fi
+    log_phase "worker" "ready" "provider worker Taskiq listener is ready"
+  fi
 }
 
 run_db_probe() {
@@ -679,6 +737,28 @@ run_session_probe() {
   fail_phase "$failed_phase" "$failed_class" "Session seam probe failed; sanitized log saved under ${EVIDENCE_ROOT}/${CORRELATION_ID}/session-probe.log" 1
 }
 
+run_provider_probe() {
+  log_phase "provider-probe" "started" "running provider seam probe for WuzAPI/Gemini stub wiring, failure modes, worker participation, and redacted artifacts"
+  local probe_log failed_line failed_phase failed_class
+  probe_log="${LOG_DIR}/provider-probe.log"
+  if compose_cmd run --rm -T provider-probe >"$probe_log" 2>&1; then
+    sanitize_stream <"$probe_log" >"${EVIDENCE_DIR}/provider-probe.log"
+    log_phase "wuzapi" "ready" "provider seam probe recorded WuzAPI local stub outcomes"
+    log_phase "gemini" "ready" "provider seam probe recorded Gemini local stub outcomes"
+    log_phase "worker" "ready" "Taskiq provider worker used configured local stub URLs"
+    log_phase "evidence" "ready" "provider seam evidence JSON and summary written with redaction validation"
+    return 0
+  fi
+
+  sanitize_stream <"$probe_log" >"${EVIDENCE_DIR}/provider-probe.log" || true
+  failed_line="$(awk '/status=failed/ {line=$0} END {print line}' "${EVIDENCE_DIR}/provider-probe.log" 2>/dev/null || true)"
+  failed_phase="$(printf '%s' "$failed_line" | sed -E 's/.*phase=([^ ]+).*/\1/' 2>/dev/null || true)"
+  failed_class="$(printf '%s' "$failed_line" | sed -E 's/.*failure_class=([^ ]+).*/\1/' 2>/dev/null || true)"
+  [[ -n "$failed_phase" && "$failed_phase" != "$failed_line" ]] || failed_phase="provider-probe"
+  [[ -n "$failed_class" && "$failed_class" != "$failed_line" ]] || failed_class="provider-probe-failed"
+  fail_phase "$failed_phase" "$failed_class" "Provider seam probe failed; sanitized log saved under ${EVIDENCE_ROOT}/${CORRELATION_ID}/provider-probe.log" 1
+}
+
 run_selected_seam() {
   if [[ -z "$PROJECT_NAME" ]]; then
     PROJECT_NAME="$(normalize_project_name "m015-runtime-${CORRELATION_ID}")"
@@ -705,6 +785,7 @@ run_selected_seam() {
   case "$SEAM" in
     db) run_db_probe ;;
     session) run_session_probe ;;
+    provider) run_provider_probe ;;
     *) fail_phase "setup" "unknown-seam" "unknown seam ${SEAM}" 64 ;;
   esac
 }

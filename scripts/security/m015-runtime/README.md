@@ -33,6 +33,18 @@ Proves M015/S02 cross-process staff-session revocation through the same syntheti
   - `backend-hormonia/docs/reports/security/m015/session-seam-evidence.json`
   - `backend-hormonia/docs/reports/security/m015/session-seam-summary.md`
 
+### Provider stubs (S03 support)
+
+`provider_stub.py` is the controlled local HTTP stub used by the S03 provider seam. It is intentionally network-real but synthetic-only:
+
+- WuzAPI-compatible paths such as `/chat/send/text` and `/session/status` verify method/path and `Token` header presence without storing token values.
+- Gemini-compatible generated-content paths such as `/v1beta/models/{model}:generateContent` return synthetic model responses for local base-URL validation.
+- Deterministic scenarios cover `success`, `client_error`, `rate_limited`, `server_error`, `timeout`, and `duplicate_or_replay`.
+- Durable stub observations contain only provider, endpoint, method, scenario, status class, header-presence booleans, body hash, and redaction verdicts.
+- Stub observations must not contain raw provider request bodies, prompts, cookies, token values, Authorization values, DSNs, host paths, PHI-shaped values, or private paths.
+
+The provider stub alone is not a completed S03 proof; the `provider` runner seam and Compose services are wired, but the provider probe, provider worker task implementation, runtime run, and durable evidence are completed by later S03 tasks.
+
 ## Synthetic runtime posture
 
 The runner generates `.m015-runtime/m015.env` with production-like safety defaults and synthetic-only values:
@@ -84,4 +96,6 @@ Durable evidence is written via `write_validated_json`/`write_validated_text`. A
 
 - The `session` seam does not exercise provider artifact seams or live WhatsApp/Gemini/Firebase integrations.
 - The harness never uses real patient/provider data.
+- The session probe is intentionally small; load testing and provider matrix coverage belong to later slices.
+der data.
 - The session probe is intentionally small; load testing and provider matrix coverage belong to later slices.

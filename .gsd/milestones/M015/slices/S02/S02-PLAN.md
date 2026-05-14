@@ -41,22 +41,22 @@ Consumes the S01 runner/Compose substrate, TLS PostgreSQL, Dragonfly, FastAPI re
   - Files: `backend-hormonia/tests/security/test_m015_s02_session_runtime_contract.py`, `backend-hormonia/app/dependencies/auth_session_cache.py`, `backend-hormonia/app/dependencies/auth_session_contract.py`, `backend-hormonia/app/dependencies/auth_dependencies.py`, `backend-hormonia/app/api/v2/auth_session_shared.py`
   - Verify: cd backend-hormonia && PYTHONPATH=. pytest tests/security/test_m015_s02_session_runtime_contract.py tests/unit/test_auth_session_cache_canonical_identity.py tests/api/v2/test_auth_session_shared_canonical_identity.py -q
 
-- [ ] **T02: Invalidate Redis on explicit session revocation** `est:1.5h`
+- [x] **T02: Invalidate Redis on explicit session revocation** `est:1.5h`
   Why: `/api/v2/users/sessions/{session_id}` currently updates the DB row but can leave `session:<id>` in Dragonfly. It must invalidate cache at the revocation boundary, while DB revocation remains the hard fail-closed source if cache deletion fails.
   - Files: `backend-hormonia/tests/security/test_m015_s02_session_runtime_contract.py`, `backend-hormonia/app/dependencies/auth_session_invalidation.py`, `backend-hormonia/app/api/v2/routers/auth.py`, `backend-hormonia/app/api/v2/routers/users.py`, `backend-hormonia/app/core/redis_manager/session_cache.py`
   - Verify: cd backend-hormonia && PYTHONPATH=. pytest tests/security/test_m015_s02_session_runtime_contract.py tests/api/v2/test_auth.py -q
 
-- [ ] **T03: Wire the session seam runner, Compose service, and explicit Taskiq task module** `est:2h`
+- [x] **T03: Wire the session seam runner, Compose service, and explicit Taskiq task module** `est:2h`
   Why: S01 proves worker liveness only. S02 must expose a `session` seam, mount a harness-only Taskiq module, and force the worker to import it so queue proof crosses the real broker/worker boundary.
   - Files: `scripts/security/verify-m015-runtime-security.sh`, `scripts/security/m015-runtime/docker-compose.yml`, `scripts/security/m015-runtime/m015_session_security_taskiq.py`, `backend-hormonia/tests/security/test_m015_runtime_harness.py`, `scripts/security/m015-runtime/tests/test_runner_contract.py`
   - Verify: bash -n scripts/security/verify-m015-runtime-security.sh && docker compose -f scripts/security/m015-runtime/docker-compose.yml config --quiet && cd backend-hormonia && PYTHONPATH=. pytest tests/security/test_m015_runtime_harness.py -q && cd .. && python scripts/security/m015-runtime/tests/test_runner_contract.py
 
-- [ ] **T04: Build the session runtime probe and redaction-validated evidence** `est:2.5h`
+- [x] **T04: Build the session runtime probe and redaction-validated evidence** `est:2.5h`
   Why: The runner/worker wiring is not enough; S02 needs an executable probe that drives API/cache/DB/worker boundaries and writes durable PHI-safe evidence for the exact session cases claimed.
   - Files: `scripts/security/m015-runtime/session_seam.py`, `scripts/security/m015-runtime/README.md`, `backend-hormonia/tests/security/test_m015_runtime_harness.py`, `scripts/security/m015-runtime/tests/test_runner_contract.py`
   - Verify: PYTHONPATH=backend-hormonia python -m py_compile scripts/security/m015-runtime/session_seam.py scripts/security/m015-runtime/m015_session_security_taskiq.py && cd backend-hormonia && PYTHONPATH=. pytest tests/security/test_m015_runtime_harness.py tests/security/test_m015_s02_session_runtime_contract.py -q
 
-- [ ] **T05: Run the session seam and commit fresh sanitized evidence artifacts** `est:1h`
+- [x] **T05: Run the session seam and commit fresh sanitized evidence artifacts** `est:1h`
   Why: S02 is an operational proof slice and is not complete until the real root runner exercises the session seam and leaves durable redaction-validated evidence for S05.
   - Files: `backend-hormonia/docs/reports/security/m015/session-seam-evidence.json`, `backend-hormonia/docs/reports/security/m015/session-seam-summary.md`
   - Verify: bash -n scripts/security/verify-m015-runtime-security.sh && docker compose -f scripts/security/m015-runtime/docker-compose.yml config --quiet && cd backend-hormonia && PYTHONPATH=. pytest tests/security/test_m015_s02_session_runtime_contract.py tests/security/test_m015_runtime_harness.py tests/unit/test_auth_session_cache_canonical_identity.py tests/api/v2/test_auth_session_shared_canonical_identity.py -q && cd .. && ./scripts/security/verify-m015-runtime-security.sh --seam session

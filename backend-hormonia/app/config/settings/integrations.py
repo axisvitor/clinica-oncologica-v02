@@ -235,6 +235,13 @@ class IntegrationsSettings(BaseAppSettings):
     AI_GEMINI_API_KEY: Optional[str] = Field(
         default=None, description="Google Gemini API key"
     )
+    AI_GEMINI_BASE_URL: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional Google Gemini API base URL for synthetic/runtime validation "
+            "or controlled non-production routing. Leave unset for the SDK default."
+        ),
+    )
     AI_GEMINI_MODEL: str = Field(
         default="gemini-3-flash-preview", description="Gemini model to use"
     )

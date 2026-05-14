@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T01",
+  "unitId": "M015/S02/T01",
+  "timestamp": 1778754134618,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "cd backend-hormonia",
+      "exitCode": 0,
+      "durationMs": 8,
+      "verdict": "pass"
+    },
+    {
+      "command": "PYTHONPATH=. pytest tests/security/test_m015_s02_session_runtime_contract.py tests/unit/test_auth_session_cache_canonical_identity.py tests/api/v2/test_auth_session_shared_canonical_identity.py -q",
+      "exitCode": 0,
+      "durationMs": 19497,
+      "verdict": "pass"
+    }
+  ]
+}

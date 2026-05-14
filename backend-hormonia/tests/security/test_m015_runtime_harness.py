@@ -28,6 +28,8 @@ DB_EVIDENCE_JSON = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "db
 DB_SUMMARY_MD = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "db-seam-summary.md"
 SESSION_EVIDENCE_JSON = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "session-seam-evidence.json"
 SESSION_SUMMARY_MD = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "session-seam-summary.md"
+PROVIDER_EVIDENCE_JSON = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "provider-seam-evidence.json"
+PROVIDER_SUMMARY_MD = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "provider-seam-summary.md"
 
 sys.path.insert(0, str(HARNESS_DIR))
 from redaction import RedactionError, redaction_findings, validate_no_sensitive_evidence  # noqa: E402
@@ -61,12 +63,21 @@ def test_runner_help_and_list_seams_are_static_and_fail_closed() -> None:
     help_result = _run_runner("--help")
     assert help_result.returncode == 0, help_result.stderr
     assert "--seam db" in help_result.stdout
+    assert "provider" in help_result.stdout
     assert "--list-seams" in help_result.stdout
     assert "--teardown-only" in help_result.stdout
 
     list_result = _run_runner("--list-seams")
     assert list_result.returncode == 0, list_result.stderr
-    assert list_result.stdout.strip().splitlines() == ["db", "session"]
+    assert list_result.stdout.strip().splitlines() == ["db", "session", "provider"]
+
+
+def test_runner_has_single_terminal_entrypoint_without_trailing_fragments() -> None:
+    lines = RUNNER.read_text(encoding="utf-8").splitlines()
+
+    assert lines[-1] == 'main "$@"'
+    assert lines.count('main "$@"') == 1
+    assert not any(line.startswith("nknown seam") for line in lines)
 
 
 def test_runner_rejects_missing_or_unknown_seams_before_setup() -> None:
@@ -77,7 +88,7 @@ def test_runner_rejects_missing_or_unknown_seams_before_setup() -> None:
     assert "phase=setup" not in missing_output
     assert "green" not in missing_output.lower()
 
-    unknown_result = _run_runner("--seam", "provider")
+    unknown_result = _run_runner("--seam", "artifact")
     unknown_output = unknown_result.stdout + unknown_result.stderr
     assert unknown_result.returncode != 0
     assert "unknown seam" in unknown_output.lower()
@@ -87,7 +98,17 @@ def test_runner_rejects_missing_or_unknown_seams_before_setup() -> None:
 def test_m015_compose_is_isolated_from_live_providers_and_project_env_files() -> None:
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
 
-    for service in ("postgres:", "dragonfly:", "api:", "worker:", "db-probe:", "session-probe:"):
+    for service in (
+        "postgres:",
+        "dragonfly:",
+        "api:",
+        "worker:",
+        "db-probe:",
+        "session-probe:",
+        "provider-stub:",
+        "provider-worker:",
+        "provider-probe:",
+    ):
         assert service in compose_text
     assert "env_file" not in compose_text
     assert "backend-hormonia/.env" not in compose_text
@@ -98,17 +119,42 @@ def test_m015_compose_is_isolated_from_live_providers_and_project_env_files() ->
     assert "firebase-adminsdk" not in compose_text
     assert "WHATSAPP_ENABLE_SERVICE: ${WHATSAPP_ENABLE_SERVICE:-false}" in compose_text
     assert "AI_LANGCHAIN_ENABLE_TRACING_V2: ${AI_LANGCHAIN_ENABLE_TRACING_V2:-false}" in compose_text
+    assert "WHATSAPP_WUZAPI_BASE_URL: ${WHATSAPP_WUZAPI_BASE_URL:-http://provider-stub:18089}" in compose_text
+    assert "AI_GEMINI_BASE_URL: ${AI_GEMINI_BASE_URL:-http://provider-stub:18089}" in compose_text
     assert "build: *backend_build" in compose_text
     assert "command: [\"python\", \"/m015-runtime/db_seam.py\"]" in compose_text
     assert "command: [\"python\", \"/m015-runtime/session_seam.py\"]" in compose_text
+    assert "command: [\"python\", \"/m015-runtime/provider_stub.py\", \"--host\", \"0.0.0.0\", \"--port\", \"18089\"]" in compose_text
+    assert "command: [\"python\", \"/m015-runtime/provider_seam.py\"]" in compose_text
     assert "command: [\"taskiq\", \"worker\", \"app.taskiq_broker:broker\", \"app.tasks.m015_session_security_taskiq\"]" in compose_text
+    assert "command: [\"taskiq\", \"worker\", \"app.taskiq_broker:broker\", \"app.tasks.m015_provider_security_taskiq\"]" in compose_text
     worker_section = compose_text.split("  worker:", 1)[1].split("  db-probe:", 1)[0]
+    provider_worker_section = compose_text.split("  provider-worker:", 1)[1].split("  provider-probe:", 1)[0]
+    provider_probe_section = compose_text.split("  provider-probe:", 1)[1].split("\nvolumes:", 1)[0]
+    provider_broker = "TASKIQ_BROKER_URL: ${M015_PROVIDER_TASKIQ_BROKER_URL:-redis://dragonfly:6379/4}"
     assert "M015_DATABASE_PSQL_CONN" in worker_section
+    assert provider_broker in provider_worker_section
+    assert provider_broker in provider_probe_section
+    assert provider_broker not in worker_section
     assert "./db_seam.py:/m015-runtime/db_seam.py:ro" in compose_text
     assert "./session_seam.py:/m015-runtime/session_seam.py:ro" in compose_text
     assert "./m015_session_security_taskiq.py:/app/app/tasks/m015_session_security_taskiq.py:ro" in compose_text
     assert "./m015_session_security_taskiq.py:/m015-runtime/m015_session_security_taskiq.py:ro" in compose_text
+    assert "./provider_stub.py:/m015-runtime/provider_stub.py:ro" in compose_text
+    assert "./provider_seam.py:/m015-runtime/provider_seam.py:ro" in compose_text
+    assert "./m015_provider_security_taskiq.py:/app/app/tasks/m015_provider_security_taskiq.py:ro" in compose_text
+    assert "./m015_provider_security_taskiq.py:/m015-runtime/m015_provider_security_taskiq.py:ro" in compose_text
     assert "./redaction.py:/m015-runtime/redaction.py:ro" in compose_text
+
+
+def test_provider_worker_readiness_waits_for_taskiq_listener() -> None:
+    runner_text = RUNNER.read_text(encoding="utf-8")
+
+    assert "provider_worker_listener_ready()" in runner_text
+    assert "compose_cmd logs --no-color --tail=200 provider-worker" in runner_text
+    assert "Listening started." in runner_text
+    assert "provider-worker-not-ready" in runner_text
+    assert "provider worker Taskiq listener is ready" in runner_text
 
 
 def test_evidence_paths_are_repo_relative_and_container_mounted() -> None:
@@ -119,12 +165,17 @@ def test_evidence_paths_are_repo_relative_and_container_mounted() -> None:
 
     assert 'RUNTIME_DIR=".m015-runtime"' in runner_text
     assert "[Cc]ookie" in runner_text
+    assert "[Tt]oken" in runner_text
     assert "[Ss]et-[Cc]ookie" in runner_text
     assert 'DB_EVIDENCE_OUTPUT_DIR="backend-hormonia/docs/reports/security/m015"' in runner_text
     assert 'DB_EVIDENCE_JSON="${DB_EVIDENCE_OUTPUT_DIR}/db-seam-evidence.json"' in runner_text
     assert 'DB_SUMMARY_MD="${DB_EVIDENCE_OUTPUT_DIR}/db-seam-summary.md"' in runner_text
     assert 'SESSION_EVIDENCE_JSON="${SESSION_EVIDENCE_OUTPUT_DIR}/session-seam-evidence.json"' in runner_text
     assert 'SESSION_SUMMARY_MD="${SESSION_EVIDENCE_OUTPUT_DIR}/session-seam-summary.md"' in runner_text
+    assert 'PROVIDER_EVIDENCE_JSON="${PROVIDER_EVIDENCE_OUTPUT_DIR}/provider-seam-evidence.json"' in runner_text
+    assert 'PROVIDER_SUMMARY_MD="${PROVIDER_EVIDENCE_OUTPUT_DIR}/provider-seam-summary.md"' in runner_text
+    assert 'PROVIDER_STUB_OBSERVATIONS_JSONL="${PROVIDER_EVIDENCE_OUTPUT_DIR}/provider-stub-observations.jsonl"' in runner_text
+    assert "provider stub observation log reset for fresh sanitized run" in runner_text
     assert "M015_EVIDENCE_OUTPUT_DIR=/m015-evidence-output" in runner_text
     assert "../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output" in compose_text
     assert 'OUTPUT_DIR = Path(os.getenv("M015_EVIDENCE_OUTPUT_DIR", "/m015-evidence-output"))' in db_seam_text
@@ -286,6 +337,7 @@ def test_m015_harness_uses_psycopg_compatible_tls_minimum_key() -> None:
         ({"value": "-----BEGIN PRIVATE KEY-----\nnot-real\n-----END PRIVATE KEY-----"}, "private_key_block"),
         ({"value": "-----BEGIN CERTIFICATE-----\nnot-real\n-----END CERTIFICATE-----"}, "certificate_block"),
         ({"value": "Authorization: Bearer token-value"}, "authorization_header"),
+        ({"value": "Token: provider-token-value"}, "secret_assignment"),
         ({"value": "Set-Cookie: session=abc"}, "cookie_header"),
         ({"value": "ACCESS_TOKEN=secret-token"}, "secret_assignment"),
         ({"value": "firebase_admin service_account private_key_id client_x509_cert_url"}, "firebase_service_account_material"),
@@ -328,7 +380,14 @@ def test_evidence_redaction_allows_sanitized_synthetic_evidence_shape() -> None:
 
 
 def test_existing_runtime_seam_artifacts_are_redaction_clean_when_present() -> None:
-    paths = (DB_EVIDENCE_JSON, DB_SUMMARY_MD, SESSION_EVIDENCE_JSON, SESSION_SUMMARY_MD)
+    paths = (
+        DB_EVIDENCE_JSON,
+        DB_SUMMARY_MD,
+        SESSION_EVIDENCE_JSON,
+        SESSION_SUMMARY_MD,
+        PROVIDER_EVIDENCE_JSON,
+        PROVIDER_SUMMARY_MD,
+    )
     missing = [path for path in paths if not path.exists()]
     if missing:
         pytest.skip("runtime seam artifacts are produced by the Docker verification gate")

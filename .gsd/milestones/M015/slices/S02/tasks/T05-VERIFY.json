@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T05",
+  "unitId": "M015/S02/T05",
+  "timestamp": 1778751964560,
+  "passed": false,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "bash -n scripts/security/verify-m015-runtime-security.sh",
+      "exitCode": 0,
+      "durationMs": 15,
+      "verdict": "pass"
+    },
+    {
+      "command": "docker compose -f scripts/security/m015-runtime/docker-compose.yml config --quiet",
+      "exitCode": 0,
+      "durationMs": 735,
+      "verdict": "pass"
+    },
+    {
+      "command": "cd backend-hormonia",
+      "exitCode": 0,
+      "durationMs": 8,
+      "verdict": "pass"
+    },
+    {
+      "command": "PYTHONPATH=. pytest tests/security/test_m015_s02_session_runtime_contract.py tests/security/test_m015_runtime_harness.py tests/unit/test_auth_session_cache_canonical_identity.py tests/api/v2/test_auth_session_shared_canonical_identity.py -q",
+      "exitCode": 0,
+      "durationMs": 19958,
+      "verdict": "pass"
+    },
+    {
+      "command": "cd ..",
+      "exitCode": 0,
+      "durationMs": 7,
+      "verdict": "pass"
+    },
+    {
+      "command": "./scripts/security/verify-m015-runtime-security.sh --seam session",
+      "exitCode": 1,
+      "durationMs": 110598,
+      "verdict": "fail"
+    }
+  ],
+  "retryAttempt": 1,
+  "maxRetries": 2
+}

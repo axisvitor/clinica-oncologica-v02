@@ -79,7 +79,7 @@ DENYLIST_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "raw_patient_or_provider_payload",
         re.compile(
-            r"(?i)\b(patient[_ -]?name|patient[_ -]?value|provider[_ -]?payload|raw[_ -]?payload|cpf|phone|email)\s*[:=]"
+            r"(?i)[\"']?\b(patient[_ -]?name|patient[_ -]?value|provider[_ -]?payload|raw[_ -]?payload|cpf|phone|email)\b[\"']?\s*[:=]"
         ),
     ),
 )
@@ -125,7 +125,7 @@ _SANITIZERS: tuple[tuple[re.Pattern[str], str], ...] = (
     ),
     (
         re.compile(
-            r"(?i)(\b(?:patient[_ -]?name|patient[_ -]?value|provider[_ -]?payload|raw[_ -]?payload|cpf|phone|email)\s*[:=]\s*)[^\n\r,}]+"
+            r"(?i)([\"']?\b(?:patient[_ -]?name|patient[_ -]?value|provider[_ -]?payload|raw[_ -]?payload|cpf|phone|email)\b[\"']?\s*[:=]\s*)[^\n\r,}]+"
         ),
         r"\1<redacted>",
     ),

@@ -33,11 +33,13 @@ x-backend-environment: &backend_environment
   FIREBASE_ALLOWED_DOMAINS: ${FIREBASE_ALLOWED_DOMAINS:-[]}
   WHATSAPP_ENABLE_SERVICE: ${WHATSAPP_ENABLE_SERVICE:-false}
   WHATSAPP_WUZAPI_USE_MOCK: ${WHATSAPP_WUZAPI_USE_MOCK:-false}
+  WHATSAPP_WUZAPI_BASE_URL: ${WHATSAPP_WUZAPI_BASE_URL:-http://provider-stub:18089}
   WHATSAPP_WUZAPI_TOKEN: ${WHATSAPP_WUZAPI_TOKEN:-m015-config-only-wuzapi-token-never-used-at-runtime-64-characters}
   WHATSAPP_WUZAPI_WEBHOOK_SECRET: ${WHATSAPP_WUZAPI_WEBHOOK_SECRET:-m015-config-only-webhook-secret-never-used-at-runtime-64-characters}
   WHATSAPP_ENABLE_ON_REGISTRATION: ${WHATSAPP_ENABLE_ON_REGISTRATION:-false}
   WHATSAPP_ENABLE_WELCOME_MESSAGE: ${WHATSAPP_ENABLE_WELCOME_MESSAGE:-false}
   AI_GEMINI_API_KEY: ${AI_GEMINI_API_KEY:-synthetic-gemini-config-only}
+  AI_GEMINI_BASE_URL: ${AI_GEMINI_BASE_URL:-http://provider-stub:18089}
   AI_ENABLE_HUMANIZATION: ${AI_ENABLE_HUMANIZATION:-false}
   AI_HUMANIZATION_ENABLE_FALLBACK: ${AI_HUMANIZATION_ENABLE_FALLBACK:-false}
   AI_LANGCHAIN_ENABLE_TRACING_V2: ${AI_LANGCHAIN_ENABLE_TRACING_V2:-false}
@@ -229,6 +231,82 @@ services:
       - ./session_seam.py:/m015-runtime/session_seam.py:ro
       - ./m015_session_security_taskiq.py:/m015-runtime/m015_session_security_taskiq.py:ro
       - ./m015_session_security_taskiq.py:/app/app/tasks/m015_session_security_taskiq.py:ro
+      - ./redaction.py:/m015-runtime/redaction.py:ro
+      - ../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output
+    networks:
+      - m015-runtime
+
+  provider-stub:
+    build: *backend_build
+    init: true
+    command: ["python", "/m015-runtime/provider_stub.py", "--host", "0.0.0.0", "--port", "18089"]
+    environment:
+      M015_PROVIDER_STUB_OBSERVATIONS: /m015-evidence-output/provider-stub-observations.jsonl
+    volumes:
+      - ./provider_stub.py:/m015-runtime/provider_stub.py:ro
+      - ./redaction.py:/m015-runtime/redaction.py:ro
+      - ../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output
+    networks:
+      - m015-runtime
+
+  provider-worker:
+    build: *backend_build
+    init: true
+    profiles: ["tools"]
+    command: ["taskiq", "worker", "app.taskiq_broker:broker", "app.tasks.m015_provider_security_taskiq"]
+    environment:
+      <<: *backend_environment
+      M015_DATABASE_PSQL_CONN: ${M015_DATABASE_PSQL_CONN:-host=postgres port=5432 dbname=m015_hormonia user=hormonia_app password=m015-config-only sslmode=verify-full sslrootcert=/m015-certs/ca.crt ssl_min_protocol_version=TLSv1.2}
+      M015_PROVIDER_STUB_URL: ${M015_PROVIDER_STUB_URL:-http://provider-stub:18089}
+      TASKIQ_BROKER_URL: ${M015_PROVIDER_TASKIQ_BROKER_URL:-redis://dragonfly:6379/4}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dragonfly:
+        condition: service_healthy
+      provider-stub:
+        condition: service_started
+    volumes:
+      - m015-postgres-certs:/m015-certs:ro
+      - ./m015_provider_security_taskiq.py:/app/app/tasks/m015_provider_security_taskiq.py:ro
+      - ./provider_stub.py:/m015-runtime/provider_stub.py:ro
+      - ./redaction.py:/m015-runtime/redaction.py:ro
+    networks:
+      - m015-runtime
+
+  provider-probe:
+    build: *backend_build
+    init: true
+    profiles: ["tools"]
+    working_dir: /app
+    command: ["python", "/m015-runtime/provider_seam.py"]
+    environment:
+      <<: *backend_environment
+      M015_DATABASE_URL: ${M015_DATABASE_URL:-postgresql+psycopg://hormonia_app:m015-config-only@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&ssl_min_protocol_version=TLSv1.2}
+      M015_DATABASE_PSQL_CONN: ${M015_DATABASE_PSQL_CONN:-host=postgres port=5432 dbname=m015_hormonia user=hormonia_app password=m015-config-only sslmode=verify-full sslrootcert=/m015-certs/ca.crt ssl_min_protocol_version=TLSv1.2}
+      M015_EVIDENCE_OUTPUT_DIR: ${M015_EVIDENCE_OUTPUT_DIR:-/m015-evidence-output}
+      M015_CORRELATION_ID: ${M015_CORRELATION_ID:-m015-unset}
+      M015_PROVIDER_STUB_URL: ${M015_PROVIDER_STUB_URL:-http://provider-stub:18089}
+      TASKIQ_BROKER_URL: ${M015_PROVIDER_TASKIQ_BROKER_URL:-redis://dragonfly:6379/4}
+      M015_POSTGRES_IMAGE: ${M015_POSTGRES_IMAGE:-postgres:16-alpine}
+      M015_DRAGONFLY_IMAGE: ${M015_DRAGONFLY_IMAGE:-docker.dragonflydb.io/dragonflydb/dragonfly:latest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dragonfly:
+        condition: service_healthy
+      api:
+        condition: service_started
+      provider-stub:
+        condition: service_started
+      provider-worker:
+        condition: service_started
+    volumes:
+      - m015-postgres-certs:/m015-certs:ro
+      - ./provider_seam.py:/m015-runtime/provider_seam.py:ro
+      - ./m015_provider_security_taskiq.py:/m015-runtime/m015_provider_security_taskiq.py:ro
+      - ./m015_provider_security_taskiq.py:/app/app/tasks/m015_provider_security_taskiq.py:ro
+      - ./provider_stub.py:/m015-runtime/provider_stub.py:ro
       - ./redaction.py:/m015-runtime/redaction.py:ro
       - ../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output
     networks:

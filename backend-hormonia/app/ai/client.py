@@ -103,7 +103,14 @@ class GeminiClient:
             return
 
         try:
-            self._genai_client = genai.Client(api_key=self.api_key)
+            client_kwargs: dict[str, Any] = {"api_key": self.api_key}
+            gemini_base_url = getattr(settings, "AI_GEMINI_BASE_URL", None)
+            if gemini_base_url:
+                client_kwargs["http_options"] = types.HttpOptions(
+                    base_url=gemini_base_url
+                )
+
+            self._genai_client = genai.Client(**client_kwargs)
             self._genai_config = types.GenerateContentConfig(
                 temperature=settings.AI_GEMINI_TEMPERATURE,
                 max_output_tokens=settings.AI_GEMINI_MAX_OUTPUT_TOKENS,
@@ -114,7 +121,11 @@ class GeminiClient:
             logger.info(
                 "Gemini client initialized with model: %s",
                 self.model_name,
-                extra={"model": self.model_name, "reason": reason},
+                extra={
+                    "model": self.model_name,
+                    "reason": reason,
+                    "custom_base_url_configured": bool(gemini_base_url),
+                },
             )
         except Exception as e:
             logger.error(

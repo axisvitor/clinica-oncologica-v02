@@ -47,16 +47,17 @@ class M015RunnerContractTests(unittest.TestCase):
         result = self.run_runner("--help")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--seam db", result.stdout)
+        self.assertIn("provider", result.stdout)
         self.assertIn("--list-seams", result.stdout)
         self.assertIn("--teardown-only", result.stdout)
 
-    def test_list_seams_only_lists_implemented_db_seam(self) -> None:
+    def test_list_seams_only_lists_implemented_db_session_and_provider_seams(self) -> None:
         result = self.run_runner("--list-seams")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip().splitlines(), ["db", "session"])
+        self.assertEqual(result.stdout.strip().splitlines(), ["db", "session", "provider"])
 
     def test_unknown_seam_fails_before_setup_phase(self) -> None:
-        result = self.run_runner("--seam", "provider")
+        result = self.run_runner("--seam", "artifact")
         self.assertNotEqual(result.returncode, 0)
         combined = result.stdout + result.stderr
         self.assertIn("unknown seam", combined.lower())
@@ -71,7 +72,17 @@ class M015RunnerContractTests(unittest.TestCase):
 
     def test_compose_static_contract(self) -> None:
         text = COMPOSE_FILE.read_text(encoding="utf-8")
-        for service in ("postgres:", "dragonfly:", "api:", "worker:", "db-probe:", "session-probe:"):
+        for service in (
+            "postgres:",
+            "dragonfly:",
+            "api:",
+            "worker:",
+            "db-probe:",
+            "session-probe:",
+            "provider-stub:",
+            "provider-worker:",
+            "provider-probe:",
+        ):
             self.assertIn(service, text)
         self.assertNotIn("env_file", text)
         self.assertNotIn("backend-hormonia/.env", text)
@@ -85,7 +96,10 @@ class M015RunnerContractTests(unittest.TestCase):
         self.assertIn("build: *backend_build", text)
         self.assertIn("command: [\"python\", \"/m015-runtime/db_seam.py\"]", text)
         self.assertIn("command: [\"python\", \"/m015-runtime/session_seam.py\"]", text)
+        self.assertIn("command: [\"python\", \"/m015-runtime/provider_stub.py\", \"--host\", \"0.0.0.0\", \"--port\", \"18089\"]", text)
+        self.assertIn("command: [\"python\", \"/m015-runtime/provider_seam.py\"]", text)
         self.assertIn("command: [\"taskiq\", \"worker\", \"app.taskiq_broker:broker\", \"app.tasks.m015_session_security_taskiq\"]", text)
+        self.assertIn("command: [\"taskiq\", \"worker\", \"app.taskiq_broker:broker\", \"app.tasks.m015_provider_security_taskiq\"]", text)
         self.assertIn("./db_seam.py:/m015-runtime/db_seam.py:ro", text)
         self.assertIn("./session_seam.py:/m015-runtime/session_seam.py:ro", text)
         self.assertIn("./m015_session_security_taskiq.py:/app/app/tasks/m015_session_security_taskiq.py:ro", text)
@@ -96,6 +110,7 @@ class M015RunnerContractTests(unittest.TestCase):
         self.assertIn("sslmode=verify-full", text)
         runner_text = RUNNER.read_text(encoding="utf-8")
         self.assertIn("[Cc]ookie", runner_text)
+        self.assertIn("[Tt]oken", runner_text)
         self.assertIn("[Ss]et-[Cc]ookie", runner_text)
 
     def test_runtime_scratch_is_ignored_but_harness_is_not(self) -> None:
@@ -109,6 +124,7 @@ class M015RunnerContractTests(unittest.TestCase):
             "-----BEGIN PRIVATE KEY-----\nnot-real\n-----END PRIVATE KEY-----",
             "-----BEGIN CERTIFICATE-----\nnot-real\n-----END CERTIFICATE-----",
             "Authorization: Bearer token-value",
+            "Token: provider-token-value",
             "Cookie: session=abc",
             "ACCESS_TOKEN=secret-token",
             "firebase_admin service_account private_key_id client_x509_cert_url",

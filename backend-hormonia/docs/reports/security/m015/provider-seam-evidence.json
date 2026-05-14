@@ -1,0 +1,236 @@
+{
+  "command": "./scripts/security/verify-m015-runtime-security.sh --seam provider",
+  "completed_at": "2026-05-14T14:38:17Z",
+  "correlation_id": "m015-20260514T143555Z-1845365",
+  "events": [
+    {
+      "correlation_id": "m015-20260514T143555Z-1845365",
+      "message": "checking WuzAPI scenarios through local provider stub",
+      "phase": "wuzapi",
+      "seam": "provider",
+      "status": "started",
+      "timestamp": "2026-05-14T14:38:15Z"
+    },
+    {
+      "correlation_id": "m015-20260514T143555Z-1845365",
+      "message": "WuzAPI local stub scenarios produced sanitized status classes",
+      "phase": "wuzapi",
+      "seam": "provider",
+      "status": "ready",
+      "timestamp": "2026-05-14T14:38:16Z"
+    },
+    {
+      "correlation_id": "m015-20260514T143555Z-1845365",
+      "message": "checking Gemini scenarios through local provider stub",
+      "phase": "gemini",
+      "seam": "provider",
+      "status": "started",
+      "timestamp": "2026-05-14T14:38:16Z"
+    },
+    {
+      "correlation_id": "m015-20260514T143555Z-1845365",
+      "message": "Gemini local stub scenarios produced sanitized status classes",
+      "phase": "gemini",
+      "seam": "provider",
+      "status": "ready",
+      "timestamp": "2026-05-14T14:38:16Z"
+    },
+    {
+      "correlation_id": "m015-20260514T143555Z-1845365",
+      "message": "queueing Taskiq provider boundary check",
+      "phase": "worker",
+      "seam": "provider",
+      "status": "started",
+      "timestamp": "2026-05-14T14:38:16Z"
+    },
+    {
+      "correlation_id": "m015-20260514T143555Z-1845365",
+      "message": "Taskiq provider worker used configured local stub URLs",
+      "phase": "worker",
+      "seam": "provider",
+      "status": "ready",
+      "timestamp": "2026-05-14T14:38:17Z"
+    }
+  ],
+  "failure_classes": [
+    "provider_stub_unreachable",
+    "wuzapi_stub_mismatch",
+    "gemini_stub_mismatch",
+    "provider_timeout",
+    "taskiq_dispatch_or_result_failure",
+    "provider_worker_mismatch",
+    "redaction_denylist_hit"
+  ],
+  "non_goals": [
+    "private_artifact_app_route_proof_deferred_to_s04",
+    "final_all_seam_matrix_closure_deferred_to_s05",
+    "live_provider_credentials_not_used",
+    "no_real_patient_data_or_phi",
+    "browser_frontend_flows_not_exercised",
+    "cdn_object_storage_not_exercised"
+  ],
+  "provider_probe": {
+    "gemini": {
+      "raw_prompts_persisted": false,
+      "raw_provider_bodies_persisted": false,
+      "scenarios": [
+        {
+          "duration_ms": 4,
+          "endpoint": "generate_content",
+          "error_class": null,
+          "provider": "gemini",
+          "raw_prompt_persisted": false,
+          "raw_provider_body_persisted": false,
+          "scenario": "success",
+          "status_class": "2xx",
+          "status_code": 200,
+          "token_values_persisted": false
+        },
+        {
+          "duration_ms": 4,
+          "endpoint": "generate_content",
+          "error_class": null,
+          "provider": "gemini",
+          "raw_prompt_persisted": false,
+          "raw_provider_body_persisted": false,
+          "scenario": "server_error",
+          "status_class": "5xx",
+          "status_code": 503,
+          "token_values_persisted": false
+        }
+      ],
+      "status_classes": [
+        "2xx",
+        "5xx"
+      ],
+      "token_values_persisted": false
+    },
+    "worker": {
+      "checked_at": "2026-05-14T14:38:16Z",
+      "correlation_id_hash": "c84cc5b6e5e088b3ee892e6f12583788eff0884554efbf5db86374417d8701c9",
+      "gemini": {
+        "client_initialized": true,
+        "configured_base_url": true,
+        "endpoint": "generate_content",
+        "provider": "gemini",
+        "raw_prompt_persisted": false,
+        "scenario": "config_boundary",
+        "status_class": "configured",
+        "token_values_persisted": false
+      },
+      "redaction": {
+        "raw_prompts_persisted": false,
+        "raw_provider_bodies_persisted": false,
+        "token_values_persisted": false
+      },
+      "worker_boundary": "taskiq",
+      "wuzapi": {
+        "duration_ms": 8,
+        "endpoint": "send_text",
+        "error_class": null,
+        "provider": "wuzapi",
+        "raw_prompt_persisted": false,
+        "raw_provider_body_persisted": false,
+        "scenario": "success",
+        "status_class": "2xx",
+        "status_code": 200,
+        "token_values_persisted": false
+      }
+    },
+    "wuzapi": {
+      "raw_prompts_persisted": false,
+      "raw_provider_bodies_persisted": false,
+      "scenarios": [
+        {
+          "duration_ms": 28,
+          "endpoint": "send_text",
+          "error_class": null,
+          "provider": "wuzapi",
+          "raw_prompt_persisted": false,
+          "raw_provider_body_persisted": false,
+          "scenario": "success",
+          "status_class": "2xx",
+          "status_code": 200,
+          "token_values_persisted": false
+        },
+        {
+          "duration_ms": 5,
+          "endpoint": "send_text",
+          "error_class": null,
+          "provider": "wuzapi",
+          "raw_prompt_persisted": false,
+          "raw_provider_body_persisted": false,
+          "scenario": "client_error",
+          "status_class": "4xx",
+          "status_code": 400,
+          "token_values_persisted": false
+        },
+        {
+          "duration_ms": 4,
+          "endpoint": "send_text",
+          "error_class": null,
+          "provider": "wuzapi",
+          "raw_prompt_persisted": false,
+          "raw_provider_body_persisted": false,
+          "scenario": "server_error",
+          "status_class": "5xx",
+          "status_code": 503,
+          "token_values_persisted": false
+        },
+        {
+          "duration_ms": 1001,
+          "endpoint": "send_text",
+          "error_class": "TimeoutError",
+          "provider": "wuzapi",
+          "raw_prompt_persisted": false,
+          "raw_provider_body_persisted": false,
+          "scenario": "timeout",
+          "status_class": "network_error",
+          "status_code": null,
+          "token_values_persisted": false
+        },
+        {
+          "duration_ms": 9,
+          "endpoint": "send_text",
+          "error_class": null,
+          "provider": "wuzapi",
+          "raw_prompt_persisted": false,
+          "raw_provider_body_persisted": false,
+          "scenario": "duplicate_or_replay",
+          "status_class": "4xx",
+          "status_code": 409,
+          "token_values_persisted": false
+        }
+      ],
+      "status_classes": [
+        "2xx",
+        "4xx",
+        "5xx",
+        "network_error"
+      ],
+      "token_values_persisted": false
+    }
+  },
+  "redaction": {
+    "raw_cookie_headers_persisted": false,
+    "raw_prompts_persisted": false,
+    "raw_provider_bodies_persisted": false,
+    "raw_session_ids_persisted": false,
+    "token_values_persisted": false,
+    "validated": true
+  },
+  "result": "passed",
+  "seam": "provider",
+  "started_at": "2026-05-14T14:38:15Z",
+  "teardown": {
+    "notes": "compose down completed idempotently",
+    "result": "complete",
+    "timestamp": "2026-05-14T14:38:20Z"
+  },
+  "versions": {
+    "dragonfly_image": "docker.dragonflydb.io/dragonflydb/dragonfly:latest",
+    "postgres_image": "postgres:16-alpine",
+    "provider_stub": "local-http-stdlib",
+    "provider_stub_url_policy": "local docker DNS host only; raw URL omitted"
+  }
+}

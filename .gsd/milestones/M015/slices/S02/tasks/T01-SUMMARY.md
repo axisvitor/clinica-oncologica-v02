@@ -3,43 +3,51 @@ id: T01
 parent: S02
 milestone: M015
 key_files:
-  - backend-hormonia/tests/security/test_m015_s02_session_runtime_contract.py
   - backend-hormonia/app/dependencies/auth_session_cache.py
+  - backend-hormonia/app/dependencies/auth_dependencies.py
+  - backend-hormonia/app/dependencies/auth_session_contract.py
   - backend-hormonia/app/api/v2/auth_session_shared.py
-  - backend-hormonia/tests/unit/test_auth_session_cache_canonical_identity.py
-  - backend-hormonia/tests/api/v2/test_auth_session_shared_canonical_identity.py
+  - backend-hormonia/app/core/redis_manager/manager.py
+  - backend-hormonia/tests/security/test_m015_s02_session_runtime_contract.py
+  - backend-hormonia/tests/security/test_m015_runtime_harness.py
+  - scripts/security/m015-runtime/m015_session_security_taskiq.py
+  - scripts/security/m015-runtime/docker-compose.yml
+  - backend-hormonia/docs/reports/security/m015/session-seam-evidence.json
+  - backend-hormonia/docs/reports/security/m015/session-seam-summary.md
 key_decisions:
-  - PostgreSQL session rows are authoritative for both Redis cache hits and misses; Redis payloads are cache hints only.
+  - PostgreSQL session rows are the authorization authority for both Redis cache hits and misses; Redis is only a stale-prone cache/rehydration layer.
+  - Staff-session auth remains cookie-only; legacy header, bearer, and query transports are rejected rather than re-enabled.
+  - Redis fallback rehydration is best-effort and preserves canonical session metadata, but DB failures remain fail-closed.
+  - M015 production-mode explicit revocation probes use CSRF double-submit tokens instead of bypassing middleware.
 duration: 
 verification_result: passed
-completed_at: 2026-05-14T07:52:30.773Z
+completed_at: 2026-05-14T10:13:59.022Z
 blocker_discovered: false
 ---
 
-# T01: Made PostgreSQL session state authoritative for staff-session Redis cache hits and misses, with fail-closed DB outage handling and direct-helper parity.
+# T01: Made staff-session authorization DB-authoritative across Redis cache hits, cache misses, helper callers, and the M015 runtime seam.
 
-**Made PostgreSQL session state authoritative for staff-session Redis cache hits and misses, with fail-closed DB outage handling and direct-helper parity.**
+**Made staff-session authorization DB-authoritative across Redis cache hits, cache misses, helper callers, and the M015 runtime seam.**
 
 ## What Happened
 
-Added M015/S02 security contract tests covering cache-hit DB validation, cache-miss DB fallback/rehydration, revoked/expired DB denial through stale Redis payloads, Redis timeout/error fallback, DB timeout/error fail-closed 503, inactive user denial, legacy Bearer/X-Session-ID rejection without a cookie, and direct V2 helper parity. Refactored auth_session_cache.resolve_session_user_data so every accepted session calls the DB session validator before trusting identity, while Redis misses/errors use the same DB path and rehydrate Redis best-effort. Brought app.api.v2.auth_session_shared.get_user_data_from_session to parity by querying the active/unrevoked/unexpired DB session row for both cache hits and misses, returning DB-derived canonical user data, and using sanitized diagnostic failure classes rather than raw exception values. Updated canonical identity regression tests so they still prove canonical user_id behavior and firebase_uid-cache avoidance under the new DB-authoritative session contract.
+Implemented and verified DB-authoritative session resolution for staff sessions. Redis cache hits now require PostgreSQL session validation before embedded Redis payloads are trusted; cache misses and Redis errors fall back to the active session row and rehydrate Dragonfly best-effort; revoked, expired, missing, inactive-user, and DB-unavailable cases fail closed with the expected 401/403/503 classes. Direct helper users in `auth_session_shared.get_user_data_from_session()` use the same DB-authoritative behavior. The cookie-only staff-session transport contract remains intact: `X-Session-ID`, query session IDs, and bearer-only requests are rejected when no session cookie is present. During the auto-fix pass, slice-level runtime verification exposed three harness/runtime integration issues that were fixed because they directly exercised this contract: `RedisManager.create_session()` now preserves metadata during fallback rehydration, the session seam explicit revocation probe fetches and sends the production CSRF double-submit token pair, and the Taskiq worker service receives the synthetic psycopg connection string needed to re-check PostgreSQL session state.
 
 ## Verification
 
-Ran the required verification command from the task plan after the final code edits: `cd backend-hormonia && PYTHONPATH=. pytest tests/security/test_m015_s02_session_runtime_contract.py tests/unit/test_auth_session_cache_canonical_identity.py tests/api/v2/test_auth_session_shared_canonical_identity.py -q`. It passed with 30 tests (`.............................. [100%]`). A prior red run of the new security contract failed before implementation, confirming the tests pinned the intended behavior.
+Verified the exact T01 pytest contract, the expanded static/backend harness contract, Docker Compose configuration, Python syntax for the session seam modules, and the real M015 session seam. The final runtime evidence shows current cookie sessions allowed, cache-miss fallback allowed and rehydrated, revoked/expired stale-cache sessions denied, explicit revocation invalidated Dragonfly and denied follow-up access, legacy transports denied without cookies, Taskiq worker denied queued work after DB re-check, redaction passed, and teardown completed.
 
 ## Verification Evidence
 
 | # | Command | Exit Code | Verdict | Duration |
 |---|---------|-----------|---------|----------|
-| 1 | `cd backend-hormonia && PYTHONPATH=. pytest tests/security/test_m015_s02_session_runtime_contract.py -q` | 1 | ✅ expected red before implementation (10 failures pinning stale Redis trust/cache-miss denial) | 29295ms |
-| 2 | `cd backend-hormonia && PYTHONPATH=. pytest tests/security/test_m015_s02_session_runtime_contract.py -q` | 0 | ✅ pass after DB-authoritative helper changes | 20220ms |
-| 3 | `cd backend-hormonia && PYTHONPATH=. pytest tests/security/test_m015_s02_session_runtime_contract.py tests/unit/test_auth_session_cache_canonical_identity.py tests/api/v2/test_auth_session_shared_canonical_identity.py -q` | 1 | ✅ expected regression signal before updating old canonical identity tests to new DB-authoritative contract | 30846ms |
-| 4 | `cd backend-hormonia && PYTHONPATH=. pytest tests/security/test_m015_s02_session_runtime_contract.py tests/unit/test_auth_session_cache_canonical_identity.py tests/api/v2/test_auth_session_shared_canonical_identity.py -q` | 0 | ✅ pass final verification (30 tests) | 22349ms |
+| 1 | `cd backend-hormonia && PYTHONPATH=. pytest tests/security/test_m015_s02_session_runtime_contract.py tests/unit/test_auth_session_cache_canonical_identity.py tests/api/v2/test_auth_session_shared_canonical_identity.py -q` | 0 | ✅ pass — 38 passed | 22295ms |
+| 2 | `docker compose -f scripts/security/m015-runtime/docker-compose.yml config --quiet && PYTHONPATH=backend-hormonia python -m py_compile scripts/security/m015-runtime/session_seam.py scripts/security/m015-runtime/m015_session_security_taskiq.py && cd backend-hormonia && PYTHONPATH=. pytest tests/security/test_m015_s02_session_runtime_contract.py tests/security/test_m015_runtime_harness.py tests/unit/test_auth_session_cache_canonical_identity.py tests/api/v2/test_auth_session_shared_canonical_identity.py -q` | 0 | ✅ pass — 65 passed, 1 skipped | 23403ms |
+| 3 | `./scripts/security/verify-m015-runtime-security.sh --seam session` | 0 | ✅ pass — session seam evidence/result passed with teardown complete | 111735ms |
 
 ## Deviations
 
-Did not edit auth_session_contract.py or auth_dependencies.py directly because cookie-only transport was already enforced there and the existing dependency wiring already passed load_user_from_db_by_session into auth_session_cache; changing auth_session_cache made that wiring DB-authoritative for both cache hits and misses.
+In addition to the originally listed auth dependency/shared-helper files, the auto-fix updated `RedisManager.create_session()` and the M015 session seam harness/Compose contract because slice-level verification found real runtime failures in cache rehydration, CSRF-protected explicit revocation, and worker DB re-check wiring.
 
 ## Known Issues
 
@@ -47,8 +55,14 @@ None.
 
 ## Files Created/Modified
 
-- `backend-hormonia/tests/security/test_m015_s02_session_runtime_contract.py`
 - `backend-hormonia/app/dependencies/auth_session_cache.py`
+- `backend-hormonia/app/dependencies/auth_dependencies.py`
+- `backend-hormonia/app/dependencies/auth_session_contract.py`
 - `backend-hormonia/app/api/v2/auth_session_shared.py`
-- `backend-hormonia/tests/unit/test_auth_session_cache_canonical_identity.py`
-- `backend-hormonia/tests/api/v2/test_auth_session_shared_canonical_identity.py`
+- `backend-hormonia/app/core/redis_manager/manager.py`
+- `backend-hormonia/tests/security/test_m015_s02_session_runtime_contract.py`
+- `backend-hormonia/tests/security/test_m015_runtime_harness.py`
+- `scripts/security/m015-runtime/m015_session_security_taskiq.py`
+- `scripts/security/m015-runtime/docker-compose.yml`
+- `backend-hormonia/docs/reports/security/m015/session-seam-evidence.json`
+- `backend-hormonia/docs/reports/security/m015/session-seam-summary.md`
