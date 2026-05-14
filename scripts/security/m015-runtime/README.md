@@ -1,32 +1,50 @@
-# M015 Synthetic Runtime Harness (S01)
+# M015 Synthetic Runtime Harness
 
-This directory contains the committed harness substrate for M015/S01. The root entrypoint is:
+This directory contains the isolated Docker Compose harness for M015 runtime security seams. The root entrypoint is:
 
 ```bash
-./scripts/security/verify-m015-runtime-security.sh --seam db
+./scripts/security/verify-m015-runtime-security.sh --seam {db|session}
 ```
 
-## What S01 provides
+## Implemented seams
 
-- An isolated Docker Compose project with `postgres`, `dragonfly`, `api`, `worker`, and `db-probe` services.
+### `db`
+
+Proves the M015 DB substrate with synthetic services only:
+
+- `postgres`, `dragonfly`, `api`, `worker`, and `db-probe` services in an isolated Compose project.
 - PostgreSQL TLS enabled with local-only CA/server certificates generated under `.m015-runtime/certs`.
-- A generated synthetic env file at `.m015-runtime/m015.env` with production-like posture:
-  - `APP_ENVIRONMENT=production`
-  - `APP_ENABLE_DEBUG=false`
-  - `ALLOW_AI_SIMULATION=false`
-  - `WHATSAPP_ENABLE_SERVICE=false`
-  - synthetic Gemini/WuzAPI/security keys only
-  - PostgreSQL URLs using `sslmode=verify-full`, `sslrootcert=/m015-certs/ca.crt`, and `ssl_min_protocol_version=TLSv1.2`
-- Postgres init roles:
-  - `hormonia_app`: non-superuser database owner for the backend runtime.
-  - `m015_rls_denied`: non-superuser role for later allow/deny RLS proof tasks.
-- Phase-stamped runner diagnostics and sanitized evidence under `scripts/security/m015-runtime/evidence/<correlation-id>/`.
+- Alembic migration execution, app-role connectivity, TLS evidence, and RLS allow/deny proof.
+- Redaction-validated artifacts:
+  - `backend-hormonia/docs/reports/security/m015/db-seam-evidence.json`
+  - `backend-hormonia/docs/reports/security/m015/db-seam-summary.md`
 
-## Non-goals in this task
+### `session`
 
-- This task does not prove Alembic migrations or RLS allow/deny behavior; later S01 tasks extend the DB seam for that proof.
-- This harness does not start WuzAPI or any live provider service.
-- This harness must not reuse `backend-hormonia/.env`, production volumes, production data, real patient data, or real provider payloads.
+Proves M015/S02 cross-process staff-session revocation through the same synthetic stack:
+
+- `session-probe` runs `session_seam.py`; the real worker imports `app.tasks.m015_session_security_taskiq`.
+- API proof uses cookie-backed staff auth against `/api/v2/users/me`.
+- Negative transport proof confirms legacy `X-Session-ID` and bearer-only requests fail closed without the session cookie.
+- Explicit revocation proof uses `/api/v2/users/sessions/{session_id}` and verifies Dragonfly session cache deletion.
+- Cache/DB proof covers active cache hits, cache-miss PostgreSQL fallback with cache rehydration, revoked stale-cache denial, and expired stale-cache denial.
+- Worker proof queues Taskiq work before revocation and requires the worker to re-check PostgreSQL before returning `denied/revoked_or_expired`.
+- Redaction-validated artifacts:
+  - `backend-hormonia/docs/reports/security/m015/session-seam-evidence.json`
+  - `backend-hormonia/docs/reports/security/m015/session-seam-summary.md`
+
+## Synthetic runtime posture
+
+The runner generates `.m015-runtime/m015.env` with production-like safety defaults and synthetic-only values:
+
+- `APP_ENVIRONMENT=production`
+- `APP_ENABLE_DEBUG=false`
+- `ALLOW_AI_SIMULATION=false`
+- `WHATSAPP_ENABLE_SERVICE=false`
+- synthetic Gemini/WuzAPI/security keys only
+- PostgreSQL URLs using `sslmode=verify-full`, `sslrootcert=/m015-certs/ca.crt`, and `ssl_min_protocol_version=TLSv1.2`
+
+The Compose file must not use `backend-hormonia/.env`, production volumes, production data, WuzAPI, Firebase credentials, real patient data, or live provider payloads.
 
 ## Useful commands
 
@@ -34,25 +52,36 @@ This directory contains the committed harness substrate for M015/S01. The root e
 # Show implemented seams.
 ./scripts/security/verify-m015-runtime-security.sh --list-seams
 
-# Start DB seam substrate, check readiness, and tear down automatically.
+# Start DB seam, check readiness, write evidence, and tear down automatically.
 ./scripts/security/verify-m015-runtime-security.sh --seam db
 
+# Start session seam, check API/cache/DB/worker behavior, write evidence, and tear down automatically.
+./scripts/security/verify-m015-runtime-security.sh --seam session
+
 # Keep the stack for inspection.
-./scripts/security/verify-m015-runtime-security.sh --seam db --keep-stack --project-name m015-debug
+./scripts/security/verify-m015-runtime-security.sh --seam session --keep-stack --project-name m015-debug
 
 # Idempotent teardown for an inspected stack.
-./scripts/security/verify-m015-runtime-security.sh --seam db --project-name m015-debug --teardown-only
+./scripts/security/verify-m015-runtime-security.sh --seam session --project-name m015-debug --teardown-only
 
 # Static validation without starting services.
 docker compose -f scripts/security/m015-runtime/docker-compose.yml config --quiet
 ```
 
-## Generated material
+## Recovery notes
 
-`.m015-runtime/` is intentionally ignored by git. It contains generated env, certificates, and local logs. Treat it as scratch and delete it freely; the runner regenerates it.
+- Unknown or omitted seams fail closed before setup; rerun with `--list-seams` if unsure.
+- Missing Docker, Compose, OpenSSL, busy host ports, certificate generation failure, Compose startup failure, readiness timeout, probe failure, and teardown failure all emit `correlation_id`, `seam`, `phase`, `status`, and `failure_class`.
+- Sanitized runner logs are written under `scripts/security/m015-runtime/evidence/<correlation-id>/`.
+- `.m015-runtime/` is ignored scratch space for generated env files, certificates, and local logs. Delete it freely; the runner regenerates it.
+- If `--keep-stack` was used, clean up with the same `--project-name` and `--teardown-only`.
 
-Sanitized evidence under `scripts/security/m015-runtime/evidence/` is intended to be trackable when a future task needs to preserve proof output. Evidence must not contain DSNs, credentials, tokens, PHI, raw private paths, or provider payloads.
+## Evidence and redaction contract
 
-## Failure classes
+Durable evidence is written via `write_validated_json`/`write_validated_text`. Artifacts must contain status codes, cache/DB/worker outcomes, hashed identifiers, booleans, timestamps, versions, failure classes, and non-goals only. They must not contain DSNs, credentials, tokens, private keys, raw cookies, raw session IDs, PHI, host-private paths, certificate paths, SQL statements, or live-provider payloads.
 
-The runner fails closed for unknown seams, omitted `--seam`, missing Docker/Compose/OpenSSL, Docker daemon unavailability, certificate generation failure, host port collision, Compose startup failure, Postgres TLS readiness timeout, Dragonfly timeout, API health timeout, and worker liveness failure. Failures include `correlation_id`, `seam`, `phase`, `status`, and a sanitized remediation class.
+## Non-goals
+
+- The `session` seam does not exercise provider artifact seams or live WhatsApp/Gemini/Firebase integrations.
+- The harness never uses real patient/provider data.
+- The session probe is intentionally small; load testing and provider matrix coverage belong to later slices.

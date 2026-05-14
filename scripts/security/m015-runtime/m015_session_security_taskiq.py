@@ -5,7 +5,7 @@ This file is mounted two ways by the M015 synthetic runtime stack:
 
 * ``/app/app/tasks/m015_session_security_taskiq.py`` so the real Taskiq worker
   explicitly imports and registers the harness-only task.
-* ``/m015-runtime/m015_session_security_taskiq.py`` so the session probe can
+* ``/m015-runtime/m015_session_security_taskiq.py`` so ``session_seam.py`` can
   create synthetic staff sessions, call the API with cookie-backed auth, queue a
   worker check, and write redaction-validated evidence.
 
@@ -407,13 +407,22 @@ class SessionProbe:
                     (session_id,),
                 )
 
-    def api_request(self, method: str, path: str, *, session_id: str | None = None) -> dict[str, Any]:
+    def api_request(
+        self,
+        method: str,
+        path: str,
+        *,
+        session_id: str | None = None,
+        extra_headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         headers = {
             "Host": "api",
             "User-Agent": "m015-session-probe",
             "X-Forwarded-Proto": "https",
             "X-Request-ID": self.correlation_id,
         }
+        if extra_headers:
+            headers.update(extra_headers)
         if session_id:
             headers["Cookie"] = f"{SESSION_COOKIE_NAME}={session_id}"
         request = urllib.request.Request(
@@ -455,11 +464,51 @@ class SessionProbe:
             return "database_temporarily_unavailable"
         return f"http_{status_code}"
 
+    def prove_legacy_transports_denied(self) -> dict[str, Any]:
+        self.event("session-probe", "started", "checking legacy header and bearer transports fail without a session cookie")
+        header_response = self.api_request(
+            "GET",
+            "/api/v2/users/me",
+            extra_headers={"X-Session-ID": "m015-legacy-header-denied"},
+        )
+        bearer_response = self.api_request(
+            "GET",
+            "/api/v2/users/me",
+            extra_headers={"Authorization": "Bearer m015-legacy-bearer-denied"},
+        )
+        if header_response["status_code"] != 401 or bearer_response["status_code"] != 401:
+            raise PhaseError(
+                "session-probe",
+                "legacy_transport_accepted",
+                "legacy staff-session transports were accepted without the canonical cookie",
+                {"header_response": header_response, "bearer_response": bearer_response},
+            )
+        if header_response["body_class"] != "session_cookie_required" or bearer_response["body_class"] != "session_cookie_required":
+            raise PhaseError(
+                "session-probe",
+                "legacy_transport_wrong_failure_class",
+                "legacy staff-session transports did not fail with the expected cookie-required class",
+                {"header_response": header_response, "bearer_response": bearer_response},
+            )
+        self.event("session-probe", "ready", "legacy header and bearer transports were denied without a session cookie")
+        return {
+            "x_session_id": {
+                "result": "denied",
+                "status_code": header_response["status_code"],
+                "reason": header_response["body_class"],
+            },
+            "bearer": {
+                "result": "denied",
+                "status_code": bearer_response["status_code"],
+                "reason": bearer_response["body_class"],
+            },
+        }
+
     def prove_current_session(self) -> dict[str, Any]:
         self.event("session-probe", "started", "checking current cookie-backed session through FastAPI")
         synthetic = self.create_synthetic_session("current")
         asyncio.run(self.seed_stale_session_cache(synthetic))
-        response = self.api_request("GET", "/api/v2/auth/me", session_id=synthetic.session_id)
+        response = self.api_request("GET", "/api/v2/users/me", session_id=synthetic.session_id)
         if response["status_code"] != 200:
             raise PhaseError("session-probe", "api_auth_current_denied", "current synthetic session was denied", response)
         self.event("session-probe", "ready", "current cookie-backed session returned an authorized profile")
@@ -478,7 +527,7 @@ class SessionProbe:
         synthetic = self.create_synthetic_session("fallback")
         asyncio.run(self.delete_session_cache(synthetic.session_id))
         cache_before = asyncio.run(self.cache_exists(synthetic.session_id))
-        response = self.api_request("GET", "/api/v2/auth/me", session_id=synthetic.session_id)
+        response = self.api_request("GET", "/api/v2/users/me", session_id=synthetic.session_id)
         cache_after = asyncio.run(self.cache_exists(synthetic.session_id))
         if response["status_code"] != 200 or cache_before or not cache_after:
             raise PhaseError(
@@ -503,13 +552,13 @@ class SessionProbe:
         revoked = self.create_synthetic_session("revoked")
         asyncio.run(self.seed_stale_session_cache(revoked))
         self.revoke_session_in_db(revoked.session_id)
-        revoked_response = self.api_request("GET", "/api/v2/auth/me", session_id=revoked.session_id)
+        revoked_response = self.api_request("GET", "/api/v2/users/me", session_id=revoked.session_id)
         revoked_cache_present = asyncio.run(self.cache_exists(revoked.session_id))
 
         expired = self.create_synthetic_session("expired")
         asyncio.run(self.seed_stale_session_cache(expired))
         self.expire_session_in_db(expired.session_id)
-        expired_response = self.api_request("GET", "/api/v2/auth/me", session_id=expired.session_id)
+        expired_response = self.api_request("GET", "/api/v2/users/me", session_id=expired.session_id)
         expired_cache_present = asyncio.run(self.cache_exists(expired.session_id))
 
         if revoked_response["status_code"] != 401 or expired_response["status_code"] != 401:
@@ -546,11 +595,11 @@ class SessionProbe:
         cache_before = asyncio.run(self.cache_exists(synthetic.session_id))
         revoke_response = self.api_request(
             "DELETE",
-            f"/api/v2/auth/sessions/{synthetic.session_id}",
+            f"/api/v2/users/sessions/{synthetic.session_id}",
             session_id=synthetic.session_id,
         )
         cache_after = asyncio.run(self.cache_exists(synthetic.session_id))
-        post_revoke_response = self.api_request("GET", "/api/v2/auth/me", session_id=synthetic.session_id)
+        post_revoke_response = self.api_request("GET", "/api/v2/users/me", session_id=synthetic.session_id)
         if revoke_response["status_code"] != 200 or not cache_before or cache_after or post_revoke_response["status_code"] != 401:
             raise PhaseError(
                 "revocation",
@@ -628,6 +677,7 @@ class SessionProbe:
             f"- Correlation ID: `{self.correlation_id}`",
             "- Seam: `session`",
             f"- Verification result: `{evidence['result']}`",
+            f"- Legacy header/Bearer transports: status `{session['legacy_transports']['x_session_id']['status_code']}`/`{session['legacy_transports']['bearer']['status_code']}`, reason `{session['legacy_transports']['x_session_id']['reason']}`",
             f"- Current session: status `{session['current_session']['status_code']}`, result `{session['current_session']['result']}`",
             f"- Cache fallback: `{session['cache_fallback']['result']}`, cache `{session['cache_fallback']['cache_before']}` -> `{session['cache_fallback']['cache_after']}`",
             f"- Revoked stale cache: status `{session['revoked_and_expired']['revoked_stale_cache']['status_code']}`, reason `{session['revoked_and_expired']['revoked_stale_cache']['reason']}`",
@@ -637,12 +687,14 @@ class SessionProbe:
             "- Teardown: `pending`",
             "",
             "All durable values are synthetic and redaction-validated; raw cookies, DSNs, session IDs, and provider payloads are omitted.",
+            "Non-goals: live provider services, provider artifact seams, and real patient data/PHI are not exercised by this session seam.",
             "",
         ]
         return "\n".join(lines)
 
     def run(self) -> dict[str, Any]:
         migrations = self.run_alembic_upgrade()
+        legacy_transports = self.prove_legacy_transports_denied()
         current = self.prove_current_session()
         fallback = self.prove_cache_fallback()
         revoked_and_expired = self.prove_revoked_and_expired_fail_closed()
@@ -656,8 +708,14 @@ class SessionProbe:
             "started_at": self.started_at,
             "completed_at": utc_now(),
             "events": self.events,
+            "versions": {
+                "postgres_image": os.getenv("M015_POSTGRES_IMAGE", "postgres:16-alpine"),
+                "dragonfly_image": os.getenv("M015_DRAGONFLY_IMAGE", "docker.dragonflydb.io/dragonflydb/dragonfly:latest"),
+                "api_base": "http://api:8080",
+            },
             "setup": {"migrations": migrations},
             "session_probe": {
+                "legacy_transports": legacy_transports,
                 "current_session": current,
                 "cache_fallback": fallback,
                 "revoked_and_expired": revoked_and_expired,
@@ -665,6 +723,23 @@ class SessionProbe:
                 "worker": worker,
             },
             "redaction": {"validated": True, "raw_cookie_headers_persisted": False, "raw_session_ids_persisted": False},
+            "failure_classes": [
+                "migration_failure",
+                "api_request_failure",
+                "legacy_transport_accepted",
+                "legacy_transport_wrong_failure_class",
+                "redis_fallback_failure",
+                "db_session_state_mismatch",
+                "explicit_revocation_cache_failure",
+                "taskiq_dispatch_or_result_failure",
+                "worker_db_recheck_failed",
+                "redaction_denylist_hit",
+            ],
+            "non_goals": [
+                "live_provider_services_not_started",
+                "provider_artifact_seams_not_exercised",
+                "no_real_patient_data_or_phi",
+            ],
             "teardown": {"result": "pending", "timestamp": None, "notes": "runner will update after compose down"},
         }
         write_validated_json(EVIDENCE_JSON, evidence)

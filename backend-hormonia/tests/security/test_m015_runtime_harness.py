@@ -19,8 +19,12 @@ HARNESS_DIR = REPO_ROOT / "scripts" / "security" / "m015-runtime"
 COMPOSE_FILE = HARNESS_DIR / "docker-compose.yml"
 DB_SEAM_HELPER = HARNESS_DIR / "db_seam.py"
 HARNESS_README = HARNESS_DIR / "README.md"
+SESSION_SEAM_HELPER = HARNESS_DIR / "session_seam.py"
+SESSION_TASKIQ_HELPER = HARNESS_DIR / "m015_session_security_taskiq.py"
 DB_EVIDENCE_JSON = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "db-seam-evidence.json"
 DB_SUMMARY_MD = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "db-seam-summary.md"
+SESSION_EVIDENCE_JSON = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "session-seam-evidence.json"
+SESSION_SUMMARY_MD = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "session-seam-summary.md"
 
 sys.path.insert(0, str(HARNESS_DIR))
 from redaction import RedactionError, redaction_findings, validate_no_sensitive_evidence  # noqa: E402
@@ -93,9 +97,10 @@ def test_m015_compose_is_isolated_from_live_providers_and_project_env_files() ->
     assert "AI_LANGCHAIN_ENABLE_TRACING_V2: ${AI_LANGCHAIN_ENABLE_TRACING_V2:-false}" in compose_text
     assert "build: *backend_build" in compose_text
     assert "command: [\"python\", \"/m015-runtime/db_seam.py\"]" in compose_text
-    assert "command: [\"python\", \"/m015-runtime/m015_session_security_taskiq.py\"]" in compose_text
+    assert "command: [\"python\", \"/m015-runtime/session_seam.py\"]" in compose_text
     assert "command: [\"taskiq\", \"worker\", \"app.taskiq_broker:broker\", \"app.tasks.m015_session_security_taskiq\"]" in compose_text
     assert "./db_seam.py:/m015-runtime/db_seam.py:ro" in compose_text
+    assert "./session_seam.py:/m015-runtime/session_seam.py:ro" in compose_text
     assert "./m015_session_security_taskiq.py:/app/app/tasks/m015_session_security_taskiq.py:ro" in compose_text
     assert "./m015_session_security_taskiq.py:/m015-runtime/m015_session_security_taskiq.py:ro" in compose_text
     assert "./redaction.py:/m015-runtime/redaction.py:ro" in compose_text
@@ -105,6 +110,7 @@ def test_evidence_paths_are_repo_relative_and_container_mounted() -> None:
     runner_text = RUNNER.read_text(encoding="utf-8")
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
     db_seam_text = DB_SEAM_HELPER.read_text(encoding="utf-8")
+    session_seam_text = SESSION_SEAM_HELPER.read_text(encoding="utf-8")
 
     assert 'RUNTIME_DIR=".m015-runtime"' in runner_text
     assert "[Cc]ookie" in runner_text
@@ -112,11 +118,48 @@ def test_evidence_paths_are_repo_relative_and_container_mounted() -> None:
     assert 'DB_EVIDENCE_OUTPUT_DIR="backend-hormonia/docs/reports/security/m015"' in runner_text
     assert 'DB_EVIDENCE_JSON="${DB_EVIDENCE_OUTPUT_DIR}/db-seam-evidence.json"' in runner_text
     assert 'DB_SUMMARY_MD="${DB_EVIDENCE_OUTPUT_DIR}/db-seam-summary.md"' in runner_text
+    assert 'SESSION_EVIDENCE_JSON="${SESSION_EVIDENCE_OUTPUT_DIR}/session-seam-evidence.json"' in runner_text
+    assert 'SESSION_SUMMARY_MD="${SESSION_EVIDENCE_OUTPUT_DIR}/session-seam-summary.md"' in runner_text
     assert "M015_EVIDENCE_OUTPUT_DIR=/m015-evidence-output" in runner_text
     assert "../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output" in compose_text
     assert 'OUTPUT_DIR = Path(os.getenv("M015_EVIDENCE_OUTPUT_DIR", "/m015-evidence-output"))' in db_seam_text
     assert 'EVIDENCE_JSON = OUTPUT_DIR / "db-seam-evidence.json"' in db_seam_text
     assert 'SUMMARY_MD = OUTPUT_DIR / "db-seam-summary.md"' in db_seam_text
+    assert "from m015_session_security_taskiq import main" in session_seam_text
+
+
+def test_session_probe_uses_users_cookie_contract_and_redacted_artifact_shape() -> None:
+    taskiq_text = SESSION_TASKIQ_HELPER.read_text(encoding="utf-8")
+
+    assert '"/api/v2/users/me"' in taskiq_text
+    assert 'f"/api/v2/users/sessions/{synthetic.session_id}"' in taskiq_text
+    assert '"/api/v2/auth/me"' not in taskiq_text
+    assert '"/api/v2/auth/sessions/' not in taskiq_text
+    assert 'headers["Cookie"] = f"{SESSION_COOKIE_NAME}={session_id}"' in taskiq_text
+    assert 'extra_headers={"X-Session-ID": "m015-legacy-header-denied"}' in taskiq_text
+    assert 'extra_headers={"Authorization": "Bearer m015-legacy-bearer-denied"}' in taskiq_text
+    assert 'EVIDENCE_JSON = OUTPUT_DIR / "session-seam-evidence.json"' in taskiq_text
+    assert 'SUMMARY_MD = OUTPUT_DIR / "session-seam-summary.md"' in taskiq_text
+    assert '"raw_cookie_headers_persisted": False' in taskiq_text
+    assert '"raw_session_ids_persisted": False' in taskiq_text
+    assert '"provider_artifact_seams_not_exercised"' in taskiq_text
+
+    validate_no_sensitive_evidence(
+        {
+            "command": "./scripts/security/verify-m015-runtime-security.sh --seam session",
+            "session_probe": {
+                "legacy_transports": {
+                    "x_session_id": {"result": "denied", "status_code": 401, "reason": "session_cookie_required"},
+                    "bearer": {"result": "denied", "status_code": 401, "reason": "session_cookie_required"},
+                },
+                "current_session": {"result": "allowed", "status_code": 200, "session_id_hash": "a" * 64},
+                "cache_fallback": {"result": "allowed_via_db_fallback", "cache_before": "missing", "cache_after": "present"},
+                "worker": {"result": "denied_after_db_recheck", "reason": "revoked_or_expired"},
+            },
+            "redaction": {"validated": True, "raw_cookie_headers_persisted": False, "raw_session_ids_persisted": False},
+            "non_goals": ["live_provider_services_not_started", "provider_artifact_seams_not_exercised"],
+        }
+    )
 
 
 def test_migration_url_canonicalizes_asyncpg_tls_aliases_for_psycopg() -> None:
@@ -229,10 +272,11 @@ def test_evidence_redaction_allows_sanitized_synthetic_evidence_shape() -> None:
     )
 
 
-def test_existing_db_seam_artifacts_are_redaction_clean_when_present() -> None:
-    missing = [path for path in (DB_EVIDENCE_JSON, DB_SUMMARY_MD) if not path.exists()]
+def test_existing_runtime_seam_artifacts_are_redaction_clean_when_present() -> None:
+    paths = (DB_EVIDENCE_JSON, DB_SUMMARY_MD, SESSION_EVIDENCE_JSON, SESSION_SUMMARY_MD)
+    missing = [path for path in paths if not path.exists()]
     if missing:
-        pytest.skip("DB seam artifacts are produced by the runtime verification gate")
+        pytest.skip("runtime seam artifacts are produced by the Docker verification gate")
 
-    validate_no_sensitive_evidence(DB_EVIDENCE_JSON.read_text(encoding="utf-8"))
-    validate_no_sensitive_evidence(DB_SUMMARY_MD.read_text(encoding="utf-8"))
+    for path in paths:
+        validate_no_sensitive_evidence(path.read_text(encoding="utf-8"))
