@@ -102,6 +102,8 @@ def test_m015_compose_is_isolated_from_live_providers_and_project_env_files() ->
     assert "command: [\"python\", \"/m015-runtime/db_seam.py\"]" in compose_text
     assert "command: [\"python\", \"/m015-runtime/session_seam.py\"]" in compose_text
     assert "command: [\"taskiq\", \"worker\", \"app.taskiq_broker:broker\", \"app.tasks.m015_session_security_taskiq\"]" in compose_text
+    worker_section = compose_text.split("  worker:", 1)[1].split("  db-probe:", 1)[0]
+    assert "M015_DATABASE_PSQL_CONN" in worker_section
     assert "./db_seam.py:/m015-runtime/db_seam.py:ro" in compose_text
     assert "./session_seam.py:/m015-runtime/session_seam.py:ro" in compose_text
     assert "./m015_session_security_taskiq.py:/app/app/tasks/m015_session_security_taskiq.py:ro" in compose_text
@@ -178,7 +180,10 @@ def test_session_probe_uses_users_cookie_contract_and_redacted_artifact_shape() 
     assert 'f"/api/v2/users/sessions/{synthetic.session_id}"' in taskiq_text
     assert '"/api/v2/auth/me"' not in taskiq_text
     assert '"/api/v2/auth/sessions/' not in taskiq_text
-    assert 'headers["Cookie"] = f"{SESSION_COOKIE_NAME}={session_id}"' in taskiq_text
+    assert "/api/v2/auth/csrf-token" in taskiq_text
+    assert 'headers["Cookie"] = "; ".join(f"{name}={value}" for name, value in cookies.items())' in taskiq_text
+    assert 'extra_headers={"X-CSRF-Token": csrf["header"]}' in taskiq_text
+    assert 'extra_cookies={CSRF_COOKIE_NAME: csrf["cookie"]}' in taskiq_text
     assert 'extra_headers={"X-Session-ID": "m015-legacy-header-denied"}' in taskiq_text
     assert 'extra_headers={"Authorization": "Bearer m015-legacy-bearer-denied"}' in taskiq_text
     assert 'EVIDENCE_JSON = OUTPUT_DIR / "session-seam-evidence.json"' in taskiq_text

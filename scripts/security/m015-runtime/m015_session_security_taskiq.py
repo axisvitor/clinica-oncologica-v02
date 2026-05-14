@@ -28,6 +28,7 @@ import urllib.request
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import Any
 
@@ -81,6 +82,7 @@ BACKEND_ROOT = _BACKEND_ROOT
 RUNNER_COMMAND = "./scripts/security/verify-m015-runtime-security.sh --seam session"
 TASK_NAME = "m015_session_security_authorization"
 SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "session_id")
+CSRF_COOKIE_NAME = "csrf_token"
 
 
 def utc_now() -> str:
@@ -389,6 +391,61 @@ class SessionProbe:
         finally:
             await client.aclose()
 
+    def fetch_csrf_token(self) -> dict[str, str]:
+        """Fetch a signed CSRF token/cookie pair for browser-equivalent DELETE probes."""
+        headers = {
+            "Host": "api",
+            "User-Agent": "m015-session-probe",
+            "X-Forwarded-Proto": "https",
+            "X-Request-ID": self.correlation_id,
+        }
+        request = urllib.request.Request(
+            "http://api:8080/api/v2/auth/csrf-token",
+            headers=headers,
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 - internal Compose URL.
+                body = response.read().decode("utf-8", errors="replace")
+                status_code = int(response.status)
+                set_cookie = response.headers.get("Set-Cookie", "")
+        except Exception as exc:
+            raise PhaseError(
+                "revocation",
+                "csrf_token_failure",
+                f"CSRF token request failed with class {type(exc).__name__}",
+            ) from exc
+
+        if status_code != 200:
+            raise PhaseError(
+                "revocation",
+                "csrf_token_failure",
+                "CSRF token endpoint did not return success",
+                {"status_code": status_code},
+            )
+
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise PhaseError(
+                "revocation",
+                "csrf_token_failure",
+                "CSRF token endpoint returned malformed JSON",
+            ) from exc
+
+        header_token = payload.get("csrf_token")
+        cookie = SimpleCookie()
+        cookie.load(set_cookie)
+        cookie_token = cookie.get(CSRF_COOKIE_NAME)
+        if not header_token or cookie_token is None or not cookie_token.value:
+            raise PhaseError(
+                "revocation",
+                "csrf_token_failure",
+                "CSRF token endpoint did not provide a double-submit token pair",
+            )
+
+        return {"header": str(header_token), "cookie": cookie_token.value}
+
     def revoke_session_in_db(self, session_id: str, reason: str = "M015 synthetic revocation") -> None:
         with self.connect_app() as conn:
             with conn.cursor() as cur:
@@ -423,6 +480,7 @@ class SessionProbe:
         *,
         session_id: str | None = None,
         extra_headers: dict[str, str] | None = None,
+        extra_cookies: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         headers = {
             "Host": "api",
@@ -432,8 +490,13 @@ class SessionProbe:
         }
         if extra_headers:
             headers.update(extra_headers)
+        cookies: dict[str, str] = {}
         if session_id:
-            headers["Cookie"] = f"{SESSION_COOKIE_NAME}={session_id}"
+            cookies[SESSION_COOKIE_NAME] = session_id
+        if extra_cookies:
+            cookies.update(extra_cookies)
+        if cookies:
+            headers["Cookie"] = "; ".join(f"{name}={value}" for name, value in cookies.items())
         request = urllib.request.Request(
             f"http://api:8080{path}",
             headers=headers,
@@ -602,10 +665,13 @@ class SessionProbe:
         synthetic = self.create_synthetic_session("explicit-revoke")
         asyncio.run(self.seed_stale_session_cache(synthetic))
         cache_before = asyncio.run(self.cache_exists(synthetic.session_id))
+        csrf = self.fetch_csrf_token()
         revoke_response = self.api_request(
             "DELETE",
             f"/api/v2/users/sessions/{synthetic.session_id}",
             session_id=synthetic.session_id,
+            extra_headers={"X-CSRF-Token": csrf["header"]},
+            extra_cookies={CSRF_COOKIE_NAME: csrf["cookie"]},
         )
         cache_after = asyncio.run(self.cache_exists(synthetic.session_id))
         post_revoke_response = self.api_request("GET", "/api/v2/users/me", session_id=synthetic.session_id)

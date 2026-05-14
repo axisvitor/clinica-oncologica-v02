@@ -157,7 +157,9 @@ services:
     build: *backend_build
     init: true
     command: ["taskiq", "worker", "app.taskiq_broker:broker", "app.tasks.m015_session_security_taskiq"]
-    environment: *backend_environment
+    environment:
+      <<: *backend_environment
+      M015_DATABASE_PSQL_CONN: ${M015_DATABASE_PSQL_CONN:-host=postgres port=5432 dbname=m015_hormonia user=hormonia_app password=m015-config-only sslmode=verify-full sslrootcert=/m015-certs/ca.crt ssl_min_protocol_version=TLSv1.2}
     depends_on:
       postgres:
         condition: service_healthy

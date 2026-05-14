@@ -576,8 +576,14 @@ class RedisManager:
         user_id: str,
         firebase_uid: Optional[str] = None,
         ttl: int = 86400,
+        metadata: Optional[Dict[str, Any]] = None,
+        ttl_seconds: Optional[int] = None,
     ) -> bool:
-        """Backward-compatible session creation helper."""
+        """Backward-compatible session creation helper.
+
+        Accept canonical session metadata so DB fallback rehydration can recreate the
+        same Redis payload shape used by direct ``SessionCache`` callers.
+        """
         from .session_cache import SessionCache
 
         session_cache = SessionCache(
@@ -588,8 +594,10 @@ class RedisManager:
         return await session_cache.create_session(
             session_id=session_id,
             user_id=user_id,
-            firebase_uid=firebase_uid,
+            legacy_identity=firebase_uid,
+            metadata=metadata,
             ttl=ttl,
+            ttl_seconds=ttl_seconds,
         )
 
     async def update_session_activity(

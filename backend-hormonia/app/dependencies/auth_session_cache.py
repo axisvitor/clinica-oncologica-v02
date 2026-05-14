@@ -138,13 +138,37 @@ async def rehydrate_session_cache(
             )
     except TypeError:
         try:
-            await redis_cache.create_session(
+            created = await redis_cache.create_session(
                 session_id,
                 canonical_user_id,
                 None,
                 metadata=metadata,
                 ttl=session_ttl,
             )
+            if created is False:
+                logger.warning(
+                    "Failed to rehydrate session cache for fallback session %s...",
+                    session_id[:8],
+                )
+        except TypeError:
+            try:
+                created = await redis_cache.create_session(
+                    session_id,
+                    canonical_user_id,
+                    None,
+                    ttl=session_ttl,
+                )
+                if created is False:
+                    logger.warning(
+                        "Failed to rehydrate session cache for fallback session %s...",
+                        session_id[:8],
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to rehydrate session cache for fallback session %s...: %s",
+                    session_id[:8],
+                    exc,
+                )
         except Exception as exc:
             logger.warning(
                 "Failed to rehydrate session cache for fallback session %s...: %s",

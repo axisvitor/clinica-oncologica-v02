@@ -1,0 +1,231 @@
+{
+  "command": "./scripts/security/verify-m015-runtime-security.sh --seam session",
+  "completed_at": "2026-05-14T10:12:20Z",
+  "correlation_id": "m015-20260514T101032Z-1522750",
+  "events": [
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "applying Alembic head for session seam synthetic data",
+      "phase": "setup",
+      "seam": "session",
+      "status": "started",
+      "timestamp": "2026-05-14T10:12:14Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "Alembic head available for session seam synthetic data",
+      "phase": "setup",
+      "seam": "session",
+      "status": "ready",
+      "timestamp": "2026-05-14T10:12:19Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "checking legacy header and bearer transports fail without a session cookie",
+      "phase": "session-probe",
+      "seam": "session",
+      "status": "started",
+      "timestamp": "2026-05-14T10:12:19Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "legacy header and bearer transports were denied without a session cookie",
+      "phase": "session-probe",
+      "seam": "session",
+      "status": "ready",
+      "timestamp": "2026-05-14T10:12:19Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "checking current cookie-backed session through FastAPI",
+      "phase": "session-probe",
+      "seam": "session",
+      "status": "started",
+      "timestamp": "2026-05-14T10:12:19Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "current cookie-backed session returned an authorized profile",
+      "phase": "session-probe",
+      "seam": "session",
+      "status": "ready",
+      "timestamp": "2026-05-14T10:12:19Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "checking PostgreSQL fallback when Dragonfly session cache is missing",
+      "phase": "cache-fallback",
+      "seam": "session",
+      "status": "started",
+      "timestamp": "2026-05-14T10:12:19Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "cache miss fell back to PostgreSQL and rehydrated Dragonfly",
+      "phase": "cache-fallback",
+      "seam": "session",
+      "status": "ready",
+      "timestamp": "2026-05-14T10:12:19Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "checking revoked and expired sessions fail closed despite stale Dragonfly cache",
+      "phase": "revocation",
+      "seam": "session",
+      "status": "started",
+      "timestamp": "2026-05-14T10:12:19Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "revoked and expired DB states denied stale Dragonfly cache hits",
+      "phase": "revocation",
+      "seam": "session",
+      "status": "ready",
+      "timestamp": "2026-05-14T10:12:19Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "checking explicit user revocation deletes Dragonfly session cache",
+      "phase": "revocation",
+      "seam": "session",
+      "status": "started",
+      "timestamp": "2026-05-14T10:12:19Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "explicit user revocation removed Dragonfly cache and DB denied follow-up access",
+      "phase": "revocation",
+      "seam": "session",
+      "status": "ready",
+      "timestamp": "2026-05-14T10:12:19Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "queueing Taskiq worker check behind a Dragonfly gate before DB revocation",
+      "phase": "worker",
+      "seam": "session",
+      "status": "started",
+      "timestamp": "2026-05-14T10:12:19Z"
+    },
+    {
+      "correlation_id": "m015-20260514T101032Z-1522750",
+      "message": "Taskiq worker denied queued work after re-reading PostgreSQL session state",
+      "phase": "worker",
+      "seam": "session",
+      "status": "ready",
+      "timestamp": "2026-05-14T10:12:20Z"
+    }
+  ],
+  "failure_classes": [
+    "migration_failure",
+    "api_request_failure",
+    "legacy_transport_accepted",
+    "legacy_transport_wrong_failure_class",
+    "redis_fallback_failure",
+    "db_session_state_mismatch",
+    "explicit_revocation_cache_failure",
+    "taskiq_dispatch_or_result_failure",
+    "worker_db_recheck_failed",
+    "redaction_denylist_hit"
+  ],
+  "non_goals": [
+    "live_provider_services_not_started",
+    "provider_artifact_seams_not_exercised",
+    "no_real_patient_data_or_phi"
+  ],
+  "redaction": {
+    "raw_cookie_headers_persisted": false,
+    "raw_session_ids_persisted": false,
+    "validated": true
+  },
+  "result": "passed",
+  "seam": "session",
+  "session_probe": {
+    "cache_fallback": {
+      "body_class": "authorized_profile",
+      "cache_after": "present",
+      "cache_before": "missing",
+      "duration_ms": 14,
+      "result": "allowed_via_db_fallback",
+      "session_id_hash": "66bf26e5e13d1a25530df18f6d2b96814923a0b6ae8beb1390acc4df6b824924",
+      "status_code": 200
+    },
+    "current_session": {
+      "body_class": "authorized_profile",
+      "cache_state": "present",
+      "db_state": "active",
+      "duration_ms": 253,
+      "result": "allowed",
+      "session_id_hash": "145952dc310bf05f05c3803ce6ea5a77ba9f9f5d3fb19fcf33f972383b9c6220",
+      "status_code": 200
+    },
+    "explicit_revocation": {
+      "cache_after": "missing",
+      "cache_before": "present",
+      "post_revoke_reason": "invalid_or_expired_session",
+      "post_revoke_status_code": 401,
+      "result": "revoked_and_cache_invalidated",
+      "revoke_status_code": 200,
+      "session_id_hash": "27b6838fbce02684db3e5a41f5f7c0205f703390148974e9c1c5f0490422b854"
+    },
+    "legacy_transports": {
+      "bearer": {
+        "reason": "session_cookie_required",
+        "result": "denied",
+        "status_code": 401
+      },
+      "x_session_id": {
+        "reason": "session_cookie_required",
+        "result": "denied",
+        "status_code": 401
+      }
+    },
+    "revoked_and_expired": {
+      "expired_stale_cache": {
+        "cache_state": "stale_present",
+        "db_state": "expired",
+        "reason": "invalid_or_expired_session",
+        "result": "denied",
+        "session_id_hash": "bee1488c1d797588143ee2f9bbedfd9e1f8e7edfe096d063ec6ca9521fafcedf",
+        "status_code": 401
+      },
+      "revoked_stale_cache": {
+        "cache_state": "stale_present",
+        "db_state": "revoked",
+        "reason": "invalid_or_expired_session",
+        "result": "denied",
+        "session_id_hash": "dd3402dedd6883752ff02d50f63b67f4fda2b4483d2379db8806a8c6b1526fc5",
+        "status_code": 401
+      }
+    },
+    "worker": {
+      "allowed": false,
+      "cache_state": "stale_present",
+      "checked_at": "2026-05-14T10:12:20Z",
+      "db_state_before_gate": "revoked",
+      "reason": "revoked_or_expired",
+      "result": "denied_after_db_recheck",
+      "session_id_hash": "137e03f6c8a46fe2a983a631aaf0788b1df9f6495c16d574a7895714f0735471",
+      "task_id_hash": "aa5192edd696c567d19b12d45200ae2ddee3c4aa3e719859da0b232d3ea0cf3f",
+      "worker_boundary": "taskiq"
+    }
+  },
+  "setup": {
+    "migrations": {
+      "duration_ms": 4645,
+      "exit_code": 0,
+      "output_tail": "02_t03_drop_users_firebase_residue, Drop Firebase-prefixed `users` residue from the canonical head.\nINFO  [alembic.runtime.migration] Running upgrade m006_s02_t03_drop_users_firebase_residue -> m007_s04_t02_patient_flow_responses, Create patient_flow_responses table for structured response storage.\nINFO  [alembic.runtime.migration] Running upgrade m007_s04_t02_patient_flow_responses -> m008_s01_t03_sessions_align, Align sessions table with Session model — add missing columns.\nINFO  [alembic.runtime.migration] Running upgrade m008_s01_t03_sessions_align -> m011_s01_patient_flow_states_index, Add composite index on patient_flow_states(patient_id, started_at DESC).\nINFO  [alembic.runtime.migration] Running upgrade m011_s01_patient_flow_states_index -> m012_s01_patient_flow_overrides, Create patient_flow_overrides table for per-patient flow day overrides.\nINFO  [alembic.runtime.migration] Running upgrade m012_s01_patient_flow_overrides -> m013_s04_upload_deleted_at, Add soft-delete timestamp to uploads.\nINFO  [alembic.runtime.migration] Running upgrade m013_s04_upload_deleted_at -> m015_s02_notifications_profile_contract, Align notifications table with profile endpoint model contract.\n"
+    }
+  },
+  "started_at": "2026-05-14T10:12:14Z",
+  "teardown": {
+    "notes": "compose down completed idempotently",
+    "result": "complete",
+    "timestamp": "2026-05-14T10:12:23Z"
+  },
+  "versions": {
+    "api_base": "http://api:8080",
+    "dragonfly_image": "docker.dragonflydb.io/dragonflydb/dragonfly:latest",
+    "postgres_image": "postgres:16-alpine"
+  }
+}

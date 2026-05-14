@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -154,6 +155,46 @@ async def test_cache_miss_falls_back_to_db_session_and_rehydrates_redis():
     redis_cache.cache_user_data_by_user_id.assert_awaited_once()
     redis_cache.create_session.assert_awaited_once()
     assert redis_cache.create_session.await_args.kwargs["session_id"] == "cache-miss-session"
+
+
+@pytest.mark.asyncio
+async def test_redis_manager_session_rehydration_preserves_fallback_metadata():
+    from app.core.redis_manager.manager import RedisManager
+
+    stored: dict[str, object] = {}
+
+    class _FakeRedis:
+        def setex(self, key, ttl, value):
+            stored["key"] = key
+            stored["ttl"] = ttl
+            stored["value"] = value
+            return True
+
+    manager = RedisManager()
+    manager._sync_client = _FakeRedis()
+    user_id = str(uuid4())
+
+    created = await manager.create_session(
+        session_id="manager-cache-miss-session",
+        user_id=user_id,
+        firebase_uid=None,
+        metadata={
+            "email": "manager-fallback@example.com",
+            "role": "doctor",
+            "is_active": True,
+            "max_age_seconds": 43200,
+        },
+        ttl=43200,
+    )
+
+    assert created is True
+    assert stored["key"] == "session:manager-cache-miss-session"
+    assert stored["ttl"] == 43200
+    payload = json.loads(stored["value"])
+    assert payload["user_id"] == user_id
+    assert payload["email"] == "manager-fallback@example.com"
+    assert payload["role"] == "doctor"
+    assert payload["is_active"] is True
 
 
 @pytest.mark.asyncio
