@@ -286,9 +286,8 @@ class SecuritySettings(BaseAppSettings):
         if any(pattern in key_lower for pattern in insecure_patterns):
             if is_production:
                 raise ValueError(
-                    f"SECURITY_SECRET_KEY contains insecure default value and CANNOT be used in production.\n"
-                    f"Current key starts with: {self.SECURITY_SECRET_KEY[:20]}...\n"
-                    f"Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
+                    "SECURITY_SECRET_KEY contains insecure default value and CANNOT be used in production.\n"
+                    "Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
                 )
             else:
                 logger.warning(

@@ -24,7 +24,7 @@
 - [x] **S04: S04** `risk:Malicious HTML/SVG/script uploads or generated artifacts may execute in a browser or bypass authorization if served with unsafe content type/disposition or public paths.` `depends:[]`
   > After this: Reviewer runs upload/download tests with malicious HTML/SVG/script payloads and sees rejection or safe attachment serving under auth/ownership, with anonymous/foreign access denied.
 
-- [ ] **S05: JWT/Config Posture, Evidence Matrix e Regression Closure** `risk:The milestone can fix visible code paths while leaving JWT revocation semantics, deployment secret posture, DB TLS/RLS claims, R012/R013 mapping or M013 regressions unverifiable.` `depends:[S01,S02,S03,S04]`
+- [ ] **S05: S05** `risk:The milestone can fix visible code paths while leaving JWT revocation semantics, deployment secret posture, DB TLS/RLS claims, R012/R013 mapping or M013 regressions unverifiable.` `depends:[]`
   > After this: Reviewer runs the documented M014 evidence matrix command suite and sees every R012/R013 row mapped to command evidence, not-applicable rationale or explicit deferral owner, plus JWT/config posture and touched M013 regression status.
 
 ## Boundary Map

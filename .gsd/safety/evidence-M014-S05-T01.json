@@ -1,0 +1,58 @@
+[
+  {
+    "kind": "bash",
+    "toolCallId": "call_zwhv8rC8nA8chGBQ0HHvr2YA|fc_033439c57eb167ab016a052b89b2ac819982a1e0709f930bc3",
+    "command": "test -e backend-hormonia/tests/security/test_m014_s05_jwt_config_posture.py && echo exists || echo missing",
+    "exitCode": 0,
+    "outputSnippet": "missing\n",
+    "timestamp": 1778723722188
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_aGQQNEM0hpICNQdyunAqIIKR|fc_033439c57eb167ab016a052b95161c81999f48c6c87c0025d0",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[a2b2ead1-3778-43fc-a72c-9c8019e3e457] runtime=bash exit=0 duration=601ms\n  stdout: 31491B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/a2b2ead1-3778-43fc-a72c-9c8019e3e457.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/a2b2ead1-3778-43fc-a72c-9c8019e3e457.stderr\n--- digest ---\nownership_closure.py:154:    app.dependency_overrides[get_current_user_from_session] = switcher.dependency\nbackend-hormonia/tests/api/v2/test_report_ownership_closure.py:1",
+    "timestamp": 1778723738477
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_pERRecHHYU5zZQGQMYglsL7L|fc_033439c57eb167ab016a052bade26c8199ae039e02877c45bb",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[ec99067b-8b5b-4d12-8c39-cad942efcbf2] runtime=bash exit=0 duration=1424ms\n  stdout: 11489B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/ec99067b-8b5b-4d12-8c39-cad942efcbf2.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/ec99067b-8b5b-4d12-8c39-cad942efcbf2.stderr\n--- digest ---\n/test_security_validation.py\nbackend-hormonia/tests/validation/__pycache__/test_security_comprehensive.cpython-312-pytest-8.3.4.pyc\nbackend-hormonia/tests/validation/__py",
+    "timestamp": 1778723762114
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_HET3KDUUCActyLockqEuBIlR|fc_033439c57eb167ab016a052bd13cc08199a2c0e63910656dd4",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[664b6466-2a5b-41c4-8b8b-91d04fa89024] runtime=bash exit=0 duration=966ms\n  stdout: 29842B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/664b6466-2a5b-41c4-8b8b-91d04fa89024.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/664b6466-2a5b-41c4-8b8b-91d04fa89024.stderr\n--- digest ---\nouters/system/config.py:40:    - NEVER exposes: DATABASE_URL, SECRET_KEY, API keys, credentials\nbackend-hormonia/app/api/v2/routers/health/platform.py:36:    required_vars",
+    "timestamp": 1778723796987
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_qPQiScH9J8rLxH4Tx0as3FYo|fc_0c1ca9b20fdff412016a052c685afc8198a5912772ed0d5688",
+    "command": "python - <<'PY'\nfrom pathlib import Path\npaths = [\n 'backend-hormonia/tests/security/test_m014_s05_jwt_config_posture.py',\n 'backend-hormonia/app/api/v2/routers/enhanced_reports.py',\n 'backend-hormonia/tests/security/test_m014_s04_report_artifact_serving.py',\n 'backend-hormonia/app/utils/security.py',\n 'backend-hormonia/app/api/v2/routers/users.py',\n 'backend-hormonia/app/config/settings/security.py',\n 'backend-hormonia/app/config/settings/database.py',\n]\nfor p in paths:\n    path = Path(p)\n    print(f'{p}: exists={path.exists()} size={path.stat().st_size if path.exists() else \"-\"}')\nPY",
+    "exitCode": 0,
+    "outputSnippet": "backend-hormonia/tests/security/test_m014_s05_jwt_config_posture.py: exists=False size=-\nbackend-hormonia/app/api/v2/routers/enhanced_reports.py: exists=True size=40080\nbackend-hormonia/tests/security/test_m014_s04_report_artifact_serving.py: exists=True size=12249\nbackend-hormonia/app/utils/security.py: exists=True size=19989\nbackend-hormonia/app/api/v2/routers/users.py: exists=True size=11729\nbackend-hormonia/app/config/settings/security.py: exists=True size=34184\nbackend-hormonia/app/config/s",
+    "timestamp": 1778723944750
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_69rKlj9lihpNjH7nFavH2cxr|fc_0c1ca9b20fdff412016a052c8a2f8c81988d750d05097b2e79",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[9733c97b-62c2-459d-ad66-d1f6b7d4af6a] runtime=python exit=0 duration=51ms\n  stdout: 843B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/9733c97b-62c2-459d-ad66-d1f6b7d4af6a.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/9733c97b-62c2-459d-ad66-d1f6b7d4af6a.stderr\n--- digest ---\n/settings/database.py\n\n## backend-hormonia/app/api/v2/routers/users.py\n44:     \"is_active\",\n68:         \"is_active\": user.is_active,\n306:         SessionModel.is_active,\n30",
+    "timestamp": 1778723985060
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_WXdRlgiULDDMLryBZC5pePbi|fc_0c1ca9b20fdff412016a052ca4793c81989e1d7de27117a3f6",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[83a97b77-8f80-46bb-a1d2-aebf2c16e874] runtime=python exit=0 duration=7013ms\n  stdout: 14707B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/83a97b77-8f80-46bb-a1d2-aebf2c16e874.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/83a97b77-8f80-46bb-a1d2-aebf2c16e874.stderr\n--- digest ---\n_never_redirect(\n  313:download_urls={\"pdf\": unsafe_url},\n  323:assert status_response.json()[\"download_urls\"] == {}\n  332:def test_malformed_export_download_urls_are_w",
+    "timestamp": 1778724011485
+  }
+]
