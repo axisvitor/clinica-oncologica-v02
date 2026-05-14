@@ -1,0 +1,193 @@
+name: ${M015_COMPOSE_PROJECT_NAME:-m015-runtime}
+
+x-backend-build: &backend_build
+  context: ${M015_BACKEND_CONTEXT:-../../../backend-hormonia}
+  dockerfile: Dockerfile
+
+x-backend-environment: &backend_environment
+  APP_ENVIRONMENT: ${APP_ENVIRONMENT:-production}
+  APP_ENABLE_DEBUG: ${APP_ENABLE_DEBUG:-false}
+  ALLOW_AI_SIMULATION: ${ALLOW_AI_SIMULATION:-false}
+  SESSION_ENABLE_COOKIE_SECURE: ${SESSION_ENABLE_COOKIE_SECURE:-true}
+  SESSION_ENABLE_COOKIE_HTTPONLY: ${SESSION_ENABLE_COOKIE_HTTPONLY:-true}
+  SESSION_COOKIE_SAMESITE: ${SESSION_COOKIE_SAMESITE:-lax}
+  SECURITY_ENABLE_SSL_REDIRECT: ${SECURITY_ENABLE_SSL_REDIRECT:-true}
+  SECURITY_SECRET_KEY: ${SECURITY_SECRET_KEY:-m015-config-only-security-secret-never-used-at-runtime-64-characters}
+  SECURITY_CSRF_SECRET_KEY: ${SECURITY_CSRF_SECRET_KEY:-m015-config-only-csrf-secret-never-used-at-runtime-64-characters}
+  ENCRYPTION_KEY_CURRENT: ${ENCRYPTION_KEY_CURRENT:-m015-config-only-fernet-secret-never-used-at-runtime-64-characters}
+  PHI_ENCRYPTION_KEY: ${PHI_ENCRYPTION_KEY:-m015-config-only-phi-secret-never-used-at-runtime-64-characters}
+  HASH_SALT: ${HASH_SALT:-m015configonlyhashsaltneverusedatruntime0123456789abcdef0123456789abcdef}
+  SECURITY_ALLOW_WEAK_KEYS: ${SECURITY_ALLOW_WEAK_KEYS:-false}
+  DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://hormonia_app:m015-config-only@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&sslminversion=TLSv1.2}
+  REDIS_URL: ${REDIS_URL:-redis://dragonfly:6379/0}
+  REDIS_HOST: ${REDIS_HOST:-dragonfly}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  RATE_LIMIT_REDIS_URL: ${RATE_LIMIT_REDIS_URL:-redis://dragonfly:6379/3}
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://dragonfly:6379/0}
+  CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://dragonfly:6379/1}
+  TASKIQ_BROKER_URL: ${TASKIQ_BROKER_URL:-redis://dragonfly:6379/0}
+  CORS_FRONTEND_URL: ${CORS_FRONTEND_URL:-https://m015.localhost.invalid}
+  CORS_QUIZ_URL: ${CORS_QUIZ_URL:-https://m015-quiz.localhost.invalid}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-["https://m015.localhost.invalid"]}
+  FIREBASE_ALLOWED_DOMAINS: ${FIREBASE_ALLOWED_DOMAINS:-[]}
+  WHATSAPP_ENABLE_SERVICE: ${WHATSAPP_ENABLE_SERVICE:-false}
+  WHATSAPP_WUZAPI_USE_MOCK: ${WHATSAPP_WUZAPI_USE_MOCK:-false}
+  WHATSAPP_WUZAPI_TOKEN: ${WHATSAPP_WUZAPI_TOKEN:-m015-config-only-wuzapi-token-never-used-at-runtime-64-characters}
+  WHATSAPP_WUZAPI_WEBHOOK_SECRET: ${WHATSAPP_WUZAPI_WEBHOOK_SECRET:-m015-config-only-webhook-secret-never-used-at-runtime-64-characters}
+  WHATSAPP_ENABLE_ON_REGISTRATION: ${WHATSAPP_ENABLE_ON_REGISTRATION:-false}
+  WHATSAPP_ENABLE_WELCOME_MESSAGE: ${WHATSAPP_ENABLE_WELCOME_MESSAGE:-false}
+  AI_GEMINI_API_KEY: ${AI_GEMINI_API_KEY:-synthetic-gemini-config-only}
+  AI_ENABLE_HUMANIZATION: ${AI_ENABLE_HUMANIZATION:-false}
+  AI_HUMANIZATION_ENABLE_FALLBACK: ${AI_HUMANIZATION_ENABLE_FALLBACK:-false}
+  AI_LANGCHAIN_ENABLE_TRACING_V2: ${AI_LANGCHAIN_ENABLE_TRACING_V2:-false}
+  QUIZ_TOKEN_SECRET: ${QUIZ_TOKEN_SECRET:-m015-config-only-quiz-secret-never-used-at-runtime-64-characters}
+  RATE_LIMIT_ENABLE_SERVICE: ${RATE_LIMIT_ENABLE_SERVICE:-true}
+  RATE_LIMIT_FAIL_CLOSED: ${RATE_LIMIT_FAIL_CLOSED:-true}
+  REDIS_ENABLE_SERVICE: ${REDIS_ENABLE_SERVICE:-true}
+  REDIS_ENABLE_SSL: ${REDIS_ENABLE_SSL:-false}
+  LOGGING_LEVEL: ${LOGGING_LEVEL:-INFO}
+  LOGGING_ENABLE_REQUEST_LOGGING: ${LOGGING_ENABLE_REQUEST_LOGGING:-false}
+  LOGGING_ENABLE_STACK_TRACES: ${LOGGING_ENABLE_STACK_TRACES:-false}
+  ERROR_ENABLE_TRACKING: ${ERROR_ENABLE_TRACKING:-false}
+  MONITORING_ENABLE_SERVICE: ${MONITORING_ENABLE_SERVICE:-false}
+  MONITORING_ENABLE_DEBUG: ${MONITORING_ENABLE_DEBUG:-false}
+  UPLOAD_DIRECTORY: ${UPLOAD_DIRECTORY:-/tmp/hormonia-m015-public-uploads}
+
+services:
+  cert-init:
+    image: ${M015_POSTGRES_IMAGE:-postgres:16-alpine}
+    user: "0:0"
+    restart: "no"
+    command:
+      - sh
+      - -ec
+      - |
+        test -s /m015-certs-source/ca.crt
+        test -s /m015-certs-source/server.crt
+        test -s /m015-certs-source/server.key
+        rm -f /m015-certs/ca.crt /m015-certs/server.crt /m015-certs/server.key
+        cp /m015-certs-source/ca.crt /m015-certs/ca.crt
+        cp /m015-certs-source/server.crt /m015-certs/server.crt
+        cp /m015-certs-source/server.key /m015-certs/server.key
+        chown -R postgres:postgres /m015-certs
+        chmod 0644 /m015-certs/ca.crt /m015-certs/server.crt
+        chmod 0600 /m015-certs/server.key
+    volumes:
+      - ${M015_CERTS_HOST_DIR:-../../../.m015-runtime/certs}:/m015-certs-source:ro
+      - m015-postgres-certs:/m015-certs
+    networks:
+      - m015-runtime
+
+  postgres:
+    image: ${M015_POSTGRES_IMAGE:-postgres:16-alpine}
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/m015-certs/server.crt
+      - -c
+      - ssl_key_file=/m015-certs/server.key
+      - -c
+      - ssl_ca_file=/m015-certs/ca.crt
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - log_connections=on
+      - -c
+      - log_disconnections=on
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-m015_hormonia}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-m015-config-only-postgres-password-never-used-at-runtime}
+      M015_APP_DB_PASSWORD: ${M015_APP_DB_PASSWORD:-m015-config-only-app-password-never-used-at-runtime}
+      M015_RLS_DENIED_PASSWORD: ${M015_RLS_DENIED_PASSWORD:-m015-config-only-denied-password-never-used-at-runtime}
+    ports:
+      - "127.0.0.1:${M015_POSTGRES_PORT:-15432}:5432"
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    volumes:
+      - m015-postgres-data:/var/lib/postgresql/data
+      - m015-postgres-certs:/m015-certs:ro
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - m015-runtime
+
+  dragonfly:
+    image: ${M015_DRAGONFLY_IMAGE:-docker.dragonflydb.io/dragonflydb/dragonfly:latest}
+    command: ["dragonfly", "--logtostderr", "--num_dbs=16", "--dir=/data"]
+    ulimits:
+      memlock: -1
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    volumes:
+      - m015-dragonfly-data:/data
+    networks:
+      - m015-runtime
+
+  api:
+    build: *backend_build
+    init: true
+    environment: *backend_environment
+    ports:
+      - "127.0.0.1:${M015_API_PORT:-18080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dragonfly:
+        condition: service_healthy
+    volumes:
+      - m015-postgres-certs:/m015-certs:ro
+    networks:
+      - m015-runtime
+
+  worker:
+    build: *backend_build
+    init: true
+    command: ["taskiq", "worker", "app.taskiq_broker:broker"]
+    environment: *backend_environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dragonfly:
+        condition: service_healthy
+    volumes:
+      - m015-postgres-certs:/m015-certs:ro
+    networks:
+      - m015-runtime
+
+  db-probe:
+    image: ${M015_POSTGRES_IMAGE:-postgres:16-alpine}
+    profiles: ["tools"]
+    environment:
+      M015_DATABASE_URL: ${M015_DATABASE_URL:-postgresql+psycopg://hormonia_app:m015-config-only@postgres:5432/m015_hormonia?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt&sslminversion=TLSv1.2}
+      M015_DATABASE_PSQL_CONN: ${M015_DATABASE_PSQL_CONN:-host=postgres port=5432 dbname=m015_hormonia user=hormonia_app password=m015-config-only sslmode=verify-full sslrootcert=/m015-certs/ca.crt}
+      M015_RLS_DENIED_PSQL_CONN: ${M015_RLS_DENIED_PSQL_CONN:-host=postgres port=5432 dbname=m015_hormonia user=m015_rls_denied password=m015-config-only sslmode=verify-full sslrootcert=/m015-certs/ca.crt}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - m015-postgres-certs:/m015-certs:ro
+    networks:
+      - m015-runtime
+
+volumes:
+  m015-postgres-data:
+  m015-postgres-certs:
+  m015-dragonfly-data:
+
+networks:
+  m015-runtime:
+    driver: bridge
+    internal: false

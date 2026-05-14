@@ -155,6 +155,9 @@ hive-mind-prompt-*.txt
 uploads/
 backend-hormonia/debug_log.txt
 
+# M015 synthetic runtime scratch (generated env, certs, logs, local volumes)
+.m015-runtime/
+
 # ── GSD baseline (auto-generated) ──
 .gsd/activity/
 .gsd/audit/

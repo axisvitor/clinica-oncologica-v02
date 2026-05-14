@@ -19,6 +19,22 @@
       "doneMilestones": 13,
       "totalMilestones": 15,
       "phase": "pre-planning"
+    },
+    {
+      "filename": "M014-2026-05-14T02-45-01.html",
+      "generatedAt": "2026-05-14T02:45:01.585Z",
+      "milestoneId": "M014",
+      "milestoneTitle": "Hardening Médio e Proof Gaps",
+      "label": "M014: Hardening Médio e Proof Gaps",
+      "kind": "milestone",
+      "totalCost": 477.9959637499999,
+      "totalTokens": 595190893,
+      "totalDuration": 147831697,
+      "doneSlices": 66,
+      "totalSlices": 66,
+      "doneMilestones": 14,
+      "totalMilestones": 15,
+      "phase": "pre-planning"
     }
   ]
 }
