@@ -33,17 +33,17 @@ Upstream surfaces consumed: S01 authenticated/session ingress assumptions and S0
   - Files: `backend-hormonia/app/api/v2/routers/upload/active_content.py`, `backend-hormonia/app/api/v2/routers/upload/config.py`, `backend-hormonia/app/api/v2/routers/upload/validators.py`, `backend-hormonia/app/services/mime_validator.py`, `backend-hormonia/app/services/file_security.py`, `backend-hormonia/tests/security/test_m014_s04_active_content_validation.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s04_active_content_validation.py
 
-- [ ] **T02: Wire active-content denial into upload and avatar ingress** `est:2h`
+- [x] **T02: Wire active-content denial into upload and avatar ingress** `est:2h`
   Why: Low-level validation is not sufficient unless the actual FastAPI entrypoints deny spoofed active content before durable persistence and the known `/api/v2/auth/avatar` bypass stops accepting declared image uploads that contain HTML/SVG/script bodies.
   - Files: `backend-hormonia/app/api/v2/routers/upload/handlers.py`, `backend-hormonia/app/api/v2/routers/upload/storage.py`, `backend-hormonia/app/api/v2/routers/auth.py`, `backend-hormonia/tests/security/test_m014_s04_upload_xss_private_serving.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s04_active_content_validation.py backend-hormonia/tests/security/test_m014_s04_upload_xss_private_serving.py backend-hormonia/tests/api/v2/test_private_upload_serving.py
 
-- [ ] **T03: Harden private upload downloads and scanner diagnostics** `est:1.5h`
+- [x] **T03: Harden private upload downloads and scanner diagnostics** `est:1.5h`
   Why: Even after new uploads reject active content, legacy/private records can already contain `.html`, `.svg`, `.xml`, `text/html`, or unknown MIME metadata. Owner/admin retrieval must not execute in-browser, and scanner diagnostics must not leak local private paths.
   - Files: `backend-hormonia/app/utils/download_responses.py`, `backend-hormonia/app/api/v2/routers/upload/handlers.py`, `backend-hormonia/app/api/v2/routers/upload/security.py`, `backend-hormonia/app/services/mime_validator.py`, `backend-hormonia/app/services/file_security.py`, `backend-hormonia/app/services/virus_scanner.py`, `backend-hormonia/tests/security/test_m014_s04_private_artifact_serving.py`, `backend-hormonia/tests/api/v2/test_private_upload_serving.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s04_private_artifact_serving.py backend-hormonia/tests/api/v2/test_private_upload_serving.py
 
-- [ ] **T04: Extend report/export artifact attachment proof and closeout suite** `est:1.5h`
+- [x] **T04: Extend report/export artifact attachment proof and closeout suite** `est:1.5h`
   Why: S04 also owns generated artifact serving. Existing report ownership tests prove raw owner checks and unsafe URL denial, but they do not assert attachment/nosniff/no-store behavior or HTML export fallback non-execution. This task closes that report/export portion and provides the final S04 command suite for S05.
   - Files: `backend-hormonia/app/utils/download_responses.py`, `backend-hormonia/app/api/v2/routers/reports.py`, `backend-hormonia/app/api/v2/routers/enhanced_reports.py`, `backend-hormonia/tests/security/test_m014_s04_report_artifact_serving.py`, `backend-hormonia/tests/api/v2/test_report_ownership_closure.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s04_active_content_validation.py backend-hormonia/tests/security/test_m014_s04_upload_xss_private_serving.py backend-hormonia/tests/security/test_m014_s04_private_artifact_serving.py backend-hormonia/tests/security/test_m014_s04_report_artifact_serving.py backend-hormonia/tests/api/v2/test_private_upload_serving.py backend-hormonia/tests/api/v2/test_report_ownership_closure.py

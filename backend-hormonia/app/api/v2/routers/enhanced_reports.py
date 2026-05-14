@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import inspect
 import json
+from urllib.parse import unquote, urlsplit
 from uuid import UUID
 from unittest.mock import Mock
 
@@ -443,8 +444,20 @@ def _normalize_export_response(
     }
 
 
+def _canonicalize_export_download_url(download_url: str) -> str:
+    """Return a bounded percent-decoded form for safety classification only."""
+
+    canonical_url = download_url.strip()
+    for _ in range(3):
+        decoded_url = unquote(canonical_url)
+        if decoded_url == canonical_url:
+            break
+        canonical_url = decoded_url.strip()
+    return canonical_url
+
+
 def _is_safe_export_download_url(download_url: Any) -> bool:
-    """Return True only for URLs that are safe to expose after auth."""
+    """Return True only for local, non-private URLs safe to expose after auth."""
 
     if not isinstance(download_url, str):
         return False
@@ -452,13 +465,22 @@ def _is_safe_export_download_url(download_url: Any) -> bool:
     normalized_url = download_url.strip()
     if not normalized_url:
         return False
+    if any(ord(character) < 32 or ord(character) == 127 for character in normalized_url):
+        return False
 
-    lowered_url = normalized_url.lower()
-    if "\\" in normalized_url:
+    canonical_url = _canonicalize_export_download_url(normalized_url)
+    if not canonical_url:
         return False
-    if lowered_url.startswith(("file:", "data:", "javascript:")):
+    if any(ord(character) < 32 or ord(character) == 127 for character in canonical_url):
         return False
-    if len(lowered_url) >= 3 and lowered_url[1] == ":" and lowered_url[2] == "/":
+    if "\\" in normalized_url or "\\" in canonical_url:
+        return False
+
+    lowered_url = canonical_url.lower()
+    parsed_url = urlsplit(canonical_url)
+    if parsed_url.scheme or parsed_url.netloc:
+        return False
+    if lowered_url.startswith("//"):
         return False
     if lowered_url.startswith(
         ("/home/", "/mnt/", "/opt/", "/root/", "/srv/", "/tmp/", "/var/")

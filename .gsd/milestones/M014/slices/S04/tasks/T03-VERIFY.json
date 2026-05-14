@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T03",
+  "unitId": "M014/S04/T03",
+  "timestamp": 1778709208117,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s04_private_artifact_serving.py backend-hormonia/tests/api/v2/test_private_upload_serving.py",
+      "exitCode": 0,
+      "durationMs": 24817,
+      "verdict": "pass"
+    }
+  ]
+}

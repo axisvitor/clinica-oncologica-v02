@@ -1,0 +1,220 @@
+[
+  {
+    "kind": "bash",
+    "toolCallId": "call_ZO8oXQt5qKUKgiW5Zxq4BQnB|fc_0951fd228fb9eb9a016a04fbd0a6348198a7ab48d8c6cc2df6",
+    "command": "M014 S04 T04",
+    "exitCode": 0,
+    "outputSnippet": "No prior gsd_exec runs match those filters.",
+    "timestamp": 1778711504716
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_rAWbbzqpl2ACeOIaZv7oCkPh|fc_0951fd228fb9eb9a016a04fbd0a638819883c6c82f6d38976f",
+    "command": "test_m014_s04_report_artifact_serving",
+    "exitCode": 0,
+    "outputSnippet": "No prior gsd_exec runs match those filters.",
+    "timestamp": 1778711504722
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_LfzADHg0Fmhn5Qf6wV0QHpIr|fc_0951fd228fb9eb9a016a04fc1ad2488198bf069103d89088d7",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[295f8a43-3bcb-46cf-b40b-259b3a1349d7] runtime=python exit=0 duration=51ms\n  stdout: 6631B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/295f8a43-3bcb-46cf-b40b-259b3a1349d7.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/295f8a43-3bcb-46cf-b40b-259b3a1349d7.stderr\n--- digest ---\n== []\n973:     assert \"location\" not in {header.lower() for header in private_download_probe.headers}\n987:         missing_raw_download = client.get(\n988:             f\"/a",
+    "timestamp": 1778711583692
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_Fa9uowgwLxbzFKB1PH0FqdpW|fc_0951fd228fb9eb9a016a04fc33bf70819884d11672e4ef0657",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[9c067d76-0df5-4d2c-bf1e-8b6681d72126] runtime=bash exit=0 duration=24987ms\n  stdout: 179B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/9c067d76-0df5-4d2c-bf1e-8b6681d72126.stdout\n  stderr: 633B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/9c067d76-0df5-4d2c-bf1e-8b6681d72126.stderr\n--- digest ---\n........................................................................ [ 85%]\n............                                                             [100%]\n84 passed",
+    "timestamp": 1778711607759
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_EglOe5ywA6f5caAmPwsC8SGs|fc_0951fd228fb9eb9a016a04fc982d908198ad3f3f4b275ee05e",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[62c3b801-18ea-46f0-b141-26975aaf3076] runtime=bash exit=0 duration=276ms\n  stdout: 4260B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/62c3b801-18ea-46f0-b141-26975aaf3076.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/62c3b801-18ea-46f0-b141-26975aaf3076.stderr\n--- digest ---\njsonl\n.gsd/activity/153-complete-slice-M014-S01.jsonl\n.gsd/activity/154-research-slice-M014-parallel-research.jsonl\n.gsd/activity/155-plan-slice-M014-S02.jsonl\n.gsd/activit",
+    "timestamp": 1778711708780
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_dk74KhUojFjrUoh5RZX3fQFq|fc_0951fd228fb9eb9a016a04fca6e4a88198b7c9ce23329223c4",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[e932c954-6183-4052-a21c-b317f6a3bfd4] runtime=bash exit=0 duration=46ms\n  stdout: 1428B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/e932c954-6183-4052-a21c-b317f6a3bfd4.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/e932c954-6183-4052-a21c-b317f6a3bfd4.stderr\n--- digest ---\nt, merge, clean, remove)\n  auto [args]              Run auto-mode without TUI (pipeable)\n  headless [cmd] [args]    Run /gsd commands without TUI (default: auto)\n  graph <su",
+    "timestamp": 1778711719094
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_JfrU0RDiCT94hN0ikcaPxIaU|fc_0951fd228fb9eb9a016a04fcaf8fc08198947522f2b779121a",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[f28e0f2a-a6de-4273-94b0-1e86a18dd211] runtime=bash exit=0 duration=907ms\n  stdout: 3019B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/f28e0f2a-a6de-4273-94b0-1e86a18dd211.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/f28e0f2a-a6de-4273-94b0-1e86a18dd211.stderr\n--- digest ---\nquest auto   Filtered event stream\n  gsd headless query                              Instant JSON state snapshot\n  gsd headless recover                            Reset hie",
+    "timestamp": 1778711727873
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_789MZRYdx3c6PuaDqjb5DxNa|fc_0951fd228fb9eb9a016a04fcb98c088198883b2a6297fcad63",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[281e6616-b03b-436e-931d-d37a7912768f] runtime=bash exit=0 duration=1165ms\n  stdout: 1840B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/281e6616-b03b-436e-931d-d37a7912768f.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/281e6616-b03b-436e-931d-d37a7912768f.stderr\n--- digest ---\n\":{\"active\":2,\"validated\":11,\"deferred\":1,\"outOfScope\":4,\"blocked\":0,\"total\":18},\"progress\":{\"milestones\":{\"done\":13,\"total\":15},\"slices\":{\"done\":3,\"total\":5},\"tasks\":{\"do",
+    "timestamp": 1778711738808
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_YZKUahi03GwrgCscJNxM38fh|fc_0951fd228fb9eb9a016a04fcc54e9481988d9be08f56da9d95",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[2ea2b35c-c224-46d8-9062-8c8791e13a2b] runtime=python exit=0 duration=67ms\n  stdout: 453B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/2ea2b35c-c224-46d8-9062-8c8791e13a2b.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/2ea2b35c-c224-46d8-9062-8c8791e13a2b.stderr\n--- digest ---\nvity/167-complete-slice-M014-S03.jsonl\n.gsd/activity/169-complete-slice-M014-S03.jsonl\n.gsd/activity/176-complete-slice-M014-S04.jsonl\nsummary .gsd/milestones/M014/slices/S",
+    "timestamp": 1778711752730
+  },
+  {
+    "kind": "edit",
+    "toolCallId": "call_By8MXJjpz0sxlhpeeLAoOBN8|fc_0951fd228fb9eb9a016a04fd371d648198a4cc63a72e93115e",
+    "path": "backend-hormonia/app/api/v2/routers/enhanced_reports.py",
+    "timestamp": 1778711863515
+  },
+  {
+    "kind": "edit",
+    "toolCallId": "call_9NDLGQSOIUVIxtLU3hM0PsRL|fc_0951fd228fb9eb9a016a04fd3b5d9c8198bbb1659f45c09565",
+    "path": "backend-hormonia/app/api/v2/routers/enhanced_reports.py",
+    "timestamp": 1778711892311
+  },
+  {
+    "kind": "edit",
+    "toolCallId": "call_Pw5UcsG5Uaz4RaGRjfSFjy3e|fc_0951fd228fb9eb9a016a04fd58e5b88198acbc7bbf0805d7a1",
+    "path": "backend-hormonia/tests/security/test_m014_s04_report_artifact_serving.py",
+    "timestamp": 1778711906067
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_goEVcuzxR5E5wK3C1EoLmdpA|fc_0951fd228fb9eb9a016a04fd6d6b908198a0e5a27b4384d23b",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[a59f3ea2-74e1-46bb-a4f6-23c22a6fa564] runtime=bash exit=0 duration=22693ms\n  stdout: 99B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/a59f3ea2-74e1-46bb-a4f6-23c22a6fa564.stdout\n  stderr: 633B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/a59f3ea2-74e1-46bb-a4f6-23c22a6fa564.stderr\n--- digest ---\n................................                                         [100%]\n32 passed in 2.82s",
+    "timestamp": 1778711920648
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_YV4QJtX8cpdEMScyib1EriHL|fc_0951fd228fb9eb9a016a04fd8bfcd08198a7fa443dbe720b7c",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[d6c102d6-e4cb-494f-ab66-259ddd31b4e7] runtime=bash exit=0 duration=24078ms\n  stdout: 179B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/d6c102d6-e4cb-494f-ab66-259ddd31b4e7.stdout\n  stderr: 633B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/d6c102d6-e4cb-494f-ab66-259ddd31b4e7.stderr\n--- digest ---\n........................................................................ [ 77%]\n.....................                                                    [100%]\n93 passed",
+    "timestamp": 1778711952302
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_oPilLhcvJc0CgemymxSPecSj|fc_0951fd228fb9eb9a016a04fe059f148198aa660a42ca59622d",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[dc0b85a1-8e19-490b-b374-0472ca84eaf4] runtime=bash exit=0 duration=1148ms\n  stdout: 1840B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/dc0b85a1-8e19-490b-b374-0472ca84eaf4.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/dc0b85a1-8e19-490b-b374-0472ca84eaf4.stderr\n--- digest ---\n\":{\"active\":2,\"validated\":11,\"deferred\":1,\"outOfScope\":4,\"blocked\":0,\"total\":18},\"progress\":{\"milestones\":{\"done\":13,\"total\":15},\"slices\":{\"done\":3,\"total\":5},\"tasks\":{\"do",
+    "timestamp": 1778712069618
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_LHvd4P4IT7F4O1omlhlC2Uv9|fc_0951fd228fb9eb9a016a04fe49f8bc8198aa165a953e6cfbd6",
+    "command": "sleep 60",
+    "exitCode": 0,
+    "outputSnippet": "(no output)",
+    "timestamp": 1778712138526
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_3Gvv0X1PBDxBixIOi8d4DwOY|fc_0951fd228fb9eb9a016a04fe958a7c8198b2be3524e909a260",
+    "command": "sleep 180",
+    "exitCode": 0,
+    "outputSnippet": "(no output)",
+    "timestamp": 1778712213816
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_HzAwYAYiFyP2Tpq63ZsBYxyT|fc_0951fd228fb9eb9a016a04ff798a188198933b67088b2d5e6b",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[e1b35ce0-58da-4261-99c2-cedcc34896e8] runtime=bash exit=0 duration=41ms\n  stdout: 207B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/e1b35ce0-58da-4261-99c2-cedcc34896e8.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/e1b35ce0-58da-4261-99c2-cedcc34896e8.stderr\n--- digest ---\n.gsd/runtime/units/complete-slice-M014-S04.json\n.gsd/runtime/units/execute-task-M014-S04-T04.json\n.gsd/runtime/uok-plan-v2-graph.json\n.gsd/runtime/uok-writer-sequence.json\n.g",
+    "timestamp": 1778712441618
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_Yi57EwqMz2WumrrT3oKQi4L1|fc_0951fd228fb9eb9a016a04ff91543c819881c7f5f3621a28e6",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[8008ac3e-c943-4842-9d92-aea5b76360e1] runtime=bash exit=0 duration=10718ms\n  stdout: 83B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/8008ac3e-c943-4842-9d92-aea5b76360e1.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/8008ac3e-c943-4842-9d92-aea5b76360e1.stderr\n--- digest ---\nROOT /home/joaov/.nvm/versions/node/v22.22.1/lib/node_modules/gsd-pi/pkg\nROOT .gsd",
+    "timestamp": 1778712473250
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_Y12Q9rOlL17jkpyRjHropeWG|fc_0951fd228fb9eb9a016a04ffa9511081989e8bf3b2f91639bc",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[709cdd72-67a6-4c1e-9faf-1e3144e60b3a] runtime=bash exit=0 duration=10ms\n  stdout: 13B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/709cdd72-67a6-4c1e-9faf-1e3144e60b3a.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/709cdd72-67a6-4c1e-9faf-1e3144e60b3a.stderr\n--- digest ---\npackage.json",
+    "timestamp": 1778712493064
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_qBVTScplzJo2Vp5rUaeS3Q22|fc_0951fd228fb9eb9a016a04ffb425c88198b1bf960093fbf7a1",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[f0805585-26bd-471c-8de6-2a4316d74f24] runtime=bash exit=0 duration=42ms\n  stdout: 745B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/f0805585-26bd-471c-8de6-2a4316d74f24.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/f0805585-26bd-471c-8de6-2a4316d74f24.stderr\n--- digest ---\nov 10307 mai 13 10:57 package.json\ndrwxr-xr-x  11 joaov joaov  4096 mai 13 10:57 packages\ndrwxr-xr-x   3 joaov joaov  4096 mai 13 10:57 pkg\n-rw-r--r--   1 joaov joaov 69908 m",
+    "timestamp": 1778712504629
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_F84RPyJDA9b3v8uJQV6h14Fh|fc_0951fd228fb9eb9a016a04ffbfb500819881c9a2c09d698d95",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[488d191f-6c39-4bb5-abb0-a45a2fead155] runtime=bash exit=0 duration=6981ms\n  stdout: 9233B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/488d191f-6c39-4bb5-abb0-a45a2fead155.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/488d191f-6c39-4bb5-abb0-a45a2fead155.stderr\n--- digest ---\ntensions/gsd/tests/integration/idle-recovery.test.ts\nsrc/resources/extensions/gsd/tests/integration/state-machine-live-validation.test.ts\nsrc/resources/extensions/gsd/test",
+    "timestamp": 1778712518098
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_NdnhEXGmatX9q1wWN5fb7aPo|fc_0951fd228fb9eb9a016a05000507388198890b6b530e0e4614",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[55eacbb1-957e-4ddb-93b3-dcf1cadf6eff] runtime=bash exit=0 duration=14631ms\n  stdout: 179B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/55eacbb1-957e-4ddb-93b3-dcf1cadf6eff.stdout\n  stderr: 633B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/55eacbb1-957e-4ddb-93b3-dcf1cadf6eff.stderr\n--- digest ---\n........................................................................ [ 96%]\n...                                                                      [100%]\n75 passed",
+    "timestamp": 1778712581085
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_diUnTJoGYAnxerBqs9RVQJ4n|fc_0951fd228fb9eb9a016a050005075081989d7cafb8051656e8",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[cba439b4-eb1a-4141-883f-7426323e29fb] runtime=bash exit=0 duration=15763ms\n  stdout: 99B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/cba439b4-eb1a-4141-883f-7426323e29fb.stdout\n  stderr: 633B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/cba439b4-eb1a-4141-883f-7426323e29fb.stderr\n--- digest ---\n..................                                                       [100%]\n18 passed in 2.95s",
+    "timestamp": 1778712581091
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_HA92a3PZvltuNs87B5XngqrD|fc_0951fd228fb9eb9a016a05002d9cb481989fd18f2b801ec427",
+    "command": "",
+    "exitCode": 1,
+    "outputSnippet": "Skipped due to queued user message.",
+    "timestamp": 1778712781339
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_D0SKNlIrBSzORLacbT2BDc8L|fc_0951fd228fb9eb9a016a0500e5403481989622a97ed70917b1",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[25f62e40-8c04-4bbd-9477-34a274a721b1] runtime=node exit=1 duration=65ms\n  stdout: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/25f62e40-8c04-4bbd-9477-34a274a721b1.stdout\n  stderr: 355B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/25f62e40-8c04-4bbd-9477-34a274a721b1.stderr\n--- digest ---\n[no stdout — tail of stderr]\nfile:///home/joaov/.nvm/versions/node/v22.22.1/lib/node_modules/gsd-pi/dist/resources/extensions/gsd/gsd-db.js:664:15)\n    at handleCompleteSlice",
+    "timestamp": 1778712966097
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_Pn78TcKmXdheMstxUNwHSPIB|fc_0951fd228fb9eb9a016a050194c2908198bf8c5819b51f91e4",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[be4c6727-0987-4038-a819-c2f0acdad82b] runtime=bash exit=0 duration=41ms\n  stdout: 1294B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/be4c6727-0987-4038-a819-c2f0acdad82b.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/be4c6727-0987-4038-a819-c2f0acdad82b.stderr\n--- digest ---\nxport function getActiveMilestoneIdFromDb() {\n1419 export function getActiveTaskIdFromDb(milestoneId, sliceId) {\n1456 export function copyWorktreeDb(srcDbPath, destDbPath) {",
+    "timestamp": 1778712986385
+  },
+  {
+    "kind": "bash",
+    "toolCallId": "call_Ry6U5SUtOANVqKXZ5hQuf9is|fc_0951fd228fb9eb9a016a0501ca5ba081988afd6d389cc5f2eb",
+    "command": "",
+    "exitCode": 0,
+    "outputSnippet": "gsd_exec[78a3e7eb-8f2d-44f5-a539-b8548c4584c2] runtime=node exit=0 duration=1738ms\n  stdout: 264B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/78a3e7eb-8f2d-44f5-a539-b8548c4584c2.stdout\n  stderr: 0B → /mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/exec/78a3e7eb-8f2d-44f5-a539-b8548c4584c2.stderr\n--- digest ---\n{\n  \"sliceId\": \"S04\",\n  \"milestoneId\": \"M014\",\n  \"summaryPath\": \"/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.gsd/milestones/M014/slices/S04/S04-SUMMARY.md\",\n  \"uatPath\": ",
+    "timestamp": 1778713177795
+  }
+]
