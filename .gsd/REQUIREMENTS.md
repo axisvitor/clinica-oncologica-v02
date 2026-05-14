@@ -4,28 +4,6 @@ This file is the explicit capability and coverage contract for the project.
 
 ## Active
 
-### R012 — Corrigir e provar hardening médio remanescente: ADK auth, RLS, DB TLS, reset replay, CSRF, webhook replay, PHI client cache, deployment secrets e duplicate oracle.
-- Class: compliance/security
-- Status: active
-- Description: Corrigir e provar hardening médio remanescente: ADK auth, RLS, DB TLS, reset replay, CSRF, webhook replay, PHI client cache, deployment secrets e duplicate oracle.
-- Why it matters: Os findings médios ainda importam para defesa em profundidade, mas não devem diluir a remediação crítica/alta de M013.
-- Source: report
-- Primary owning slice: M014/S01
-- Supporting slices: M014/S02, M014/S03, M014/S04, M014/S05
-- Validation: To be validated by M014 controlled pytest/frontend proof and `backend-hormonia/docs/reports/security/m014-hardening-proof-evidence-matrix.md`.
-- Notes: Mapped into M014 Hardening Médio e Proof Gaps. Primary owner S01 for ingress/replay/rate-limit contracts; supporting slices S02 ADK, S03 browser PHI cache/quiz, S04 upload stored-XSS/private serving, and S05 evidence/posture closure.
-
-### R013 — Fechar proof gaps deferred: upload stored-XSS, ADK session ownership, JWT revocation multi-worker, X-Forwarded-For/rate-limit e quiz frontend lane incompleta.
-- Class: failure-visibility
-- Status: active
-- Description: Fechar proof gaps deferred: upload stored-XSS, ADK session ownership, JWT revocation multi-worker, X-Forwarded-For/rate-limit e quiz frontend lane incompleta.
-- Why it matters: Lacunas deferred não devem desaparecer; precisam de owner explícito para revisão posterior.
-- Source: report
-- Primary owning slice: M014/S05
-- Supporting slices: M014/S01, M014/S02, M014/S03, M014/S04
-- Validation: To be validated by a reviewer-facing M014 evidence matrix that marks every R012/R013 item closed, not applicable with evidence, or deferred with owner.
-- Notes: Mapped into M014 with primary owner S05 evidence matrix/regression closure; S01-S04 produce the individual proof rows for ingress/replay/rate-limit, ADK ownership, browser cache/quiz, and upload stored-XSS.
-
 ## Validated
 
 ### R001 — A API de gestão WhatsApp deve exigir autenticação e autorização antes de permitir envio, leitura, histórico, contatos, filas ou instâncias.
@@ -149,6 +127,28 @@ This file is the explicit capability and coverage contract for the project.
 - Validation: M013/S06 fresh focused and integrated proof passed: `gsd_exec 0214b6c3-6df3-41f8-a0c9-e81f101ee3de` validated report-task PHI-safe artifact/log behavior; `gsd_exec 4f988569-f9c7-401d-b418-60f3415d9008` validated fail-closed auth, SSRF, ownership, quiz, private-file, and report boundaries; document validation `gsd_exec 4808c7f0-2d25-498d-b6b6-5bb59fe37ad0` and `gsd_exec ae46a726-c6a3-412b-8305-58a1a316e379` confirmed the matrix has no TODO/TBD or unsafe sentinel values and retains Fresh S06 exit-0 evidence.
 - Notes: S06 preserves failure visibility through allowed diagnostic fields and matrix notes while forbidding PHI, tokens, unsafe paths, patient-name sentinels, and report_type leakage in proof artifacts.
 
+### R012 — Corrigir e provar hardening médio remanescente: ADK auth, RLS, DB TLS, reset replay, CSRF, webhook replay, PHI client cache, deployment secrets e duplicate oracle.
+- Class: compliance/security
+- Status: validated
+- Description: Corrigir e provar hardening médio remanescente: ADK auth, RLS, DB TLS, reset replay, CSRF, webhook replay, PHI client cache, deployment secrets e duplicate oracle.
+- Why it matters: Os findings médios ainda importam para defesa em profundidade, mas não devem diluir a remediação crítica/alta de M013.
+- Source: report
+- Primary owning slice: M014/S01
+- Supporting slices: M014/S02, M014/S03, M014/S04, M014/S05
+- Validation: Validated by M014/S05 controlled proof and `backend-hormonia/docs/reports/security/m014-hardening-proof-evidence-matrix.md`: backend integrated command passed with 149 tests, frontend persistence command passed with 5 tests, quiz storage command passed with 8 tests. Matrix rows close CSRF, reset replay, webhook replay, duplicate oracle, XFF/rate-limit, ADK, PHI cache, upload/report artifact, JWT/config posture, and explicitly defer live DB TLS/RLS/runtime proof to R014/M015.
+- Notes: M014/S05 validated the controlled-proof requirement boundary. Live database TLS negotiation, RLS policy execution, and production-like runtime harness claims remain deferred to R014/M015 and are not overclaimed by M014.
+
+### R013 — Fechar proof gaps deferred: upload stored-XSS, ADK session ownership, JWT revocation multi-worker, X-Forwarded-For/rate-limit e quiz frontend lane incompleta.
+- Class: failure-visibility
+- Status: validated
+- Description: Fechar proof gaps deferred: upload stored-XSS, ADK session ownership, JWT revocation multi-worker, X-Forwarded-For/rate-limit e quiz frontend lane incompleta.
+- Why it matters: Lacunas deferred não devem desaparecer; precisam de owner explícito para revisão posterior.
+- Source: report
+- Primary owning slice: M014/S05
+- Supporting slices: M014/S01, M014/S02, M014/S03, M014/S04
+- Validation: Validated by M014/S05 evidence matrix and fresh closeout commands: backend integrated security suite passed with 149 tests, frontend persistence proof passed with 5 tests, and quiz storage proof passed with 8 tests. Rows cover upload stored-XSS, ADK session ownership, controlled JWT/session posture, X-Forwarded-For/rate-limit, and quiz frontend lane; live multi-worker JWT/session revocation runtime proof is explicitly deferred to R014/M015.
+- Notes: R013 closure means every proof gap is either backed by controlled command evidence or explicitly deferred with owner/rationale in the M014 evidence matrix; it does not claim production-like multi-worker runtime validation.
+
 ## Deferred
 
 ### R014 — Construir harness runtime completo com DB, queue, WuzAPI/Gemini e fixtures production-like se a validação dinâmica ampla exigir esse ambiente.
@@ -205,8 +205,8 @@ This file is the explicit capability and coverage contract for the project.
 - Source: inferred
 - Primary owning slice: M014/S05
 - Supporting slices: M014/S01, M014/S02, M014/S03, M014/S04
-- Validation: M014 evidence matrix must show no R012/R013/R018-relevant item was silently dropped; each row needs command evidence, not-applicable rationale, or explicit deferral owner.
-- Notes: M014 addresses the follow-on risk that independent medium findings from M013 remain unresolved. Primary closure mechanism is S05 matrix/regression audit, supported by S01-S04 control proofs.
+- Validation: M014/S05 evidence matrix row M014-17 validates that independent medium findings were not silently dropped: every R012/R013/R018-relevant lane is listed with closed, not-applicable, or deferred status and executable matrix validation.
+- Notes: M014 addresses the M013 follow-on risk through the S01-S05 evidence matrix; unsupported runtime proof remains explicitly deferred rather than silently omitted.
 
 ## Traceability
 
@@ -223,17 +223,17 @@ This file is the explicit capability and coverage contract for the project.
 | R009 | compliance/security | validated | M013/S02 | M013/S06 | M013/S02 verified flow response and flow override GET/PUT ownership denial and assigned-doctor/admin positives with `cd backend-hormonia && pytest tests/unit/api/v2/test_patient_access_helpers.py tests/api/v2/test_patient_ownership_boundary.py tests/api/v2/test_messages.py tests/api/v2/test_patients_rbac_impl.py tests/api/v2/test_phase25_messages_quiz_async.py -q` (exit 0; boundary suite includes flow-response/override tests). |
 | R010 | quality-attribute | validated | M013/S06 | M013/S02, M013/S03, M013/S04, M013/S05 | M013/S06 fresh integrated proof `gsd_exec 4f988569-f9c7-401d-b418-60f3415d9008` exited 0 for patient ownership helpers/boundaries, messages, RBAC, quiz link/session, private upload, report ownership, enhanced reports, report task, and compatibility suites. The evidence matrix validation `gsd_exec ae46a726-c6a3-412b-8305-58a1a316e379` confirmed F-01..F-11 and R001..R014 mapping with Fresh S06 exit-0 evidence and deferred R012-R014 called out. |
 | R011 | failure-visibility | validated | M013/S06 | M013/S01, M013/S02, M013/S03, M013/S04, M013/S05 | M013/S06 fresh focused and integrated proof passed: `gsd_exec 0214b6c3-6df3-41f8-a0c9-e81f101ee3de` validated report-task PHI-safe artifact/log behavior; `gsd_exec 4f988569-f9c7-401d-b418-60f3415d9008` validated fail-closed auth, SSRF, ownership, quiz, private-file, and report boundaries; document validation `gsd_exec 4808c7f0-2d25-498d-b6b6-5bb59fe37ad0` and `gsd_exec ae46a726-c6a3-412b-8305-58a1a316e379` confirmed the matrix has no TODO/TBD or unsafe sentinel values and retains Fresh S06 exit-0 evidence. |
-| R012 | compliance/security | active | M014/S01 | M014/S02, M014/S03, M014/S04, M014/S05 | To be validated by M014 controlled pytest/frontend proof and `backend-hormonia/docs/reports/security/m014-hardening-proof-evidence-matrix.md`. |
-| R013 | failure-visibility | active | M014/S05 | M014/S01, M014/S02, M014/S03, M014/S04 | To be validated by a reviewer-facing M014 evidence matrix that marks every R012/R013 item closed, not applicable with evidence, or deferred with owner. |
+| R012 | compliance/security | validated | M014/S01 | M014/S02, M014/S03, M014/S04, M014/S05 | Validated by M014/S05 controlled proof and `backend-hormonia/docs/reports/security/m014-hardening-proof-evidence-matrix.md`: backend integrated command passed with 149 tests, frontend persistence command passed with 5 tests, quiz storage command passed with 8 tests. Matrix rows close CSRF, reset replay, webhook replay, duplicate oracle, XFF/rate-limit, ADK, PHI cache, upload/report artifact, JWT/config posture, and explicitly defer live DB TLS/RLS/runtime proof to R014/M015. |
+| R013 | failure-visibility | validated | M014/S05 | M014/S01, M014/S02, M014/S03, M014/S04 | Validated by M014/S05 evidence matrix and fresh closeout commands: backend integrated security suite passed with 149 tests, frontend persistence proof passed with 5 tests, and quiz storage proof passed with 8 tests. Rows cover upload stored-XSS, ADK session ownership, controlled JWT/session posture, X-Forwarded-For/rate-limit, and quiz frontend lane; live multi-worker JWT/session revocation runtime proof is explicitly deferred to R014/M015. |
 | R014 | quality-attribute | deferred | M015/provisional | none | Not validated by M014 unless the milestone is explicitly re-scoped; evidence matrix must avoid claiming live-provider/production-like guarantees. |
 | R015 | anti-feature | out-of-scope | none | M014/S01, M014/S02, M014/S03, M014/S04, M014/S05 | M014/S05 evidence matrix and operational verification must document commands as controlled and PHI/secret-safe. |
 | R016 | anti-feature | out-of-scope | none | none | n/a |
 | R017 | anti-feature | out-of-scope | none | M014/S01, M014/S02, M014/S03, M014/S04, M014/S05 | Each M014 slice includes PHI-safe diagnostics criteria; S05 performs final artifact review through the evidence matrix. |
-| R018 | anti-feature | out-of-scope | M014/S05 | M014/S01, M014/S02, M014/S03, M014/S04 | M014 evidence matrix must show no R012/R013/R018-relevant item was silently dropped; each row needs command evidence, not-applicable rationale, or explicit deferral owner. |
+| R018 | anti-feature | out-of-scope | M014/S05 | M014/S01, M014/S02, M014/S03, M014/S04 | M014/S05 evidence matrix row M014-17 validates that independent medium findings were not silently dropped: every R012/R013/R018-relevant lane is listed with closed, not-applicable, or deferred status and executable matrix validation. |
 
 ## Coverage Summary
 
-- Active requirements: 2
-- Mapped to slices: 2
-- Validated: 11 (R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011)
+- Active requirements: 0
+- Mapped to slices: 0
+- Validated: 13 (R001, R002, R003, R004, R005, R006, R007, R008, R009, R010, R011, R012, R013)
 - Unmapped active requirements: 0

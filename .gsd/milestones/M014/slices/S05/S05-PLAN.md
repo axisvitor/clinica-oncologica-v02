@@ -39,7 +39,7 @@ Upstream surfaces consumed: S01 ingress/replay/rate-limit proof, S02 ADK auth/se
   - Files: `backend-hormonia/docs/reports/security/m014-hardening-proof-evidence-matrix.md`, `backend-hormonia/tests/security/test_m014_s05_evidence_matrix.py`, `.gsd/milestones/M014/slices/S01/S01-SUMMARY.md`, `.gsd/milestones/M014/slices/S02/S02-SUMMARY.md`, `.gsd/milestones/M014/slices/S03/S03-SUMMARY.md`, `.gsd/milestones/M014/slices/S04/S04-SUMMARY.md`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s05_evidence_matrix.py
 
-- [ ] **T03: Run integrated M014 regression closure** `est:2h`
+- [x] **T03: Run integrated M014 regression closure** `est:2h`
   Why: The final slice must prove S01-S05 work composes and that touched M013 boundaries still have fresh evidence before M014 can validate R012/R013.
   Do: Run the focused S05 posture and matrix validators, then run the documented integrated M014 backend security command suite and the frontend/quiz commands referenced by S03 where applicable. Update the matrix with fresh integrated evidence IDs/results and use GSD requirement updates for R012/R013/R018 only after evidence is fresh. Keep R014/M015 production-like runtime proof explicitly deferred if not exercised.
   Done when: All documented closeout commands pass, the matrix references fresh S05/integrated evidence, and requirement outcomes are ready for milestone validation.

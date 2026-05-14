@@ -111,17 +111,28 @@ Result: exit 0, 8 passed. The proof covers JWT signature/type/subject/expiration
 
 ## Closeout Commands
 
-A reviewer can rerun the backend controlled proof from the repository root with:
+Fresh S05/T03 closeout was run from the repository root on 2026-05-14.
+
+Backend controlled proof:
 
 ```bash
 PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s01_rate_limit_fail_closed.py backend-hormonia/tests/security/test_m014_s01_csrf_fail_closed.py backend-hormonia/tests/security/test_m014_s01_password_reset_replay.py backend-hormonia/tests/security/test_m014_s01_webhook_replay.py backend-hormonia/tests/security/test_m014_s01_duplicate_oracle.py backend-hormonia/tests/security/test_m014_s02_adk_auth_session_ownership.py backend-hormonia/tests/security/test_m014_s03_cache_headers.py backend-hormonia/tests/security/test_m014_s04_active_content_validation.py backend-hormonia/tests/security/test_m014_s04_upload_xss_private_serving.py backend-hormonia/tests/security/test_m014_s04_private_artifact_serving.py backend-hormonia/tests/security/test_m014_s04_report_artifact_serving.py backend-hormonia/tests/security/test_m014_s05_jwt_config_posture.py backend-hormonia/tests/security/test_m014_s05_evidence_matrix.py
 ```
 
-Supporting frontend/quiz commands from S03 remain separate because they use npm test runners:
+Result: exit 0, 149 passed in 4.20s. Stderr contained only the existing pytest-asyncio loop-scope deprecation warning.
+
+Dashboard persistence proof:
 
 ```bash
 npm --prefix frontend-hormonia test -- tests/unit/react-query/persistencePolicy.test.ts
+```
+
+Result: exit 0, 1 test file passed, 5 tests passed.
+
+Quiz browser-storage proof:
+
+```bash
 npm --prefix quiz-mensal-interface test -- tests/security/quiz-progress-storage.test.tsx tests/security/no-phi-local-storage.test.tsx
 ```
 
-S05 T03 is responsible for replacing this section's current command plan with fresh integrated closeout results after rerunning the commands.
+Result: exit 0, 2 test suites passed, 8 tests passed. The run emitted known non-fatal baseline-browser-mapping, Node `punycode`, and Jest worker teardown warnings.
