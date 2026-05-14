@@ -32,7 +32,7 @@ Upstream surfaces consumed: S01 ingress/replay/rate-limit proof, S02 ADK auth/se
   - Files: `backend-hormonia/tests/security/test_m014_s05_jwt_config_posture.py`, `backend-hormonia/app/utils/security.py`, `backend-hormonia/app/api/v2/routers/users.py`, `backend-hormonia/app/api/websockets.py`, `backend-hormonia/app/config/settings/security.py`, `backend-hormonia/app/config/settings/database.py`
   - Verify: PYTHONPATH=backend-hormonia python -m pytest -c backend-hormonia/pyproject.toml backend-hormonia/tests/security/test_m014_s05_jwt_config_posture.py
 
-- [ ] **T02: Write M014 evidence matrix and validator** `est:2h`
+- [x] **T02: Write M014 evidence matrix and validator** `est:2h`
   Why: R013/R018 require no medium/proof-gap item to disappear; a reviewer-facing matrix is the durable inspection surface.
   Do: Create `backend-hormonia/docs/reports/security/m014-hardening-proof-evidence-matrix.md` using the M013 matrix pattern and S01-S04/S05 evidence. Add `backend-hormonia/tests/security/test_m014_s05_evidence_matrix.py` to validate all R012/R013/R018-relevant rows, S01-S05 command references, closed/not-applicable/deferred statuses, R014/M015 deferral language, and absence of TODO/TBD/unsafe PHI/secret/path sentinel values.
   Done when: The matrix exists, cites exact command classes/evidence IDs available from summaries, and the validator fails on missing required rows or unsafe placeholders.
