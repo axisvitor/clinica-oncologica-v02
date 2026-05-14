@@ -17,7 +17,11 @@ from app.api.v2.dependencies import (
     get_field_selection_async,
     apply_field_selection,
 )
-from app.dependencies.auth_dependencies import get_current_user_from_session
+from app.dependencies.auth_dependencies import (
+    get_current_user_from_session,
+    get_redis_cache,
+)
+from app.dependencies.auth_session_invalidation import invalidate_session_cache
 from app.core.redis_manager import get_async_redis_client
 from app.utils.rate_limiter import limiter
 from app.schemas.v2.auth import (
@@ -337,6 +341,7 @@ async def revoke_session(
     session_id: str,
     current_user=Depends(get_current_user_from_session),
     db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
 ):
     user_id = _extract_user_id(current_user)
     session = (
@@ -355,4 +360,6 @@ async def revoke_session(
     session.revocation_reason = "User requested revocation"
     db.commit()
 
-    return {"session_id": session_id, "revoked": True, "message": "Revoked"}
+    await invalidate_session_cache(redis_cache, str(session.id), log=logger)
+
+    return {"session_id": str(session.id), "revoked": True, "message": "Revoked"}

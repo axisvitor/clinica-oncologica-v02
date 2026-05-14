@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -11,8 +12,10 @@ import pytest
 from fastapi import HTTPException, Request
 
 from app.api.v2 import auth_session_shared
+from app.api.v2.routers import users as users_router
 from app.dependencies import auth_session_cache
 from app.dependencies.auth_dependencies import get_current_user_from_session
+from app.dependencies.auth_session_invalidation import invalidate_session_cache
 
 pytestmark = [pytest.mark.security, pytest.mark.auth]
 
@@ -291,3 +294,178 @@ async def test_shared_helper_rejects_stale_cache_when_db_session_missing():
 
     assert exc_info.value.status_code == 401
     assert "Invalid or expired session" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_session_cache_invalidation_uses_wrapper_session_contract_first():
+    session_id = str(uuid4())
+    redis_cache = SimpleNamespace(
+        invalidate_session=AsyncMock(return_value=True),
+        delete_session=AsyncMock(return_value=True),
+        delete=AsyncMock(return_value=1),
+    )
+
+    invalidated = await invalidate_session_cache(redis_cache, session_id)
+
+    assert invalidated is True
+    redis_cache.invalidate_session.assert_awaited_once_with(session_id)
+    redis_cache.delete_session.assert_not_called()
+    redis_cache.delete.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_session_cache_invalidation_falls_back_on_helper_signature_mismatch():
+    session_id = str(uuid4())
+    redis_cache = SimpleNamespace(
+        invalidate_session=AsyncMock(side_effect=TypeError("unexpected signature")),
+        delete_session=AsyncMock(return_value=True),
+        delete=AsyncMock(return_value=1),
+    )
+
+    invalidated = await invalidate_session_cache(redis_cache, session_id)
+
+    assert invalidated is True
+    redis_cache.invalidate_session.assert_awaited_once_with(session_id)
+    redis_cache.delete_session.assert_awaited_once_with(session_id)
+    redis_cache.delete.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_session_cache_invalidation_raw_redis_deletes_canonical_session_key_and_compat_key():
+    session_id = str(uuid4())
+    redis_cache = SimpleNamespace(delete=AsyncMock(return_value=2))
+
+    invalidated = await invalidate_session_cache(redis_cache, session_id)
+
+    assert invalidated is True
+    redis_cache.delete.assert_awaited_once_with(f"session:{session_id}", session_id)
+
+
+@pytest.mark.asyncio
+async def test_session_cache_invalidation_failure_logs_sanitized_warning(caplog):
+    session_id = str(uuid4())
+    redis_cache = SimpleNamespace(
+        invalidate_session=AsyncMock(side_effect=RuntimeError("redis password=secret unavailable"))
+    )
+
+    with caplog.at_level(logging.WARNING):
+        invalidated = await invalidate_session_cache(redis_cache, session_id)
+
+    assert invalidated is False
+    assert "session_cache_invalidation_failed" in caplog.text
+    assert "RuntimeError" in caplog.text
+    assert "password=secret" not in caplog.text
+
+
+class _FakeSessionRevocationQuery:
+    def __init__(self, session):
+        self._session = session
+
+    def filter(self, *args):
+        del args
+        return self
+
+    def first(self):
+        return self._session
+
+
+class _FakeSessionRevocationDb:
+    def __init__(self, session, events: list[str], *, commit_exc: BaseException | None = None):
+        self._session = session
+        self._events = events
+        self._commit_exc = commit_exc
+        self.rollback_called = False
+
+    def query(self, _model):
+        return _FakeSessionRevocationQuery(self._session)
+
+    def commit(self):
+        self._events.append("commit")
+        if self._commit_exc is not None:
+            raise self._commit_exc
+
+    def rollback(self):
+        self.rollback_called = True
+
+
+@pytest.mark.asyncio
+async def test_user_revoke_session_commits_db_before_invalidating_redis_cache():
+    user_id = uuid4()
+    session_id = uuid4()
+    events: list[str] = []
+    session = SimpleNamespace(
+        id=session_id,
+        user_id=user_id,
+        is_active=True,
+        revoked_at=None,
+        revocation_reason=None,
+    )
+
+    async def _invalidate(_session_id: str):
+        events.append("cache")
+        return True
+
+    response = await users_router.revoke_session(
+        str(session_id),
+        current_user={"id": str(user_id), "role": "doctor"},
+        db=_FakeSessionRevocationDb(session, events),
+        redis_cache=SimpleNamespace(invalidate_session=_invalidate),
+    )
+
+    assert events == ["commit", "cache"]
+    assert response == {"session_id": str(session_id), "revoked": True, "message": "Revoked"}
+    assert session.is_active is False
+    assert session.revoked_at is not None
+    assert session.revocation_reason == "User requested revocation"
+
+
+@pytest.mark.asyncio
+async def test_user_revoke_session_missing_or_foreign_row_has_no_cache_side_effect():
+    user_id = uuid4()
+    session_id = uuid4()
+    events: list[str] = []
+    redis_cache = SimpleNamespace(invalidate_session=AsyncMock(return_value=True))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await users_router.revoke_session(
+            str(session_id),
+            current_user={"id": str(user_id), "role": "doctor"},
+            db=_FakeSessionRevocationDb(None, events),
+            redis_cache=redis_cache,
+        )
+
+    assert exc_info.value.status_code == 404
+    assert events == []
+    redis_cache.invalidate_session.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_user_revoke_session_cache_failure_after_commit_still_relies_on_db_revocation(caplog):
+    user_id = uuid4()
+    session_id = uuid4()
+    events: list[str] = []
+    session = SimpleNamespace(
+        id=session_id,
+        user_id=user_id,
+        is_active=True,
+        revoked_at=None,
+        revocation_reason=None,
+    )
+    redis_cache = SimpleNamespace(
+        invalidate_session=AsyncMock(side_effect=RuntimeError("redis password=secret unavailable"))
+    )
+
+    with caplog.at_level(logging.WARNING):
+        response = await users_router.revoke_session(
+            str(session_id),
+            current_user={"id": str(user_id), "role": "doctor"},
+            db=_FakeSessionRevocationDb(session, events),
+            redis_cache=redis_cache,
+        )
+
+    assert events == ["commit"]
+    assert response["revoked"] is True
+    assert session.is_active is False
+    assert session.revoked_at is not None
+    assert "session_cache_invalidation_failed" in caplog.text
+    assert "password=secret" not in caplog.text

@@ -113,7 +113,7 @@ def test_doctor_user(db_session: Session) -> User:
         full_name="Test Doctor",
         display_name="Dra. Test Doctor",
         photo_url="https://example.com/doctor-photo.png",
-        preferences={"theme": "light", "language": "en-US"},
+        preferences={"theme": "light", "language": "pt-BR"},
         last_login=datetime(2026, 3, 11, 14, 30, 0),
         role=UserRole.DOCTOR,
         is_active=True
@@ -366,16 +366,19 @@ def auth_headers_admin(test_admin_user: User) -> dict:
 
     session_user = _build_canonical_session_user(test_admin_user)
     role = session_user["role"]
+    session_id = f"admin-session-{test_admin_user.id}"
 
     async def _override_session(request: Request):
         request.state.user_id = session_user.get("id")
         request.state.user_role = session_user.get("role")
+        request.state.session_id = session_id
         return session_user
 
     async def _override_current_user(request: Request):
         request.state.user = test_admin_user
         request.state.user_id = str(test_admin_user.id)
         request.state.user_role = role
+        request.state.session_id = session_id
         return test_admin_user
     
     async def _override_optional_user(credentials=None, services=None):
@@ -389,7 +392,7 @@ def auth_headers_admin(test_admin_user: User) -> dict:
             ip_address="127.0.0.1",
             user_agent="pytest",
             user_id=test_admin_user.id,
-            session_id=f"admin-session-{test_admin_user.id}",
+            session_id=session_id,
         )
 
     app.dependency_overrides[get_current_user_from_session] = _override_session
@@ -400,7 +403,7 @@ def auth_headers_admin(test_admin_user: User) -> dict:
 
     csrf_token = get_csrf_token()
     headers = {
-        "X-Session-ID": f"admin-session-{test_admin_user.id}",
+        "X-Session-ID": session_id,
         "Authorization": f"Bearer admin-token-{test_admin_user.id}",
         "X-CSRF-Token": csrf_token,
         "Cookie": f"csrf_token={csrf_token}",
@@ -421,16 +424,19 @@ def auth_headers_doctor(test_doctor_user: User) -> dict:
 
     session_user = _build_canonical_session_user(test_doctor_user)
     role = session_user["role"]
+    session_id = f"doctor-session-{test_doctor_user.id}"
 
     async def _override_session(request: Request):
         request.state.user_id = session_user.get("id")
         request.state.user_role = session_user.get("role")
+        request.state.session_id = session_id
         return session_user
 
     async def _override_current_user(request: Request):
         request.state.user = test_doctor_user
         request.state.user_id = str(test_doctor_user.id)
         request.state.user_role = role
+        request.state.session_id = session_id
         return test_doctor_user
     
     async def _override_optional_user(credentials=None, services=None):
@@ -444,7 +450,7 @@ def auth_headers_doctor(test_doctor_user: User) -> dict:
             ip_address="127.0.0.1",
             user_agent="pytest",
             user_id=test_doctor_user.id,
-            session_id=f"doctor-session-{test_doctor_user.id}",
+            session_id=session_id,
         )
 
     app.dependency_overrides[get_current_user_from_session] = _override_session
@@ -455,7 +461,7 @@ def auth_headers_doctor(test_doctor_user: User) -> dict:
 
     csrf_token = get_csrf_token()
     headers = {
-        "X-Session-ID": f"doctor-session-{test_doctor_user.id}",
+        "X-Session-ID": session_id,
         "Authorization": f"Bearer doctor-token-{test_doctor_user.id}",
         "X-CSRF-Token": csrf_token,
         "Cookie": f"csrf_token={csrf_token}",

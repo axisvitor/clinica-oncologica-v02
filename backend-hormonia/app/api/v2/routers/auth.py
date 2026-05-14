@@ -21,6 +21,10 @@ from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
     get_redis_cache,
 )
+from app.dependencies.auth_session_invalidation import (
+    invalidate_all_user_sessions_cache,
+    invalidate_session_cache,
+)
 from app.utils.rate_limiter import limiter, auth_limiter
 from app.schemas.v2.auth import (
     LocalLoginRequest,
@@ -359,72 +363,101 @@ def _get_session_id_from_request(request: Request) -> Optional[str]:
     return request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get("session_id")
 
 
-async def _invalidate_session_cache(redis_cache, session_id: str) -> bool:
+async def verify_token(id_token: str) -> dict[str, Any]:
+    """Verify a Firebase ID token via the shared Firebase verification seam."""
+    from app.services.firebase_auth_shared import verify_token_and_build_user_info
+
+    return verify_token_and_build_user_info(id_token, logger=logger)
+
+
+@router.post("/firebase/verify", include_in_schema=False)
+@limiter.limit("20/minute")
+async def firebase_verify_legacy(
+    request: Request,
+    response: Response,
+    payload: dict[str, Any],
+    db=Depends(get_db),
+):
+    """Legacy Firebase verification compatibility endpoint.
+
+    Local password login is the canonical staff-auth flow, but older API v2
+    clients/tests still exercise this route. It creates a DB-backed session row
+    so subsequent session checks remain PostgreSQL-authoritative.
     """
-    Invalidate a single session in cache with compatibility fallbacks.
+    id_token = payload.get("id_token") if isinstance(payload, dict) else None
+    try:
+        token_data = await verify_token(id_token)
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"valid": False, "error": "Invalid Firebase token"},
+        )
 
-    Supports current and legacy cache contracts used across test fixtures and
-    service implementations.
-    """
-    if not redis_cache or not session_id:
-        return False
+    uid = token_data.get("uid") or token_data.get("user_id")
+    email = token_data.get("email")
+    if not uid or not email:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"valid": False, "error": "Invalid Firebase token"},
+        )
 
-    for method_name in ("invalidate_session", "delete_session", "delete"):
-        method = getattr(redis_cache, method_name, None)
-        if not callable(method):
-            continue
-        try:
-            result = method(session_id)
-            if hasattr(result, "__await__"):
-                result = await result
-            # Treat None as non-fatal for compatibility with noop implementations.
-            return True if result is None else bool(result)
-        except TypeError:
-            # Try next contract variant when signature does not match.
-            continue
-        except Exception as exc:
-            logger.warning("Cache session invalidation failed via %s: %s", method_name, exc)
-            return False
+    from app.models.session import Session as SessionModel
+    from app.models.user import AuthProvider, User, UserRole
 
-    logger.debug("No compatible cache method found for session invalidation")
-    return False
+    full_name = token_data.get("name") or token_data.get("full_name") or email
+    photo_url = token_data.get("picture") or token_data.get("photo_url")
 
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        user = User(
+            email=email,
+            full_name=full_name,
+            role=UserRole.DOCTOR,
+            is_active=True,
+            auth_provider=AuthProvider.FIREBASE,
+            photo_url=photo_url,
+            preferences={},
+        )
+        user.firebase_uid = uid
+        db.add(user)
+        db.flush()
+    else:
+        user.full_name = full_name
+        user.photo_url = photo_url
+        user.auth_provider = AuthProvider.FIREBASE
+        user.is_active = True
+        user.firebase_uid = uid
 
-async def _invalidate_all_user_sessions_cache(redis_cache, identity: Optional[str]) -> int:
-    """
-    Invalidate all sessions for a canonical user identity in cache.
+    session = SessionModel(
+        user_id=user.id,
+        session_token=uuid.uuid4().hex,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        last_activity=now_sao_paulo_naive(),
+        expires_at=now_sao_paulo_naive() + timedelta(days=7),
+        is_active=True,
+    )
+    db.add(session)
+    db.flush()
+    db.commit()
+    db.refresh(user)
+    db.refresh(session)
 
-    The current session-first contract keys global revocation to `user_id`, while
-    compatibility cache adapters may still match legacy `firebase_uid` values.
-    """
-    if not redis_cache or not identity:
-        return 0
+    session_id = str(session.id)
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
+        httponly=True,
+        secure=settings.SESSION_ENABLE_COOKIE_SECURE,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+        path="/",
+    )
 
-    invalidate_all = getattr(redis_cache, "invalidate_all_user_sessions", None)
-    if callable(invalidate_all):
-        try:
-            result = invalidate_all(identity)
-            if hasattr(result, "__await__"):
-                result = await result
-            return int(result or 0)
-        except Exception as exc:
-            logger.warning("Cache bulk session invalidation failed: %s", exc)
-            return 0
-
-    delete_pattern = getattr(redis_cache, "delete_pattern", None)
-    if callable(delete_pattern):
-        try:
-            result = delete_pattern(f"session:*{identity}*")
-            if hasattr(result, "__await__"):
-                result = await result
-            return int(result) if isinstance(result, int) else 0
-        except Exception as exc:
-            logger.warning("Cache delete_pattern fallback failed: %s", exc)
-            return 0
-
-    logger.debug("No compatible cache method found for bulk session invalidation")
-    return 0
-
+    return {
+        "valid": True,
+        "session_id": session_id,
+        "user": _serialize_authenticated_user(user),
+    }
 
 
 @router.post(
@@ -795,7 +828,7 @@ async def logout(
             raise ValidationError("Invalid session ID", field="session_id")
         session_uuid = UUID(normalized_session_id)
 
-        await _invalidate_session_cache(redis_cache, normalized_session_id)
+        await invalidate_session_cache(redis_cache, normalized_session_id)
 
         # Also mark as revoked in DB with proper error handling
         from app.models.session import Session as SessionModel
@@ -848,7 +881,7 @@ async def logout_all(
     """Logout from all devices."""
     user_id = _extract_user_id(current_user)
 
-    deleted_count = await _invalidate_all_user_sessions_cache(redis_cache, user_id)
+    deleted_count = await invalidate_all_user_sessions_cache(redis_cache, user_id)
 
     # Revoke all in DB with proper error handling
     from app.models.session import Session as SessionModel
