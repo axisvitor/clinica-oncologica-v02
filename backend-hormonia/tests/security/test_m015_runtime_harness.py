@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 from urllib.parse import parse_qsl, urlsplit
 
@@ -12,11 +15,102 @@ from app.db.migrations import MigrationBootstrapError, resolve_migration_databas
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = BACKEND_ROOT.parent
 RUNNER = REPO_ROOT / "scripts" / "security" / "verify-m015-runtime-security.sh"
-COMPOSE_FILE = REPO_ROOT / "scripts" / "security" / "m015-runtime" / "docker-compose.yml"
+HARNESS_DIR = REPO_ROOT / "scripts" / "security" / "m015-runtime"
+COMPOSE_FILE = HARNESS_DIR / "docker-compose.yml"
+DB_SEAM_HELPER = HARNESS_DIR / "db_seam.py"
+HARNESS_README = HARNESS_DIR / "README.md"
+DB_EVIDENCE_JSON = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "db-seam-evidence.json"
+DB_SUMMARY_MD = BACKEND_ROOT / "docs" / "reports" / "security" / "m015" / "db-seam-summary.md"
+
+sys.path.insert(0, str(HARNESS_DIR))
+from redaction import RedactionError, redaction_findings, validate_no_sensitive_evidence  # noqa: E402
 
 
 def _query_params(url: str) -> dict[str, str]:
     return dict(parse_qsl(urlsplit(url).query, keep_blank_values=True))
+
+
+def _run_runner(*args: str) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env.update(
+        {
+            "M015_PROJECT_NAME": "m015-contract-test",
+            "M015_API_PORT": "18180",
+            "M015_POSTGRES_PORT": "15433",
+        }
+    )
+    return subprocess.run(  # noqa: S603 - test invokes the committed harness entrypoint directly.
+        [str(RUNNER), *args],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+
+def test_runner_help_and_list_seams_are_static_and_fail_closed() -> None:
+    help_result = _run_runner("--help")
+    assert help_result.returncode == 0, help_result.stderr
+    assert "--seam db" in help_result.stdout
+    assert "--list-seams" in help_result.stdout
+    assert "--teardown-only" in help_result.stdout
+
+    list_result = _run_runner("--list-seams")
+    assert list_result.returncode == 0, list_result.stderr
+    assert list_result.stdout.strip() == "db"
+
+
+def test_runner_rejects_missing_or_unknown_seams_before_setup() -> None:
+    missing_result = _run_runner()
+    missing_output = missing_result.stdout + missing_result.stderr
+    assert missing_result.returncode != 0
+    assert "--seam db" in missing_output
+    assert "phase=setup" not in missing_output
+    assert "green" not in missing_output.lower()
+
+    unknown_result = _run_runner("--seam", "provider")
+    unknown_output = unknown_result.stdout + unknown_result.stderr
+    assert unknown_result.returncode != 0
+    assert "unknown seam" in unknown_output.lower()
+    assert "phase=setup" not in unknown_output
+
+
+def test_m015_compose_is_isolated_from_live_providers_and_project_env_files() -> None:
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+
+    for service in ("postgres:", "dragonfly:", "api:", "worker:", "db-probe:"):
+        assert service in compose_text
+    assert "env_file" not in compose_text
+    assert "backend-hormonia/.env" not in compose_text
+    assert "/mnt/c/" not in compose_text
+    assert "wuzapi:" not in compose_text
+    assert "gemini:" not in compose_text
+    assert "GOOGLE_APPLICATION_CREDENTIALS" not in compose_text
+    assert "firebase-adminsdk" not in compose_text
+    assert "WHATSAPP_ENABLE_SERVICE: ${WHATSAPP_ENABLE_SERVICE:-false}" in compose_text
+    assert "AI_LANGCHAIN_ENABLE_TRACING_V2: ${AI_LANGCHAIN_ENABLE_TRACING_V2:-false}" in compose_text
+    assert "build: *backend_build" in compose_text
+    assert "command: [\"python\", \"/m015-runtime/db_seam.py\"]" in compose_text
+    assert "./db_seam.py:/m015-runtime/db_seam.py:ro" in compose_text
+    assert "./redaction.py:/m015-runtime/redaction.py:ro" in compose_text
+
+
+def test_evidence_paths_are_repo_relative_and_container_mounted() -> None:
+    runner_text = RUNNER.read_text(encoding="utf-8")
+    compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+    db_seam_text = DB_SEAM_HELPER.read_text(encoding="utf-8")
+
+    assert 'RUNTIME_DIR=".m015-runtime"' in runner_text
+    assert 'DB_EVIDENCE_OUTPUT_DIR="backend-hormonia/docs/reports/security/m015"' in runner_text
+    assert 'DB_EVIDENCE_JSON="${DB_EVIDENCE_OUTPUT_DIR}/db-seam-evidence.json"' in runner_text
+    assert 'DB_SUMMARY_MD="${DB_EVIDENCE_OUTPUT_DIR}/db-seam-summary.md"' in runner_text
+    assert "M015_EVIDENCE_OUTPUT_DIR=/m015-evidence-output" in runner_text
+    assert "../../../backend-hormonia/docs/reports/security/m015:/m015-evidence-output" in compose_text
+    assert 'OUTPUT_DIR = Path(os.getenv("M015_EVIDENCE_OUTPUT_DIR", "/m015-evidence-output"))' in db_seam_text
+    assert 'EVIDENCE_JSON = OUTPUT_DIR / "db-seam-evidence.json"' in db_seam_text
+    assert 'SUMMARY_MD = OUTPUT_DIR / "db-seam-summary.md"' in db_seam_text
 
 
 def test_migration_url_canonicalizes_asyncpg_tls_aliases_for_psycopg() -> None:
@@ -24,7 +118,7 @@ def test_migration_url_canonicalizes_asyncpg_tls_aliases_for_psycopg() -> None:
         {
             "DATABASE_URL": "postgresql+psycopg://user:secret@postgres:5432/app"
             "?sslmode=verify-full&sslrootcert=/m015-certs/ca.crt"
-            "&sslminversion=TLSv1.2&application_name=m015_db_seam"
+            "&sslminversion=TLSv1.2&sslmaxversion=TLSv1.3&application_name=m015_db_seam"
         },
         None,
     )
@@ -33,8 +127,10 @@ def test_migration_url_canonicalizes_asyncpg_tls_aliases_for_psycopg() -> None:
     assert query["sslmode"] == "verify-full"
     assert query["sslrootcert"] == "/m015-certs/ca.crt"
     assert query["ssl_min_protocol_version"] == "TLSv1.2"
+    assert query["ssl_max_protocol_version"] == "TLSv1.3"
     assert query["application_name"] == "m015_db_seam"
     assert "sslminversion" not in query
+    assert "sslmaxversion" not in query
 
     # psycopg itself parses plain libpq URIs; SQLAlchemy owns the +psycopg
     # driver token before handing options to psycopg.
@@ -43,6 +139,7 @@ def test_migration_url_canonicalizes_asyncpg_tls_aliases_for_psycopg() -> None:
     assert parsed["sslmode"] == "verify-full"
     assert parsed["sslrootcert"] == "/m015-certs/ca.crt"
     assert parsed["ssl_min_protocol_version"] == "TLSv1.2"
+    assert parsed["ssl_max_protocol_version"] == "TLSv1.3"
 
 
 def test_migration_url_rejects_unknown_tls_options_without_leaking_dsn() -> None:
@@ -64,12 +161,72 @@ def test_migration_url_rejects_unknown_tls_options_without_leaking_dsn() -> None
 def test_m015_harness_uses_psycopg_compatible_tls_minimum_key() -> None:
     runner_text = RUNNER.read_text(encoding="utf-8")
     compose_text = COMPOSE_FILE.read_text(encoding="utf-8")
+    readme_text = HARNESS_README.read_text(encoding="utf-8")
 
     assert "sslminversion" not in runner_text
     assert "sslminversion" not in compose_text
+    assert "sslminversion" not in readme_text
     assert "ssl_min_protocol_version=TLSv1.2" in runner_text
     assert "ssl_min_protocol_version=TLSv1.2" in compose_text
+    assert "ssl_min_protocol_version=TLSv1.2" in readme_text
     assert "sslmode=verify-full" in runner_text
     assert "sslmode=verify-full" in compose_text
     assert "sslrootcert=/m015-certs/ca.crt" in runner_text
     assert "sslrootcert=/m015-certs/ca.crt" in compose_text
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_finding"),
+    [
+        ({"value": "postgresql://user:password@postgres:5432/app"}, "credentialed_url"),
+        ({"value": "-----BEGIN PRIVATE KEY-----\nnot-real\n-----END PRIVATE KEY-----"}, "private_key_block"),
+        ({"value": "-----BEGIN CERTIFICATE-----\nnot-real\n-----END CERTIFICATE-----"}, "certificate_block"),
+        ({"value": "Authorization: Bearer token-value"}, "authorization_header"),
+        ({"value": "Set-Cookie: session=abc"}, "cookie_header"),
+        ({"value": "ACCESS_TOKEN=secret-token"}, "secret_assignment"),
+        ({"value": "firebase_admin service_account private_key_id client_x509_cert_url"}, "firebase_service_account_material"),
+        ({"value": "cpf=123.456.789-10"}, "cpf_like_value"),
+        ({"value": "email: person@real-clinic.example.com"}, "real_email_like_value"),
+        ({"value": "phone=+55 (11) 91234-5678"}, "br_phone_like_value"),
+        ({"value": "patient name: Maria Silva"}, "raw_patient_or_provider_payload"),
+        ({"value": "/mnt/c/Users/example/private/file.txt"}, "raw_windows_mount_path"),
+        ({"value": "/m015-certs/ca.crt"}, "runtime_cert_path"),
+        ({"value": "stderr=ERROR SQL: insert into patients (name, cpf) values ('Maria Silva', 'x')"}, "raw_sql_stderr"),
+    ],
+)
+def test_evidence_redaction_rejects_denylisted_sensitive_shapes(payload: object, expected_finding: str) -> None:
+    findings = redaction_findings(payload)
+    assert expected_finding in findings
+    with pytest.raises(RedactionError):
+        validate_no_sensitive_evidence(payload)
+
+
+def test_evidence_redaction_allows_sanitized_synthetic_evidence_shape() -> None:
+    validate_no_sensitive_evidence(
+        {
+            "command": "./scripts/security/verify-m015-runtime-security.sh --seam db",
+            "tls": {"protocol": "TLSv1.3", "cipher": "TLS_AES_256_GCM_SHA384"},
+            "rls": {
+                "allow_probe": {
+                    "insert_result": "allowed",
+                    "synthetic_patient_id_hash": "a" * 64,
+                    "synthetic_payload_policy": "generated UUID plus non-PHI sentinel; raw row value not persisted",
+                },
+                "deny_probe": {
+                    "select_probe": {"result": "blocked_by_rls", "visible_rows": 0},
+                    "insert_probe": {"result": "blocked_by_rls", "sqlstate": "42501"},
+                },
+            },
+            "contact": "synthetic@example.invalid",
+            "path_policy": "generated CA mount; raw path omitted",
+        }
+    )
+
+
+def test_existing_db_seam_artifacts_are_redaction_clean_when_present() -> None:
+    missing = [path for path in (DB_EVIDENCE_JSON, DB_SUMMARY_MD) if not path.exists()]
+    if missing:
+        pytest.skip("DB seam artifacts are produced by the runtime verification gate")
+
+    validate_no_sensitive_evidence(DB_EVIDENCE_JSON.read_text(encoding="utf-8"))
+    validate_no_sensitive_evidence(DB_SUMMARY_MD.read_text(encoding="utf-8"))

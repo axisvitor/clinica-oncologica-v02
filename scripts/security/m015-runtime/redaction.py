@@ -35,6 +35,10 @@ DENYLIST_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----", re.IGNORECASE),
     ),
     (
+        "certificate_block",
+        re.compile(r"-----BEGIN CERTIFICATE-----", re.IGNORECASE),
+    ),
+    (
         "authorization_header",
         re.compile(r"(?i)\bauthorization\s*:\s*(bearer|basic)\s+[^\s,;]+"),
     ),
@@ -66,8 +70,17 @@ DENYLIST_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("raw_windows_mount_path", re.compile(r"/mnt/c/[^\s,;\])}]+")),
     ("runtime_cert_path", re.compile(r"/m015-certs/[^\s,;\])}]+")),
     (
+        "raw_sql_stderr",
+        re.compile(
+            r"(?is)\b(?:stderr|stdout|sql|statement|query)\s*[:=][^\n\r]*"
+            r"(?:select\s+.+?\s+from|insert\s+into|update\s+.+?\s+set|delete\s+from|alter\s+table|create\s+table|drop\s+table)\b"
+        ),
+    ),
+    (
         "raw_patient_or_provider_payload",
-        re.compile(r"(?i)\b(patient_name|patient_value|provider_payload|raw_payload|cpf|phone|email)\s*[:=]"),
+        re.compile(
+            r"(?i)\b(patient[_ -]?name|patient[_ -]?value|provider[_ -]?payload|raw[_ -]?payload|cpf|phone|email)\s*[:=]"
+        ),
     ),
 )
 
@@ -80,6 +93,10 @@ _SANITIZERS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(r"(?is)-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----"),
         "<redacted-private-key>",
+    ),
+    (
+        re.compile(r"(?is)-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----"),
+        "<redacted-certificate>",
     ),
     (re.compile(r"(?i)(authorization\s*:\s*)(bearer|basic)\s+[^\s,;]+"), r"\1<redacted>"),
     (re.compile(r"(?i)((?:set-cookie|cookie)\s*:\s*)[^\n\r]+"), r"\1<redacted>"),
@@ -97,6 +114,20 @@ _SANITIZERS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(r"(?<!\d)(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?9\d{4}[-\s]?\d{4}(?!\d)"),
         "<redacted-phone>",
+    ),
+    (
+        re.compile(
+            r"(?is)(\b(?:stderr|stdout|sql|statement|query)\s*[:=]\s*)"
+            r"(?:select\s+.+?\s+from|insert\s+into|update\s+.+?\s+set|delete\s+from|alter\s+table|create\s+table|drop\s+table)"
+            r".*?(?=(?:\n|\r|$|\]))"
+        ),
+        r"\1<redacted-sql-statement>",
+    ),
+    (
+        re.compile(
+            r"(?i)(\b(?:patient[_ -]?name|patient[_ -]?value|provider[_ -]?payload|raw[_ -]?payload|cpf|phone|email)\s*[:=]\s*)[^\n\r,}]+"
+        ),
+        r"\1<redacted>",
     ),
     (re.compile(r"/mnt/c/[^\s,;\])}]+"), "<redacted-host-path>"),
     (re.compile(r"/m015-certs/[^\s,;\])}]+"), "<redacted-cert-path>"),

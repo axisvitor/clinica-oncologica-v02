@@ -74,7 +74,12 @@ class M015RunnerContractTests(unittest.TestCase):
         for service in ("postgres:", "dragonfly:", "api:", "worker:", "db-probe:"):
             self.assertIn(service, text)
         self.assertNotIn("env_file", text)
+        self.assertNotIn("backend-hormonia/.env", text)
+        self.assertNotIn("/mnt/c/", text)
         self.assertNotIn("wuzapi:", text)
+        self.assertNotIn("gemini:", text)
+        self.assertNotIn("GOOGLE_APPLICATION_CREDENTIALS", text)
+        self.assertNotIn("firebase-adminsdk", text)
         self.assertNotIn("beat:", text)
         self.assertIn("../../../backend-hormonia", text)
         self.assertIn("build: *backend_build", text)
@@ -94,14 +99,18 @@ class M015RunnerContractTests(unittest.TestCase):
         sensitive_examples = [
             "postgresql://user:password@postgres:5432/app",
             "-----BEGIN PRIVATE KEY-----\nnot-real\n-----END PRIVATE KEY-----",
+            "-----BEGIN CERTIFICATE-----\nnot-real\n-----END CERTIFICATE-----",
             "Authorization: Bearer token-value",
             "Cookie: session=abc",
-            "firebase_admin service_account private_key_id",
-            "patient_name=Jane Doe",
-            "123.456.789-10",
-            "person@example.com",
+            "ACCESS_TOKEN=secret-token",
+            "firebase_admin service_account private_key_id client_x509_cert_url",
+            "patient name: Maria Silva",
+            "cpf=123.456.789-10",
+            "email: person@example.com",
+            "phone=+55 (11) 91234-5678",
             "/mnt/c/Users/example/private/file.txt",
             "/m015-certs/ca.crt",
+            "stderr=ERROR SQL: insert into patients (name, cpf) values ('Maria Silva', 'x')",
         ]
         for value in sensitive_examples:
             with self.subTest(value=value):

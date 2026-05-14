@@ -16,7 +16,7 @@ This directory contains the committed harness substrate for M015/S01. The root e
   - `ALLOW_AI_SIMULATION=false`
   - `WHATSAPP_ENABLE_SERVICE=false`
   - synthetic Gemini/WuzAPI/security keys only
-  - PostgreSQL URLs using `sslmode=verify-full`, `sslrootcert=/m015-certs/ca.crt`, and `sslminversion=TLSv1.2`
+  - PostgreSQL URLs using `sslmode=verify-full`, `sslrootcert=/m015-certs/ca.crt`, and `ssl_min_protocol_version=TLSv1.2`
 - Postgres init roles:
   - `hormonia_app`: non-superuser database owner for the backend runtime.
   - `m015_rls_denied`: non-superuser role for later allow/deny RLS proof tasks.
