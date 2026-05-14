@@ -14,14 +14,14 @@
     }
   },
   "command": "./scripts/security/verify-m015-runtime-security.sh --seam db",
-  "completed_at": "2026-05-14T06:08:01Z",
-  "correlation_id": "m015-20260514T060649Z-1217062",
+  "completed_at": "2026-05-14T06:34:46Z",
+  "correlation_id": "m015-20260514T063333Z-1254497",
   "migrations": {
     "command": "python -m alembic -c alembic.ini upgrade head",
     "current_revisions": [
       "m013_s04_upload_deleted_at"
     ],
-    "duration_ms": 4627,
+    "duration_ms": 4496,
     "exit_code": 0,
     "expected_heads": [
       "m013_s04_upload_deleted_at"
@@ -39,132 +39,132 @@
   ],
   "phase_events": [
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "DB seam probe bootstrapped inside backend image",
       "phase": "setup",
       "seam": "db",
       "status": "ready",
-      "timestamp": "2026-05-14T06:07:56Z"
+      "timestamp": "2026-05-14T06:34:42Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "waiting for PostgreSQL verify-full TLS as synthetic app role",
       "phase": "tls",
       "seam": "db",
       "status": "started",
-      "timestamp": "2026-05-14T06:07:56Z"
+      "timestamp": "2026-05-14T06:34:42Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "PostgreSQL accepted verify-full TLS connection",
       "phase": "tls",
       "seam": "db",
       "status": "ready",
-      "timestamp": "2026-05-14T06:07:56Z"
+      "timestamp": "2026-05-14T06:34:42Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "running Alembic upgrade head as synthetic non-superuser app role",
       "phase": "migrations",
       "seam": "db",
       "status": "started",
-      "timestamp": "2026-05-14T06:07:56Z"
+      "timestamp": "2026-05-14T06:34:42Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "Alembic head is applied as synthetic app role",
       "phase": "migrations",
       "seam": "db",
       "status": "ready",
-      "timestamp": "2026-05-14T06:08:01Z"
+      "timestamp": "2026-05-14T06:34:46Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "checking FastAPI health and DB-backed readiness through app runtime",
       "phase": "readiness",
       "seam": "db",
       "status": "started",
-      "timestamp": "2026-05-14T06:08:01Z"
+      "timestamp": "2026-05-14T06:34:46Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "FastAPI health and DB-backed readiness endpoints passed",
       "phase": "readiness",
       "seam": "db",
       "status": "ready",
-      "timestamp": "2026-05-14T06:08:01Z"
+      "timestamp": "2026-05-14T06:34:46Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "collecting pg_stat_ssl evidence for current probe connection",
       "phase": "tls",
       "seam": "db",
       "status": "started",
-      "timestamp": "2026-05-14T06:08:01Z"
+      "timestamp": "2026-05-14T06:34:46Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "pg_stat_ssl confirmed TLS protocol and cipher",
       "phase": "tls",
       "seam": "db",
       "status": "ready",
-      "timestamp": "2026-05-14T06:08:01Z"
+      "timestamp": "2026-05-14T06:34:46Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "checking sensitive-table catalog RLS posture",
       "phase": "rls",
       "seam": "db",
       "status": "started",
-      "timestamp": "2026-05-14T06:08:01Z"
+      "timestamp": "2026-05-14T06:34:46Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "catalog shows forced RLS, revoked PUBLIC privileges, and app-role policies for existing sensitive tables; absent tables recorded",
       "phase": "rls",
       "seam": "db",
       "status": "ready",
-      "timestamp": "2026-05-14T06:08:01Z"
+      "timestamp": "2026-05-14T06:34:46Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "inserting one synthetic non-PHI patient as app role",
       "phase": "rls",
       "seam": "db",
       "status": "started",
-      "timestamp": "2026-05-14T06:08:01Z"
+      "timestamp": "2026-05-14T06:34:46Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "app role inserted synthetic patient; evidence stores only hash/correlation",
       "phase": "rls",
       "seam": "db",
       "status": "ready",
-      "timestamp": "2026-05-14T06:08:01Z"
+      "timestamp": "2026-05-14T06:34:46Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "granting table privileges to denied role and proving RLS default deny",
       "phase": "rls",
       "seam": "db",
       "status": "started",
-      "timestamp": "2026-05-14T06:08:01Z"
+      "timestamp": "2026-05-14T06:34:46Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "denied role had table grants but RLS blocked select visibility and insert",
       "phase": "rls",
       "seam": "db",
       "status": "ready",
-      "timestamp": "2026-05-14T06:08:01Z"
+      "timestamp": "2026-05-14T06:34:46Z"
     },
     {
-      "correlation_id": "m015-20260514T060649Z-1217062",
+      "correlation_id": "m015-20260514T063333Z-1254497",
       "message": "validating and writing DB seam evidence artifacts",
       "phase": "evidence",
       "seam": "db",
       "status": "started",
-      "timestamp": "2026-05-14T06:08:01Z"
+      "timestamp": "2026-05-14T06:34:46Z"
     }
   ],
   "probe_command": "python /m015-runtime/db_seam.py",
@@ -176,7 +176,7 @@
     "allow_probe": {
       "insert_result": "allowed",
       "insert_role": "hormonia_app",
-      "synthetic_patient_id_hash": "4814c71442a31ed7e38a588b20f3a228a684eebc3b2522d5d6ae1ffd53cd84d7",
+      "synthetic_patient_id_hash": "7a0d671ae19d64e2ddb077bdfb332ca8ef3995ccc35f3e257fcad3b0a54777e4",
       "synthetic_payload_policy": "generated UUID plus non-PHI sentinel; raw row value not persisted"
     },
     "catalog": {
@@ -307,11 +307,11 @@
     "postgres_version_class": "PostgreSQL 16.13",
     "python_runtime": "3.13.12"
   },
-  "started_at": "2026-05-14T06:07:56Z",
+  "started_at": "2026-05-14T06:34:42Z",
   "teardown": {
     "notes": "compose down completed idempotently",
     "result": "complete",
-    "timestamp": "2026-05-14T06:08:04Z"
+    "timestamp": "2026-05-14T06:34:50Z"
   },
   "tls": {
     "cipher": "TLS_AES_256_GCM_SHA384",
